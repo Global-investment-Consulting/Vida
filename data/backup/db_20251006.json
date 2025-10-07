@@ -1,0 +1,94 @@
+{
+  "seq": 3,
+  "invoices": {
+    "inv_1759732404561_47619": {
+      "object": "invoice",
+      "id": "inv_1759732404561_47619",
+      "number": "2025-00001",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co (Patched)",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-06T06:33:24.561Z",
+      "createdAt": 1759732404562,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [
+        {
+          "id": "pay_1759732405556_767897",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-06T06:33:25.556Z"
+        }
+      ],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "amountPaid": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-06T06:33:25.556Z"
+    },
+    "inv_1759735089010_418443": {
+      "object": "invoice",
+      "id": "inv_1759735089010_418443",
+      "number": "2025-00002",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Samco",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-06T07:18:09.010Z",
+      "createdAt": 1759735089010,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5
+    }
+  },
+  "payments": {
+    "pay_1759732405556_767897": {
+      "id": "pay_1759732405556_767897",
+      "amount": 60.5,
+      "method": "manual",
+      "paidAt": "2025-10-06T06:33:25.556Z"
+    }
+  },
+  "idem": {
+    "create": {
+      "ef21f474-aab2-46a5-8549-170fd0ded498": "inv_1759732404561_47619",
+      "22337a66-a52a-482b-bfca-fc635c1e3567": "inv_1759735089010_418443"
+    },
+    "pay": {
+      "efd95c19-8e88-45da-a28b-90ded3640850": "inv_1759732404561_47619"
+    }
+  }
+}

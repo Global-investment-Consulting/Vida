@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([slug])
+}
+
+model ApiKey {
+  tenantId  String
+  /// API key string; used as the primary key
+  key       String   @id
+  label     String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model Invoice {
+  id           String    @id @default(cuid())
+  tenantId     String
+  number       String
+  issueDate    DateTime
+  dueDate      DateTime?
+  currency     String
+  buyerId      String?
+  buyerName    String
+  buyerVat     String?
+  buyerCountry String
+  net          Decimal   @db.Decimal(18, 2)
+  tax          Decimal   @db.Decimal(18, 2)
+  gross        Decimal   @db.Decimal(18, 2)
+  vatRate      Decimal   @db.Decimal(5, 2)
+  taxCategory  String
+  xml          String
+  status       String
+  createdAt    DateTime  @default(now())
+
+  @@unique([tenantId, number])
+  @@index([tenantId])
+  @@index([buyerCountry])
+  @@index([status])
+}
+
+model Customer {
+  id        String   @id
+  tenantId  String
+  name      String
+  vatId     String?
+  country   String?
+  address1  String?
+  city      String?
+  createdAt DateTime @default(now())
+
+  @@index([country])
+  @@index([tenantId])
+  @@index([vatId])
+}
+
+model DeadLetter {
+  id         String   @id
+  tenantId   String
+  eventId    String
+  endpointId String
+  payload    Json
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([endpointId])
+  @@index([eventId])
+  @@index([tenantId])
+}
+
+model Delivery {
+  id               String   @id
+  tenantId         String
+  eventId          String
+  endpointId       String
+  status           String   @default("queued")
+  attempt          Int      @default(0)
+  nextRunAt        DateTime @default(now()) @db.Timestamptz(6)
+  lastError        String?
+  lastResponseCode Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime
+
+  @@index([endpointId])
+  @@index([eventId])
+  @@index([status, nextRunAt], map: "Delivery_nextRun_idx")
+  @@index([tenantId])
+}
+
+model Event {
+  id        String   @id
+  tenantId  String
+  type      String
+  createdAt DateTime @default(now())
+  data      Json
+
+  @@index([tenantId])
+  @@index([type, createdAt])
+}
+
+model InvoiceLine {
+  id        String   @id
+  invoiceId String
+  name      String
+  qty       Int
+  unit      String
+  price     Decimal  @db.Decimal(18, 2)
+  net       Decimal  @db.Decimal(18, 2)
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+model WebhookEndpoint {
+  id        String   @id
+  tenantId  String
+  url       String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([enabled])
+  @@index([tenantId])
+}

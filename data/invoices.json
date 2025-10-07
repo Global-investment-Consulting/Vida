@@ -1,0 +1,60 @@
+{
+  "invoices": [
+    {
+      "object": "invoice",
+      "id": "inv_1759249303001",
+      "idempotencyKey": "27581ce2-98dc-4a88-afa2-e25a97100998",
+      "number": "2025-202503002",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyer": {
+        "country": "BE",
+        "name": "Test Client"
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-09-30T16:21:43.001Z",
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "createdAt": 1759249303002,
+      "meta": {
+        "exemptionReason": ""
+      }
+    },
+    {
+      "object": "invoice",
+      "id": "inv_1759244826783",
+      "idempotencyKey": "513bb4d6-b8b8-44d8-9580-9f02c40a9a28",
+      "number": "2025-00001",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyer": {
+        "country": "BE",
+        "name": "Test Client"
+      },
+      "lines": [
+        {
+          "price": 50,
+          "name": "Service",
+          "qty": 1
+        }
+      ],
+      "issueDate": "2025-09-30T15:07:06.785Z",
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "createdAt": 1759244826786
+    }
+  ],
+  "seq": 2
+}
