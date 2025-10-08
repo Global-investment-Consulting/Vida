@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VIDA MVP — Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>VIDA MVP — Demo</h1>
+
+    <div class="toolbar">
+      <button id="btn-create">Create Invoice</button>
+      <input id="search" placeholder="search (e.g. persist)" />
+      <button id="btn-refresh">Refresh</button>
+    </div>
+
+    <pre id="log" class="log"></pre>
+
+    <table id="tbl" class="table">
+      <thead>
+        <tr>
+          <th>Number</th>
+          <th>Status</th>
+          <th>Buyer</th>
+          <th>Gross</th>
+          <th>XML</th>
+          <th>PDF</th>
+          <th>Pay</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
