@@ -1,113 +1,84 @@
-// src/routes_v1.js
-import { Router } from "express";
+import express from "express";
 import { authMw } from "./mw_auth.js";
 import { idemMw } from "./mw_idempotency.js";
 import {
-  createInvoice,
-  getInvoice,
-  listInvoices,
-  patchInvoice,
-  payInvoice,
-  listPayments,
+  createInvoice, getInvoice, listInvoices, patchInvoice,
+  newPayment, markPaid, getPayments
 } from "./store.js";
 import { buildUblXml } from "./xml.js";
 import { buildPdfStream } from "./pdf.js";
 
-const router = Router();
+export default function v1() {
+  const app = express.Router();
 
-// list
-router.get("/invoices", authMw, async (req, res, next) => {
-  try {
-    const { q, limit } = req.query;
-    const out = await listInvoices({ q, limit });
-    res.json(out);
-  } catch (e) {
-    next(e);
-  }
-});
+  // All routes require auth
+  app.use(authMw);
 
-// create (idempotent)
-router.post("/invoices", authMw, idemMw("create"), async (req, res, next) => {
-  try {
-    const inv = await createInvoice(req.body || {});
-    await res.locals.__saveIdem?.(inv);
-    res.json(inv);
-  } catch (e) {
-    next(e);
-  }
-});
+  // Create (idempotent)
+  app.post("/invoices", idemMw("create"), (req, res) => {
+    const inv = createInvoice(req.body || {});
+    return res.json(inv);
+  });
 
-// get one
-router.get("/invoices/:id", authMw, async (req, res, next) => {
-  try {
-    const inv = await getInvoice(req.params.id);
-    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" } });
-    res.json(inv);
-  } catch (e) {
-    next(e);
-  }
-});
+  // Fetch one
+  app.get("/invoices/:id", (req, res) => {
+    const inv = getInvoice(req.params.id);
+    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" }});
+    return res.json(inv);
+  });
 
-// patch while SENT
-router.patch("/invoices/:id", authMw, async (req, res, next) => {
-  try {
-    const inv = await patchInvoice(req.params.id, req.body || {});
-    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" } });
-    res.json(inv);
-  } catch (e) {
-    next(e);
-  }
-});
+  // List
+  app.get("/invoices", (req, res) => {
+    const { limit, q, status } = req.query;
+    const data = listInvoices({ limit, q, status });
+    return res.json({ data });
+  });
 
-// XML
-router.get("/invoices/:id/xml", authMw, async (req, res, next) => {
-  try {
-    const inv = await getInvoice(req.params.id);
-    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" } });
+  // Patch (only SENT)
+  app.patch("/invoices/:id", (req, res) => {
+    const id = req.params.id;
+    const patched = patchInvoice(id, req.body || {});
+    if (!patched) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" }});
+    if (patched.error) return res.status(400).json(patched);
+    return res.json(patched);
+  });
+
+  // XML
+  app.get("/invoices/:id/xml", (req, res) => {
+    const inv = getInvoice(req.params.id);
+    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" }});
     const xml = buildUblXml(inv);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
-    res.send(xml);
-  } catch (e) {
-    next(e);
-  }
-});
+    return res.send(xml);
+  });
 
-// PDF (either header auth or ?access_token= works due to authMw)
-router.get("/invoices/:id/pdf", authMw, async (req, res, next) => {
-  try {
-    const inv = await getInvoice(req.params.id);
-    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" } });
-
+  // PDF
+  app.get("/invoices/:id/pdf", (req, res) => {
+    const inv = getInvoice(req.params.id);
+    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" }});
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="invoice_${inv.number}.pdf"`);
-
     const pdf = buildPdfStream(inv);
     pdf.pipe(res);
-  } catch (e) {
-    next(e);
-  }
-});
+  });
 
-// pay (idempotent)
-router.post("/invoices/:id/pay", authMw, idemMw("pay"), async (req, res, next) => {
-  try {
-    const inv = await payInvoice(req.params.id);
-    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" } });
-    await res.locals.__saveIdem?.(inv);
-    res.json(inv);
-  } catch (e) {
-    next(e);
-  }
-});
+  // Pay (idempotent)
+  app.post("/invoices/:id/pay", idemMw("pay"), (req, res) => {
+    const inv = getInvoice(req.params.id);
+    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" }});
 
-// payments list
-router.get("/invoices/:id/payments", authMw, async (req, res, next) => {
-  try {
-    const out = await listPayments(req.params.id);
-    res.json(out);
-  } catch (e) {
-    next(e);
-  }
-});
+    const payment = newPayment(inv);
+    markPaid(inv.id, payment);
 
-export default router;
+    return res.json({ status: "PAID", ...payment });
+  });
+
+  // Payments list (ALWAYS array)
+  app.get("/invoices/:id/payments", (req, res) => {
+    const inv = getInvoice(req.params.id);
+    if (!inv) return res.status(404).json({ error: { type: "not_found", message: "Invoice not found" }});
+    const data = getPayments(inv.id) || [];
+    return res.json({ data });
+  });
+
+  return app;
+}

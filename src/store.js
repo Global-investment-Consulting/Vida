@@ -1,122 +1,113 @@
-// src/store.js
+import crypto from "node:crypto";
 import { loadDb, saveDb } from "./storage.js";
-import { VAT_RATE } from "./config.js";
+import { calcTotals } from "./tax.js";
 
-function computeTotals(lines, currency) {
-  const net = lines.reduce((sum, l) => sum + Number(l.qty) * Number(l.price), 0);
-  const tax = Math.round(net * VAT_RATE * 100) / 100;
-  const gross = Math.round((net + tax) * 100) / 100;
-  return { currency, net, tax, gross };
+let db = loadDb();
+
+export function getIdem(scope, key) {
+  return db.idem?.[scope]?.[key] || null;
+}
+export function setIdem(scope, key, payload) {
+  if (!db.idem[scope]) db.idem[scope] = {};
+  db.idem[scope][key] = payload;
+  saveDb(db);
 }
 
-export async function createInvoice(payload) {
-  const { currency, buyer, lines } = payload;
-  const db = await loadDb();
+export function createInvoice(payload) {
+  const id = `inv_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  const number = nextNumber();
 
-  const id = `inv_${Date.now()}_${Math.floor(Math.random() * 1e6).toString().padStart(6, "0")}`;
-  const number = `${new Date().getFullYear()}-${String(db.seq).padStart(5, "0")}`;
-
-  const cleanedLines = (lines || []).map((l, i) => ({
-    id: i + 1,
-    name: String(l.name || "").trim() || `Item ${i + 1}`,
-    qty: Number(l.qty || 1),
-    price: Number(l.price || 0),
-  }));
-
-  const totals = computeTotals(cleanedLines, String(currency || "EUR").toUpperCase());
+  const lines = Array.isArray(payload.lines) ? payload.lines : [];
+  const totals = calcTotals(lines, 0.21);
 
   const inv = {
     id,
     number,
-    status: "SENT",
-    buyer: {
-      name: String(buyer?.name || "").trim(),
-      country: String(buyer?.country || "").trim().toUpperCase(),
-      vat: String(buyer?.vat || ""),
-    },
-    lines: cleanedLines,
+    currency: payload.currency || "EUR",
+    buyer: payload.buyer || { name: "", country: "" },
+    lines,
     ...totals,
-    issuedAt: new Date().toISOString(),
+    status: "SENT",
+    issuedAt: new Date().toISOString()
   };
 
   db.invoices[id] = inv;
-  db.seq += 1;
-  await saveDb(db);
+  saveDb(db);
   return inv;
 }
 
-export async function getInvoice(id) {
-  const db = await loadDb();
+function nextNumber() {
+  // e.g., 2025-00001
+  const year = new Date().getFullYear();
+  const seq = db.seq || 1;
+  const padded = String(seq).padStart(5, "0");
+  db.seq = seq + 1;
+  saveDb(db);
+  return `${year}-${padded}`;
+}
+
+export function getInvoice(id) {
   return db.invoices[id] || null;
 }
 
-export async function listInvoices({ q, limit = 50 } = {}) {
-  const db = await loadDb();
+export function listInvoices({ limit = 50, q = "", status } = {}) {
   let arr = Object.values(db.invoices);
+
   if (q) {
     const needle = q.toLowerCase();
-    arr = arr.filter((i) => i.buyer?.name?.toLowerCase().includes(needle) || i.number?.toLowerCase().includes(needle));
+    arr = arr.filter((i) =>
+      (i.buyer?.name || "").toLowerCase().includes(needle) ||
+      (i.number || "").toLowerCase().includes(needle)
+    );
   }
-  arr.sort((a, b) => (a.issuedAt > b.issuedAt ? -1 : 1));
-  return { data: arr.slice(0, Number(limit) || 50) };
+  if (status) {
+    arr = arr.filter((i) => i.status === status);
+  }
+
+  arr.sort((a, b) => (a.number > b.number ? -1 : 1));
+  return arr.slice(0, Number(limit) || 50);
 }
 
-export async function patchInvoice(id, patch) {
-  const db = await loadDb();
+export function patchInvoice(id, patch) {
   const inv = db.invoices[id];
   if (!inv) return null;
-
-  if (patch.buyer) {
-    inv.buyer = {
-      name: String(patch.buyer.name ?? inv.buyer.name ?? ""),
-      country: String(patch.buyer.country ?? inv.buyer.country ?? "").toUpperCase(),
-      vat: String(patch.buyer.vat ?? inv.buyer.vat ?? ""),
-    };
+  if (inv.status !== "SENT") {
+    return { error: { type: "invalid_state", message: "Only SENT invoices can be patched" } };
   }
+  if (patch.buyer) inv.buyer = { ...inv.buyer, ...patch.buyer };
   if (Array.isArray(patch.lines)) {
-    inv.lines = patch.lines.map((l, i) => ({
-      id: i + 1,
-      name: String(l.name || "").trim() || `Item ${i + 1}`,
-      qty: Number(l.qty || 1),
-      price: Number(l.price || 0),
-    }));
-    const totals = {
-      net: inv.lines.reduce((s, l) => s + l.qty * l.price, 0),
-      tax: Math.round(inv.lines.reduce((s, l) => s + l.qty * l.price, 0) * VAT_RATE * 100) / 100,
-    };
-    inv.net = totals.net;
-    inv.tax = totals.tax;
-    inv.gross = Math.round((totals.net + totals.tax) * 100) / 100;
+    inv.lines = patch.lines;
+    const totals = calcTotals(inv.lines, 0.21);
+    inv.net = totals.net; inv.tax = totals.tax; inv.gross = totals.gross;
   }
-  await saveDb(db);
+  saveDb(db);
   return inv;
 }
 
-export async function payInvoice(id) {
-  const db = await loadDb();
+export function markPaid(id, payment) {
+  if (!db.payments[id]) db.payments[id] = [];
+  const exists = db.payments[id].some(
+    (p) => p.paidAt === payment.paidAt && p.amount === payment.amount
+  );
+  if (!exists) db.payments[id].push(payment);
+
   const inv = db.invoices[id];
-  if (!inv) return null;
-
-  inv.status = "PAID";
-  inv.paidAt = new Date().toISOString();
-
-  // store a single payment line per invoice (idempotent behavior handled by middleware)
-  db.payments[id] = {
-    id,                       // mirrors invoice id (so idempotency returns same id)
-    invoiceId: id,
-    amount: inv.gross,
-    paymentMethod: "CARD",
-    createdAt: inv.paidAt,
-    currency: inv.currency,
-    status: "SUCCEEDED",
-  };
-
-  await saveDb(db);
-  return { ...inv };
+  if (inv) {
+    inv.status = "PAID";
+    inv.paidAt = payment.paidAt;
+  }
+  saveDb(db);
 }
 
-export async function listPayments(invoiceId) {
-  const db = await loadDb();
-  const p = db.payments[invoiceId];
-  return { data: p ? [p] : [] };
+export function getPayments(id) {
+  return db.payments[id] || [];
+}
+
+export function newPayment(inv) {
+  return {
+    id: inv.id, // keeping same id to make idempotency obvious in logs
+    amount: inv.gross,
+    paymentMethod: "CARD",
+    paidAt: new Date().toISOString()
+  };
 }

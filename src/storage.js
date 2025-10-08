@@ -1,26 +1,27 @@
-// src/storage.js
-import fs from "fs/promises";
-import { DB_PATH } from "./config.js";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
-async function ensureDb() {
-  const dir = path.dirname(DB_PATH);
-  try { await fs.mkdir(dir, { recursive: true }); } catch {}
-  try {
-    await fs.access(DB_PATH);
-  } catch {
-    const seed = { seq: 1, invoices: {}, payments: {}, idem: { create: {}, pay: {} } };
-    await fs.writeFile(DB_PATH, JSON.stringify(seed, null, 2), "utf8");
+const DATA_DIR = path.join(process.cwd(), "data");
+const DB_FILE = path.join(DATA_DIR, "db.json");
+
+function ensure() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(DB_FILE)) {
+    const seed = {
+      seq: 1,
+      invoices: {},
+      payments: {},
+      idem: { create: {}, pay: {} }
+    };
+    fs.writeFileSync(DB_FILE, JSON.stringify(seed, null, 2), "utf8");
   }
 }
 
-export async function loadDb() {
-  await ensureDb();
-  const raw = await fs.readFile(DB_PATH, "utf8");
-  return JSON.parse(raw);
+export function loadDb() {
+  ensure();
+  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
 }
 
-export async function saveDb(db) {
-  await ensureDb();
-  await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+export function saveDb(db) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf8");
 }

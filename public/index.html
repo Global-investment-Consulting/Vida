@@ -1,39 +1,47 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
   <meta charset="utf-8" />
-  <title>VIDA MVP — Demo</title>
+  <title>VIDA MVP</title>
+  <link rel="stylesheet" href="styles.css" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>VIDA MVP — Demo</h1>
+  <header>
+    <h1>VIDA MVP Dashboard</h1>
+  </header>
 
-    <div class="toolbar">
-      <button id="btn-create">Create Invoice</button>
-      <input id="search" placeholder="search (e.g. persist)" />
-      <button id="btn-refresh">Refresh</button>
-    </div>
+  <main>
+    <section id="create">
+      <h2>Create Invoice</h2>
+      <form id="createForm">
+        <label>Buyer name <input id="buyerName" required /></label>
+        <label>Country <input id="buyerCountry" value="BE" required /></label>
+        <label>Currency <input id="currency" value="EUR" required /></label>
+        <div class="lines">
+          <label>Line name <input id="lineName" value="Service" required /></label>
+          <label>Qty <input id="lineQty" type="number" value="1" required /></label>
+          <label>Price <input id="linePrice" type="number" value="50" step="0.01" required /></label>
+        </div>
+        <button type="submit">Create</button>
+      </form>
+    </section>
 
-    <pre id="log" class="log"></pre>
+    <section id="list">
+      <h2>Invoices</h2>
+      <div class="toolbar">
+        <input id="search" placeholder="Search buyer or number..." />
+        <button id="refresh">Refresh</button>
+      </div>
+      <table id="tbl">
+        <thead>
+          <tr><th>#</th><th>Buyer</th><th>Status</th><th>Net</th><th>Tax</th><th>Gross</th><th>Actions</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
 
-    <table id="tbl" class="table">
-      <thead>
-        <tr>
-          <th>Number</th>
-          <th>Status</th>
-          <th>Buyer</th>
-          <th>Gross</th>
-          <th>XML</th>
-          <th>PDF</th>
-          <th>Pay</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <script src="/app.js" defer></script>
+  <script src="app.js"></script>
 </body>
 </html>
