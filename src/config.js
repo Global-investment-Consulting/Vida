@@ -1,18 +1,17 @@
 // src/config.js
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
-export const config = {
-  port: process.env.PORT || 3001,
-  apiKey: process.env.API_KEY || 'key_test_12345',
-  seller: {
-    name: process.env.SELLER_NAME || 'Demo Seller Ltd',
-    vatId: process.env.SELLER_VAT_ID || 'BE0123456789',
-    peppolEndpoint: process.env.SELLER_PEPPOL_ENDPOINT || '1234567890123',
-    city: process.env.SELLER_CITY || 'Brussels',
-    zip: process.env.SELLER_ZIP || '1000',
-    region: process.env.SELLER_REGION || 'Brussels-Capital',
-    country: process.env.SELLER_COUNTRY || 'BE',
-  },
-  dataDir: process.env.DATA_DIR || 'data',
+export const API_KEY = process.env.API_KEY || "key_test_12345";
+
+export const DB_PATH = process.env.DB_PATH || "./data/db.json";
+
+// simple seller info for XML/PDF
+export const SELLER = {
+  name: process.env.SELLER_NAME || "VIDA SRL",
+  country: process.env.SELLER_COUNTRY || "BE",
+  vat: process.env.SELLER_VAT || "BE0123.456.789",
 };
+
+// 21% VAT for example
+export const VAT_RATE = Number(process.env.VAT_RATE || 0.21);

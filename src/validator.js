@@ -1,54 +1,103 @@
 // src/validator.js
-export function validateCreate(body) {
-  const errors = [];
+//
+// Small, dependency-free validation helpers used by routes_v1.js.
+// If invalid, functions return an array of {field,message}. If valid, return [].
 
+function isNonEmptyString(v) {
+  return typeof v === 'string' && v.trim().length > 0;
+}
+function isCurrency(v) {
+  return typeof v === 'string' && /^[A-Z]{3}$/.test(v.trim().toUpperCase());
+}
+function isCountryCode(v) {
+  return typeof v === 'string' && /^[A-Z]{2}$/.test(v.trim().toUpperCase());
+}
+function isPosNumber(n) {
+  return typeof n === 'number' && isFinite(n) && n > 0;
+}
+function isNonNegNumber(n) {
+  return typeof n === 'number' && isFinite(n) && n >= 0;
+}
+
+export function validateCreatePayload(body) {
+  const errs = [];
   if (!body || typeof body !== 'object') {
-    errors.push({ field: 'body', message: 'must be a JSON object' });
-    return errors;
+    return [{ field: 'body', message: 'Body must be a JSON object.' }];
   }
 
-  const { currency, buyer, lines } = body;
+  // currency
+  if (!isCurrency(body.currency ?? '')) {
+    errs.push({ field: 'currency', message: 'currency must be a 3-letter code (e.g. EUR, USD).' });
+  }
 
-  if (!currency || typeof currency !== 'string') {
-    errors.push({ field: 'currency', message: 'currency is required (ISO code)' });
+  // buyer
+  const buyer = body.buyer ?? {};
+  if (!isNonEmptyString(buyer.name ?? '')) {
+    errs.push({ field: 'buyer.name', message: 'buyer.name is required.' });
   }
-  if (!buyer || typeof buyer !== 'object') {
-    errors.push({ field: 'buyer', message: 'buyer is required' });
-  } else {
-    if (!buyer.name) errors.push({ field: 'buyer.name', message: 'buyer.name is required' });
-    if (!buyer.country) errors.push({ field: 'buyer.country', message: 'buyer.country is required (ISO-2)' });
+  if (!isCountryCode(String(buyer.country ?? '').toUpperCase())) {
+    errs.push({ field: 'buyer.country', message: 'buyer.country must be a 2-letter code (e.g. BE).' });
   }
-  if (!Array.isArray(lines) || lines.length === 0) {
-    errors.push({ field: 'lines', message: 'lines[] required' });
+
+  // lines
+  const lines = Array.isArray(body.lines) ? body.lines : [];
+  if (lines.length === 0) {
+    errs.push({ field: 'lines', message: 'lines must be a non-empty array.' });
   } else {
-    lines.forEach((l, i) => {
-      if (!l || typeof l !== 'object') {
-        errors.push({ field: `lines[${i}]`, message: 'must be an object' });
-      } else {
-        if (!l.name) errors.push({ field: `lines[${i}].name`, message: 'required' });
-        if (l.qty == null || Number(l.qty) <= 0) errors.push({ field: `lines[${i}].qty`, message: 'must be > 0' });
-        if (l.price == null || Number(l.price) < 0) errors.push({ field: `lines[${i}].price`, message: 'must be ≥ 0' });
+    lines.forEach((ln, i) => {
+      if (!isNonEmptyString(ln.name ?? '')) {
+        errs.push({ field: `lines[${i}].name`, message: 'name is required.' });
+      }
+      if (!isPosNumber(Number(ln.qty))) {
+        errs.push({ field: `lines[${i}].qty`, message: 'qty must be > 0.' });
+      }
+      if (!isNonNegNumber(Number(ln.price))) {
+        errs.push({ field: `lines[${i}].price`, message: 'price must be >= 0.' });
       }
     });
   }
-  return errors;
+
+  return errs;
 }
 
-export function validatePatch(body) {
-  const errors = [];
+export function validatePatchPayload(body) {
+  const errs = [];
   if (!body || typeof body !== 'object') {
-    errors.push({ field: 'body', message: 'must be a JSON object' });
-    return errors;
+    return [{ field: 'body', message: 'Body must be a JSON object.' }];
   }
-  if (body.buyer) {
-    if (typeof body.buyer !== 'object') {
-      errors.push({ field: 'buyer', message: 'must be an object' });
+
+  if ('currency' in body && !isCurrency(body.currency ?? '')) {
+    errs.push({ field: 'currency', message: 'currency must be a 3-letter code (e.g. EUR, USD).' });
+  }
+
+  if ('buyer' in body) {
+    const b = body.buyer ?? {};
+    if ('name' in b && !isNonEmptyString(b.name ?? '')) {
+      errs.push({ field: 'buyer.name', message: 'buyer.name cannot be empty.' });
+    }
+    if ('country' in b && !isCountryCode(String(b.country ?? '').toUpperCase())) {
+      errs.push({ field: 'buyer.country', message: 'buyer.country must be a 2-letter code.' });
     }
   }
-  if (body.lines) {
-    if (!Array.isArray(body.lines)) {
-      errors.push({ field: 'lines', message: 'must be an array' });
+
+  if ('lines' in body) {
+    const lines = Array.isArray(body.lines) ? body.lines : [];
+    if (lines.length === 0) {
+      errs.push({ field: 'lines', message: 'lines must be a non-empty array when provided.' });
+    } else {
+      lines.forEach((ln, i) => {
+        if ('name' in ln && !isNonEmptyString(ln.name ?? '')) {
+          errs.push({ field: `lines[${i}].name`, message: 'name cannot be empty.' });
+        }
+        if ('qty' in ln && !isPosNumber(Number(ln.qty))) {
+          errs.push({ field: `lines[${i}].qty`, message: 'qty must be > 0.' });
+        }
+        if ('price' in ln && !isNonNegNumber(Number(ln.price))) {
+          errs.push({ field: `lines[${i}].price`, message: 'price must be >= 0.' });
+        }
+      });
     }
   }
-  return errors;
+
+  return errs;
 }

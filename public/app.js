@@ -1,100 +1,147 @@
-(async function run() {
-  const status = (msg) => {
-    const el = document.getElementById('status');
-    const now = new Date().toISOString();
-    el.textContent = `[${now}] ${msg}\n` + el.textContent;
-  };
+(async function () {
+  const $ = (id) => document.getElementById(id);
+  const logEl = $("log");
+  const tblBody = document.querySelector("#tbl tbody");
+  const btnCreate = $("btn-create");
+  const btnRefresh = $("btn-refresh");
+  const searchInput = $("search");
 
-  let cfg;
-  try {
-    const r = await fetch('/demo-config');
-    if (!r.ok) throw new Error(`demo-config failed: ${r.status}`);
-    cfg = await r.json();
-    status(`Loaded config: base=${cfg.apiBase}`);
-  } catch (e) {
-    status(`ERROR loading /demo-config → ${e.message}`);
-    return;
+  // ----- logging -----
+  function log(msg) {
+    const ts = new Date().toISOString();
+    logEl.textContent = `[${ts}] ${msg}\n` + logEl.textContent;
   }
 
-  const H = { 'Authorization': `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' };
+  // ----- robust uuid for idempotency -----
+  function newIdemKey() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    // fallback
+    return `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  }
 
-  async function list() {
-    const q = document.getElementById('search').value.trim();
-    const url = `${cfg.apiBase}/invoices?limit=50${q ? `&q=${encodeURIComponent(q)}` : ''}`;
-    const r = await fetch(url, { headers: { 'Authorization': `Bearer ${cfg.apiKey}` } });
-    if (!r.ok) { status(`List failed: ${r.status}`); return; }
-    const data = await r.json();
+  // ----- resolve API base (fallback if /demo-config is missing) -----
+  let API_BASE = "/v1";
+  try {
+    const r = await fetch("/demo-config", { cache: "no-store" });
+    if (r.ok) {
+      const cfg = await r.json();
+      if (cfg?.base) API_BASE = cfg.base;
+      log(`Loaded config: base=${API_BASE}`);
+    } else {
+      log(`ERROR loading /demo-config → ${r.status}; using fallback base=/v1`);
+    }
+  } catch (e) {
+    log(`ERROR loading /demo-config → ${e.message}; using fallback base=/v1`);
+  }
 
-    const tbody = document.getElementById('rows');
-    tbody.innerHTML = '';
-    for (const inv of (data.data || [])) {
-      const tr = document.createElement('tr');
+  // ----- API helper -----
+  const AUTH = { Authorization: "Bearer key_test_12345" }; // must match .env API_KEY
 
-      const tdNum = document.createElement('td'); tdNum.textContent = inv.number;
-      const tdSt  = document.createElement('td'); tdSt.textContent  = inv.status;
-      const tdBy  = document.createElement('td'); tdBy.textContent  = (inv.buyer && inv.buyer.name) || '';
-      const tdGr  = document.createElement('td'); tdGr.textContent  = String(inv.gross);
+  async function apiJson(path, init = {}) {
+    const r = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: { ...(init.headers || {}), ...AUTH, "Content-Type": "application/json" },
+    });
+    if (!r.ok) {
+      const body = await r.text().catch(() => "");
+      throw new Error(`${r.status} ${r.statusText} :: ${body}`);
+    }
+    return r.json();
+  }
 
-      const tdXml = document.createElement('td');
-      const aXml = document.createElement('a'); aXml.className = 'btn'; aXml.textContent = 'XML';
-      aXml.href = `${cfg.apiBase}/invoices/${encodeURIComponent(inv.id)}/xml`; // requires header, so open via fetch
-      aXml.onclick = async (ev) => {
-        ev.preventDefault();
-        const r = await fetch(aXml.href, { headers: { 'Authorization': `Bearer ${cfg.apiKey}` } });
-        if (!r.ok) return status(`XML failed: ${r.status}`);
-        const txt = await r.text();
-        const blob = new Blob([txt], { type: 'application/xml' });
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-      };
-      tdXml.appendChild(aXml);
+  // ----- render -----
+  function renderRow(inv) {
+    const tr = document.createElement("tr");
 
-      const tdPdf = document.createElement('td');
-      const aPdf = document.createElement('a'); aPdf.className = 'btn'; aPdf.textContent = 'PDF';
-      // PDF supports header OR query-token; we’ll use query so it opens directly in new tab
-      aPdf.href = `${cfg.apiBase}/invoices/${encodeURIComponent(inv.id)}/pdf?access_token=${encodeURIComponent(cfg.apiKey)}`;
-      aPdf.target = '_blank';
-      tdPdf.appendChild(aPdf);
+    const td = (t) => { const d = document.createElement("td"); d.textContent = t ?? "—"; return d; };
+    tr.append(
+      td(inv.number),
+      td(inv.status),
+      td(inv?.buyer?.name),
+      td(inv.gross)
+    );
 
-      const tdPay = document.createElement('td');
-      const aPay = document.createElement('a'); aPay.className = 'btn'; aPay.textContent = 'Pay';
-      aPay.href = '#';
-      aPay.onclick = async (ev) => {
-        ev.preventDefault();
-        const r = await fetch(`${cfg.apiBase}/invoices/${encodeURIComponent(inv.id)}/pay`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${cfg.apiKey}`, 'X-Idempotency-Key': crypto.randomUUID() }
+    // XML link
+    const tdXml = document.createElement("td");
+    const aXml = document.createElement("a");
+    aXml.textContent = "XML";
+    aXml.href = `${API_BASE}/invoices/${encodeURIComponent(inv.id)}/xml?access_token=key_test_12345`;
+    aXml.target = "_blank";
+    tdXml.appendChild(aXml);
+    tr.appendChild(tdXml);
+
+    // PDF link (query-token so it works without custom headers)
+    const tdPdf = document.createElement("td");
+    const aPdf = document.createElement("a");
+    aPdf.textContent = "PDF";
+    aPdf.href = `${API_BASE}/invoices/${encodeURIComponent(inv.id)}/pdf?access_token=key_test_12345`;
+    aPdf.target = "_blank";
+    tdPdf.appendChild(aPdf);
+    tr.appendChild(tdPdf);
+
+    // Pay button
+    const tdPay = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.textContent = "Pay";
+    btn.onclick = async () => {
+      try {
+        await apiJson(`/invoices/${encodeURIComponent(inv.id)}/pay`, {
+          method: "POST",
+          headers: { ...AUTH, "X-Idempotency-Key": newIdemKey() },
         });
-        if (!r.ok) { status(`Pay failed: ${r.status}`); return; }
-        status(`Paid invoice ${inv.number}`);
-        await list();
-      };
-      tdPay.appendChild(aPay);
+        log(`Paid ${inv.number}`);
+        await loadList();
+      } catch (e) {
+        log(`Pay failed: ${e.message}`);
+      }
+    };
+    tdPay.appendChild(btn);
+    tr.appendChild(tdPay);
 
-      tr.append(tdNum, tdSt, tdBy, tdGr, tdXml, tdPdf, tdPay);
-      tbody.appendChild(tr);
+    return tr;
+  }
+
+  async function loadList() {
+    try {
+      const q = searchInput.value.trim();
+      const path = q ? `/invoices?limit=50&q=${encodeURIComponent(q)}` : `/invoices?limit=50`;
+      const data = await apiJson(path, { method: "GET" });
+
+      tblBody.innerHTML = "";
+      for (const inv of data.data || []) {
+        tblBody.appendChild(renderRow(inv));
+      }
+      log(`Loaded ${data.data?.length ?? 0} invoice(s).`);
+    } catch (e) {
+      log(`List failed: ${e.message}`);
+      tblBody.innerHTML = "";
     }
   }
 
-  document.getElementById('btnRefresh').onclick = list;
-
-  document.getElementById('btnCreate').onclick = async () => {
-    const body = {
-      currency: 'EUR',
-      buyer: { name: 'Persist Co', country: 'BE' },
-      lines: [{ name: 'Service', qty: 1, price: 50 }]
-    };
-    const r = await fetch(`${cfg.apiBase}/invoices`, {
-      method: 'POST',
-      headers: { ...H, 'X-Idempotency-Key': crypto.randomUUID() },
-      body: JSON.stringify(body)
-    });
-    if (!r.ok) return status(`Create failed: ${r.status} ${r.statusText}`);
-    const inv = await r.json();
-    status(`Created ${inv.number}`);
-    await list();
+  // ----- wire up -----
+  btnCreate.onclick = async () => {
+    try {
+      const idem = newIdemKey();
+      const body = {
+        currency: "EUR",
+        buyer: { name: "Persist Co", country: "BE" },
+        lines: [{ name: "Service", qty: 1, price: 50 }],
+      };
+      await apiJson("/invoices", {
+        method: "POST",
+        headers: { ...AUTH, "X-Idempotency-Key": idem },
+        body: JSON.stringify(body),
+      });
+      log("Created invoice");
+      await loadList();
+    } catch (e) {
+      log(`Create failed: ${e.message}`);
+    }
   };
 
+  btnRefresh.onclick = loadList;
+
   // initial load
-  await list();
+  log("UI booting…");
+  await loadList();
 })();

@@ -1,93 +1,66 @@
 // src/xml.js
-//
-// Minimal UBL-ish XML builder used by /v1/invoices/:id/xml
-// Exports: buildUbl(invoice) -> string (application/xml)
+import { SELLER } from "./config.js";
 
-function esc(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
+export function buildUblXml(inv) {
+  // Ensure issuedAt is a date string compatible with toISOString
+  const issued = inv.issuedAt ? new Date(inv.issuedAt) : new Date();
+  const issueDate = issued.toISOString().slice(0, 10);
 
-function money(n) {
-  const v = Number(n || 0);
-  return v.toFixed(2);
-}
+  const esc = (s = "") => String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 
-export function buildUbl(inv) {
-  const seller = inv.seller || {
-    name: "VIDA SRL",
-    country: "BE",
-    vat_id: "BE0123.456.789",
-  };
-  const buyer = inv.buyer || { name: "", country: "", vat_id: "" };
+  const linesXml = (inv.lines || [])
+    .map(
+      (l) => `
+  <cac:InvoiceLine>
+    <cbc:ID>${l.id}</cbc:ID>
+    <cbc:InvoicedQuantity>${l.qty}</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount>${(l.qty * l.price).toFixed(2)}</cbc:LineExtensionAmount>
+    <cac:Item><cbc:Name>${esc(l.name)}</cbc:Name></cac:Item>
+    <cac:Price><cbc:PriceAmount>${Number(l.price).toFixed(2)}</cbc:PriceAmount></cac:Price>
+  </cac:InvoiceLine>`
+    )
+    .join("");
 
-  const number = inv.number || inv.id || "";
-  const issueDate = (inv.issuedAt || new Date().toISOString()).slice(0, 10);
-  const currency = inv.currency || "EUR";
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:ID>${esc(inv.number)}</cbc:ID>
+  <cbc:IssueDate>${issueDate}</cbc:IssueDate>
+  <cbc:DocumentCurrencyCode>${esc(inv.currency)}</cbc:DocumentCurrencyCode>
 
-  // totals expected from store
-  const net = money(inv.net);
-  const tax = money(inv.tax);
-  const gross = money(inv.gross);
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cbc:Name>${esc(SELLER.name)}</cbc:Name>
+      <cac:PostalAddress><cbc:Country>${esc(SELLER.country)}</cbc:Country></cac:PostalAddress>
+      <cac:PartyTaxScheme><cbc:CompanyID>${esc(SELLER.vat)}</cbc:CompanyID></cac:PartyTaxScheme>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
 
-  // single-line items as in the MVP
-  const lines = Array.isArray(inv.lines) ? inv.lines : [];
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cbc:Name>${esc(inv.buyer?.name || "")}</cbc:Name>
+      <cac:PostalAddress><cbc:Country>${esc(inv.buyer?.country || "")}</cbc:Country></cac:PostalAddress>
+      <cac:PartyTaxScheme><cbc:CompanyID>${esc(inv.buyer?.vat || "")}</cbc:CompanyID></cac:PartyTaxScheme>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
 
-  // Namespaces (simple)
-  const nsInvoice = `urn:oasis:names:specification:ubl:schema:xsd:Invoice-2`;
-  const nsCAC = `urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2`;
-  const nsCBC = `urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2`;
+  <cac:TaxTotal>
+    <cbc:TaxAmount>${Number(inv.tax || 0).toFixed(2)}</cbc:TaxAmount>
+  </cac:TaxTotal>
 
-  // Build XML
-  let xml = "";
-  xml += `<Invoice xmlns="${nsInvoice}" xmlns:cac="${nsCAC}" xmlns:cbc="${nsCBC}">`;
-  xml += `<cbc:ID>${esc(number)}</cbc:ID>`;
-  xml += `<cbc:IssueDate>${esc(issueDate)}</cbc:IssueDate>`;
-  xml += `<cbc:DocumentCurrencyCode>${esc(currency)}</cbc:DocumentCurrencyCode>`;
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount>${Number(inv.net || 0).toFixed(2)}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount>${Number(inv.net || 0).toFixed(2)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount>${Number(inv.gross || 0).toFixed(2)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount>${Number(inv.gross || 0).toFixed(2)}</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
 
-  // Seller
-  xml += `<cac:AccountingSupplierParty><cac:Party>`;
-  if (seller.name) xml += `<cbc:Name>${esc(seller.name)}</cbc:Name>`;
-  xml += `<cac:PostalAddress>`;
-  if (seller.country) xml += `<cbc:Country>${esc(seller.country)}</cbc:Country>`;
-  xml += `</cac:PostalAddress>`;
-  xml += `<cac:PartyTaxScheme><cbc:CompanyID>${esc(seller.vat_id || "")}</cbc:CompanyID></cac:PartyTaxScheme>`;
-  xml += `</cac:Party></cac:AccountingSupplierParty>`;
-
-  // Buyer
-  xml += `<cac:AccountingCustomerParty><cac:Party>`;
-  if (buyer.name) xml += `<cbc:Name>${esc(buyer.name)}</cbc:Name>`;
-  xml += `<cac:PostalAddress>`;
-  if (buyer.country) xml += `<cbc:Country>${esc(buyer.country)}</cbc:Country>`;
-  xml += `</cac:PostalAddress>`;
-  xml += `<cac:PartyTaxScheme><cbc:CompanyID>${esc(buyer.vat_id || "")}</cbc:CompanyID></cac:PartyTaxScheme>`;
-  xml += `</cac:Party></cac:AccountingCustomerParty>`;
-
-  // Tax & totals
-  xml += `<cac:TaxTotal><cbc:TaxAmount>${tax}</cbc:TaxAmount></cac:TaxTotal>`;
-  xml += `<cac:LegalMonetaryTotal>`;
-  xml += `<cbc:LineExtensionAmount>${net}</cbc:LineExtensionAmount>`;
-  xml += `<cbc:TaxExclusiveAmount>${net}</cbc:TaxExclusiveAmount>`;
-  xml += `<cbc:TaxInclusiveAmount>${gross}</cbc:TaxInclusiveAmount>`;
-  xml += `<cbc:PayableAmount>${gross}</cbc:PayableAmount>`;
-  xml += `</cac:LegalMonetaryTotal>`;
-
-  // Lines
-  lines.forEach((ln, i) => {
-    const qty = Number(ln.qty || 0);
-    const price = Number(ln.price || 0);
-    const lineTotal = money(qty * price);
-    xml += `<cac:InvoiceLine>`;
-    xml += `<cbc:ID>${i + 1}</cbc:ID>`;
-    xml += `<cbc:InvoicedQuantity>${qty}</cbc:InvoicedQuantity>`;
-    xml += `<cbc:LineExtensionAmount>${lineTotal}</cbc:LineExtensionAmount>`;
-    xml += `<cac:Item><cbc:Name>${esc(ln.name || "")}</cbc:Name></cac:Item>`;
-    xml += `<cac:Price><cbc:PriceAmount>${money(price)}</cbc:PriceAmount></cac:Price>`;
-    xml += `</cac:InvoiceLine>`;
-  });
-
-  xml += `</Invoice>`;
-  return xml;
+  ${linesXml}
+</Invoice>`;
 }

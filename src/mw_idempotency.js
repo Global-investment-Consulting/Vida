@@ -1,44 +1,35 @@
-import crypto from 'crypto';
-import { prisma } from './db.js';
+// src/mw_idempotency.js
+import { loadDb, saveDb } from "./storage.js";
 
-function hashBody(req) {
-  const h = crypto.createHash('sha256');
-  h.update(JSON.stringify(req.body || {}));
-  return h.digest('hex');
-}
-
-export async function idempotencyMiddleware(req, res, next) {
-  const idemKey = req.get('X-Idempotency-Key');
-  if (!idemKey) return next(); // optional but recommended for POST
-  const tenantId = req.tenant.id;
-  const requestHash = hashBody(req);
-
-  const existing = await prisma.idempotencyKey.findUnique({
-    where: { tenantId_key: { tenantId, key: idemKey } }
-  });
-
-  if (existing) {
-    if (existing.requestHash !== requestHash) {
-      return res.status(409).json({ error: { type: 'idempotency_error', message: 'Key re-used with different payload' }});
-    }
-    return res.status(200).type('application/json').send(existing.response);
-  }
-
-  const origJson = res.json.bind(res);
-  res.json = async (payload) => {
+export function idemMw(kind) {
+  // kind: "create" | "pay"
+  return async (req, res, next) => {
     try {
-      await prisma.idempotencyKey.create({
-        data: {
-          tenantId,
-          key: idemKey,
-          requestHash,
-          response: JSON.stringify(payload),
-          status: String(res.statusCode || 200)
-        }
-      });
-    } catch (e) { console.error('Idempotency store error', e); }
-    return origJson(payload);
-  };
+      const key = req.get("X-Idempotency-Key");
+      if (!key) return res.status(400).json({ error: { type: "bad_request", message: "Missing X-Idempotency-Key" } });
 
-  next();
+      const db = await loadDb();
+      db.idem ||= { create: {}, pay: {} };
+
+      const bucket = db.idem[kind] || {};
+      const hits = bucket[key];
+      if (hits) {
+        // return the stored response again
+        return res.status(200).json(hits);
+      }
+
+      // stash a helper to save result once handler finishes
+      res.locals.__saveIdem = async (payload) => {
+        const fresh = await loadDb();
+        fresh.idem ||= { create: {}, pay: {} };
+        fresh.idem[kind] ||= {};
+        fresh.idem[kind][key] = payload;
+        await saveDb(fresh);
+      };
+
+      next();
+    } catch (e) {
+      next(e);
+    }
+  };
 }

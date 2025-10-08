@@ -2,23 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>VIDA MVP — Demo Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VIDA MVP — Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="page">
+  <div class="container">
     <h1>VIDA MVP — Demo</h1>
 
-    <div class="actions">
-      <button id="btnCreate">Create Invoice</button>
+    <div class="toolbar">
+      <button id="btn-create">Create Invoice</button>
       <input id="search" placeholder="search (e.g. persist)" />
-      <button id="btnRefresh">Refresh</button>
+      <button id="btn-refresh">Refresh</button>
     </div>
 
-    <pre id="status"></pre>
+    <pre id="log" class="log"></pre>
 
-    <table id="tbl">
+    <table id="tbl" class="table">
       <thead>
         <tr>
           <th>Number</th>
@@ -30,10 +30,10 @@
           <th>Pay</th>
         </tr>
       </thead>
-      <tbody id="rows"></tbody>
+      <tbody></tbody>
     </table>
   </div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js" defer></script>
 </body>
 </html>

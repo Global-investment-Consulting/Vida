@@ -1,53 +1,26 @@
 // src/storage.js
-import fs from 'fs';
-import path from 'path';
+import fs from "fs/promises";
+import { DB_PATH } from "./config.js";
+import path from "path";
 
-const DATA_DIR = path.resolve('./data');
-const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
-
-function ensureFiles() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(INVOICES_FILE)) fs.writeFileSync(INVOICES_FILE, JSON.stringify({ invoices: [] }, null, 2));
-}
-ensureFiles();
-
-function readAll() {
+async function ensureDb() {
+  const dir = path.dirname(DB_PATH);
+  try { await fs.mkdir(dir, { recursive: true }); } catch {}
   try {
-    const raw = fs.readFileSync(INVOICES_FILE, 'utf8');
-    const json = JSON.parse(raw || '{}');
-    return Array.isArray(json.invoices) ? json.invoices : [];
+    await fs.access(DB_PATH);
   } catch {
-    return [];
+    const seed = { seq: 1, invoices: {}, payments: {}, idem: { create: {}, pay: {} } };
+    await fs.writeFile(DB_PATH, JSON.stringify(seed, null, 2), "utf8");
   }
 }
 
-function writeAll(invoices) {
-  fs.writeFileSync(INVOICES_FILE, JSON.stringify({ invoices }, null, 2));
+export async function loadDb() {
+  await ensureDb();
+  const raw = await fs.readFile(DB_PATH, "utf8");
+  return JSON.parse(raw);
 }
 
-export function listInvoices({ limit = 10, starting_after } = {}) {
-  const all = readAll().sort((a, b) => b.createdAt - a.createdAt);
-  let startIdx = 0;
-  if (starting_after) {
-    const idx = all.findIndex(i => i.id === starting_after);
-    startIdx = idx >= 0 ? idx + 1 : 0;
-  }
-  const data = all.slice(startIdx, startIdx + Number(limit || 10));
-  const last = data[data.length - 1];
-  const has_more = startIdx + data.length < all.length;
-  const next_starting_after = has_more ? last.id : null;
-  return { data, has_more, next_starting_after, total: all.length };
-}
-
-export function getInvoice(id) {
-  return readAll().find(i => i.id === id) || null;
-}
-
-export function upsertInvoice(inv) {
-  const all = readAll();
-  const idx = all.findIndex(i => i.id === inv.id);
-  if (idx >= 0) all[idx] = inv;
-  else all.push(inv);
-  writeAll(all);
-  return inv;
+export async function saveDb(db) {
+  await ensureDb();
+  await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), "utf8");
 }
