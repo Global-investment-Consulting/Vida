@@ -1,7 +1,7 @@
-# VIDA MVP (no-db)
+# VIDA MVP (file store)
 
 ## Run
 ```bash
-npm i
-$env:PORT=3001 # PowerShell (or export PORT=3001)
+cp .env.example .env
+npm install
 npm start

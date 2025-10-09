@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:ID>2025-00022</cbc:ID>
+  <cbc:IssueDate>2025-10-08</cbc:IssueDate>
+  <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cbc:Name>VIDA SRL</cbc:Name>
+      <cac:PostalAddress><cbc:Country>BE</cbc:Country></cac:PostalAddress>
+      <cac:PartyTaxScheme><cbc:CompanyID>BE0123.456.789</cbc:CompanyID></cac:PartyTaxScheme>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cbc:Name>Persist Co (Patched)</cbc:Name>
+      <cac:PostalAddress><cbc:Country>BE</cbc:Country></cac:PostalAddress>
+      <cac:PartyTaxScheme><cbc:CompanyID></cbc:CompanyID></cac:PartyTaxScheme>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+
+  <cac:TaxTotal>
+    <cbc:TaxAmount>10.50</cbc:TaxAmount>
+  </cac:TaxTotal>
+
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount>50.00</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount>50.00</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount>60.50</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount>60.50</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+
+  
+  <cac:InvoiceLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:InvoicedQuantity>1</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount>50.00</cbc:LineExtensionAmount>
+    <cac:Item>
+      <cbc:Name>Service</cbc:Name>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount>50.00</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+</Invoice>

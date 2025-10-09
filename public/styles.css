@@ -1,14 +1,11 @@
-body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; color: #222; }
-header { background: #111827; color: #fff; padding: 14px 20px; }
-h1 { margin: 0; font-size: 20px; }
-main { padding: 20px; max-width: 960px; margin: 0 auto; }
-section { margin-bottom: 24px; }
-label { display: block; margin: 6px 0; }
-input { padding: 6px 8px; }
-button, .btn { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; cursor: pointer; border-radius: 4px; text-decoration: none; color: inherit; }
+body { font-family: system-ui, sans-serif; background: #f6f7fb; }
+.card { max-width: 980px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+h1 { margin-top: 0; }
+form input, .bar input { padding: 8px 10px; margin-right: 8px; border: 1px solid #ddd; border-radius: 6px; }
+button { padding: 8px 12px; border: 0; background: #2563eb; color: #fff; border-radius: 6px; cursor: pointer; }
 button:disabled { opacity: .6; cursor: not-allowed; }
-table { width: 100%; border-collapse: collapse; }
-th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; }
-.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-.actions { display: flex; gap: 6px; }
-.lines { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; }
+.bar { margin: 12px 0; }
+#log { width: 100%; background: #0f172a; color: #c7d2fe; border: 0; border-radius: 6px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
+a { color: #2563eb; text-decoration: none; }

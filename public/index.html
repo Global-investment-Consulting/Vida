@@ -3,45 +3,39 @@
 <head>
   <meta charset="utf-8" />
   <title>VIDA MVP</title>
-  <link rel="stylesheet" href="styles.css" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header>
-    <h1>VIDA MVP Dashboard</h1>
-  </header>
+  <div class="card">
+    <h1>VIDA MVP</h1>
 
-  <main>
-    <section id="create">
-      <h2>Create Invoice</h2>
-      <form id="createForm">
-        <label>Buyer name <input id="buyerName" required /></label>
-        <label>Country <input id="buyerCountry" value="BE" required /></label>
-        <label>Currency <input id="currency" value="EUR" required /></label>
-        <div class="lines">
-          <label>Line name <input id="lineName" value="Service" required /></label>
-          <label>Qty <input id="lineQty" type="number" value="1" required /></label>
-          <label>Price <input id="linePrice" type="number" value="50" step="0.01" required /></label>
-        </div>
-        <button type="submit">Create</button>
-      </form>
-    </section>
+    <form id="create-form">
+      <input id="buyer" placeholder="Buyer name" value="Persist Co" />
+      <input id="country" placeholder="Country" value="BE" />
+      <input id="currency" placeholder="Currency" value="EUR" />
+      <input id="line" placeholder="Line name" value="Service" />
+      <input id="qty" type="number" placeholder="Qty" value="1" />
+      <input id="price" type="number" placeholder="Price" value="50" />
+      <button id="btn-create" type="submit">Create</button>
+    </form>
 
-    <section id="list">
-      <h2>Invoices</h2>
-      <div class="toolbar">
-        <input id="search" placeholder="Search buyer or number..." />
-        <button id="refresh">Refresh</button>
-      </div>
-      <table id="tbl">
-        <thead>
-          <tr><th>#</th><th>Buyer</th><th>Status</th><th>Net</th><th>Tax</th><th>Gross</th><th>Actions</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </section>
-  </main>
+    <div class="bar">
+      <input id="q" placeholder="search (e.g. persist)" />
+      <button id="btn-refresh" type="button">Refresh</button>
+    </div>
 
-  <script src="app.js"></script>
+    <textarea id="log" rows="6" spellcheck="false"></textarea>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Number</th><th>Status</th><th>Buyer</th><th>Gross</th><th>XML</th><th>PDF</th><th>Pay</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <script src="/app.js"></script>
 </body>
 </html>

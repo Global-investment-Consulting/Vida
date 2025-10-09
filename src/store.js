@@ -1,113 +1,99 @@
-import crypto from "node:crypto";
-import { loadDb, saveDb } from "./storage.js";
-import { calcTotals } from "./tax.js";
+// src/store.js
+import fs from 'fs';
 
-let db = loadDb();
+import { DATA_PATH } from './config.js';
 
-export function getIdem(scope, key) {
-  return db.idem?.[scope]?.[key] || null;
-}
-export function setIdem(scope, key, payload) {
-  if (!db.idem[scope]) db.idem[scope] = {};
-  db.idem[scope][key] = payload;
-  saveDb(db);
-}
-
-export function createInvoice(payload) {
-  const id = `inv_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-  const number = nextNumber();
-
-  const lines = Array.isArray(payload.lines) ? payload.lines : [];
-  const totals = calcTotals(lines, 0.21);
-
-  const inv = {
-    id,
-    number,
-    currency: payload.currency || "EUR",
-    buyer: payload.buyer || { name: "", country: "" },
-    lines,
-    ...totals,
-    status: "SENT",
-    issuedAt: new Date().toISOString()
-  };
-
-  db.invoices[id] = inv;
-  saveDb(db);
-  return inv;
-}
-
-function nextNumber() {
-  // e.g., 2025-00001
-  const year = new Date().getFullYear();
-  const seq = db.seq || 1;
-  const padded = String(seq).padStart(5, "0");
-  db.seq = seq + 1;
-  saveDb(db);
-  return `${year}-${padded}`;
-}
-
-export function getInvoice(id) {
-  return db.invoices[id] || null;
-}
-
-export function listInvoices({ limit = 50, q = "", status } = {}) {
-  let arr = Object.values(db.invoices);
-
-  if (q) {
-    const needle = q.toLowerCase();
-    arr = arr.filter((i) =>
-      (i.buyer?.name || "").toLowerCase().includes(needle) ||
-      (i.number || "").toLowerCase().includes(needle)
-    );
+function load() {
+  if (!fs.existsSync(DATA_PATH)) {
+    fs.mkdirSync('data', { recursive: true });
+    fs.writeFileSync(DATA_PATH, JSON.stringify({ seq: 1, invoices: {}, payments: {}, idem: { create: {}, pay: {} } }, null, 2));
   }
-  if (status) {
-    arr = arr.filter((i) => i.status === status);
+  return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+}
+function save(db) { fs.writeFileSync(DATA_PATH, JSON.stringify(db, null, 2)); }
+
+function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+export const store = {
+  db: load(),
+
+  persist() { save(this.db); },
+
+  nextNumber() { const s = String(this.db.seq++).padStart(5, '0'); this.persist(); return `2025-${s}`; },
+
+  createInvoice(body) {
+    const number = this.nextNumber();
+    const id = `inv_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+
+    const lines = (body.lines || []).map(l => ({
+      name: String(l.name || 'Service'),
+      qty: Number(l.qty || 1),
+      price: Number(l.price || 0)
+    }));
+    const net = round2(lines.reduce((sum, l) => sum + l.qty * l.price, 0));
+    const tax = round2(net * 0.21);
+    const gross = round2(net + tax);
+
+    const inv = {
+      id, number,
+      currency: body.currency || 'EUR',
+      buyer: { name: body.buyer?.name || '', country: body.buyer?.country || 'BE', vat: body.buyer?.vat || '' },
+      lines,
+      net, tax, gross,
+      status: 'SENT',
+      createdAt: new Date().toISOString(),
+      issuedAt: new Date().toISOString()
+    };
+
+    this.db.invoices[id] = inv;
+    this.persist();
+    return inv;
+  },
+
+  getInvoice(id) { return this.db.invoices[id] || null; },
+
+  listInvoices({ limit = 50, q = '', status } = {}) {
+    let arr = Object.values(this.db.invoices).sort((a, b) => a.number.localeCompare(b.number));
+    if (q) {
+      const s = q.toLowerCase();
+      arr = arr.filter(x => (x.buyer?.name || '').toLowerCase().includes(s) || (x.number || '').toLowerCase().includes(s));
+    }
+    if (status) arr = arr.filter(x => x.status === status);
+    return arr.slice(0, Number(limit) || 50);
+  },
+
+  patchInvoice(id, patch) {
+    const inv = this.getInvoice(id);
+    if (!inv) return null;
+    if (inv.status !== 'SENT') return { error: 'only_sent' };
+    if (patch.buyer) inv.buyer = { ...inv.buyer, ...patch.buyer };
+    this.persist();
+    return inv;
+  },
+
+  addPayment(id) {
+    const inv = this.getInvoice(id);
+    if (!inv) return null;
+    inv.status = 'PAID';
+    const pay = {
+      id: inv.id,              // reuse invoice id (simple MVP)
+      invoiceId: inv.id,
+      amount: inv.gross,
+      paymentMethod: 'manual',
+      paidAt: new Date().toISOString()
+    };
+    this.db.payments[id] = this.db.payments[id] || [];
+    this.db.payments[id].push(pay);
+    this.persist();
+    return { inv, pay };
+  },
+
+  listPayments(id) { return this.db.payments[id] || []; },
+
+  idemGet(kind, key) { return this.db.idem?.[kind]?.[key] || null; },
+  idemSet(kind, key, value) {
+    this.db.idem[kind] = this.db.idem[kind] || {};
+    this.db.idem[kind][key] = value;
+    this.persist();
   }
-
-  arr.sort((a, b) => (a.number > b.number ? -1 : 1));
-  return arr.slice(0, Number(limit) || 50);
-}
-
-export function patchInvoice(id, patch) {
-  const inv = db.invoices[id];
-  if (!inv) return null;
-  if (inv.status !== "SENT") {
-    return { error: { type: "invalid_state", message: "Only SENT invoices can be patched" } };
-  }
-  if (patch.buyer) inv.buyer = { ...inv.buyer, ...patch.buyer };
-  if (Array.isArray(patch.lines)) {
-    inv.lines = patch.lines;
-    const totals = calcTotals(inv.lines, 0.21);
-    inv.net = totals.net; inv.tax = totals.tax; inv.gross = totals.gross;
-  }
-  saveDb(db);
-  return inv;
-}
-
-export function markPaid(id, payment) {
-  if (!db.payments[id]) db.payments[id] = [];
-  const exists = db.payments[id].some(
-    (p) => p.paidAt === payment.paidAt && p.amount === payment.amount
-  );
-  if (!exists) db.payments[id].push(payment);
-
-  const inv = db.invoices[id];
-  if (inv) {
-    inv.status = "PAID";
-    inv.paidAt = payment.paidAt;
-  }
-  saveDb(db);
-}
-
-export function getPayments(id) {
-  return db.payments[id] || [];
-}
-
-export function newPayment(inv) {
-  return {
-    id: inv.id, // keeping same id to make idempotency obvious in logs
-    amount: inv.gross,
-    paymentMethod: "CARD",
-    paidAt: new Date().toISOString()
-  };
-}
+};

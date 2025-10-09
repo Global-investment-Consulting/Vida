@@ -1,16 +1,14 @@
-// Bearer header OR ?access_token=... must match API_KEY
+// src/mw_auth.js
+import { API_KEY } from './config.js';
+
 export function authMw(req, res, next) {
-  const want = process.env.API_KEY || "key_test_12345";
-
-  const header = req.get("authorization") || "";
-  const m = header.match(/^Bearer\s+(.+)$/i);
-  const bearer = m ? m[1] : null;
-
+  const header = req.headers.authorization || '';
+  const bearer = header.replace(/^Bearer\s+/i, '');
   const token = bearer || req.query.access_token;
 
-  if (token === want) return next();
-
-  return res.status(401).json({
-    error: { type: "auth_error", message: "Invalid or missing API key" }
-  });
+  if (!token || token !== API_KEY) {
+    console.error('[Error] Invalid or missing API key');
+    return res.status(401).json({ error: { type: 'auth_error', message: 'Invalid or missing API key' } });
+  }
+  next();
 }

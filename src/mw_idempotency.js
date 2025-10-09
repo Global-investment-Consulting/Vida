@@ -1,26 +1,12 @@
-import { getIdem, setIdem } from "./store.js";
-
-// usage: idemMw("create") or idemMw("pay")
-export function idemMw(scope) {
+// src/mw_idempotency.js
+export function idemMw(kind, store) {
   return (req, res, next) => {
-    const key = req.get("X-Idempotency-Key");
-    if (!key) return next(); // allow, just not idempotent
+    const key = req.headers['x-idempotency-key'];
+    if (!key) return res.status(400).json({ error: { type: 'invalid_request', message: 'Missing X-Idempotency-Key' } });
 
-    const hit = getIdem(scope, key);
-    if (hit) {
-      // "Replay" the previous response payload
-      return res.json(hit);
-    }
-
-    // capture res.json() once; store payload after we send it
-    const orig = res.json.bind(res);
-    res.json = (payload) => {
-      try {
-        setIdem(scope, key, payload);
-      } catch (_) {}
-      return orig(payload);
-    };
-
+    const hit = store.idemGet(kind, key);
+    if (hit) return res.json(hit);
+    req._idemKey = key;
     next();
   };
 }
