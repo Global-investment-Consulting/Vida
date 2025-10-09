@@ -1,0 +1,22 @@
+// tests/setup.mjs (NEW FILE)
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Minimal env for tests (no impact on your dev .env)
+process.env.NODE_ENV = 'test';
+process.env.PORT = process.env.PORT || '0';
+process.env.API_KEY = process.env.API_KEY || 'key_test_12345';
+
+// Use a separate data file for tests
+const testDbPath = path.resolve('data', 'db.test.json');
+process.env.DATA_FILE = testDbPath;
+
+// Ensure folder exists and reset data
+fs.mkdirSync(path.dirname(testDbPath), { recursive: true });
+const fresh = {
+  seq: 1,
+  invoices: {},
+  payments: {},
+  idem: { create: {}, pay: {} },
+};
+fs.writeFileSync(testDbPath, JSON.stringify(fresh, null, 2), 'utf8');

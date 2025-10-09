@@ -1,8 +1,8 @@
-node_modules
-# Keep environment variables out of version control
+node_modules/
 .env
-
-/src/generated/prisma
-
-# runtime db file
-db.json
+data/db.json
+data/db.test.json
+coverage/
+*.log
+invoice_*.pdf
+invoice_*.xml

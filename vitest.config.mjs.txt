@@ -1,0 +1,10 @@
+// vitest.config.mjs (NEW FILE)
+export default {
+  test: {
+    environment: 'node',
+    setupFiles: ['./tests/setup.mjs'],
+    reporters: 'default',
+    restoreMocks: true,
+    isolate: true,
+  },
+};

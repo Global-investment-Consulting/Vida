@@ -1,0 +1,332 @@
+{
+  "invoices": [
+    {
+      "object": "invoice",
+      "id": "inv_1759325073394",
+      "idempotencyKey": "256a273b-2e85-4de5-9d2c-292f69249b66",
+      "number": "2025-00001",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-01T13:24:33.394Z",
+      "createdAt": 1759325073395,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [
+        {
+          "id": "pay_1759325074028",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-01T13:24:34.028Z"
+        }
+      ],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": "50.00",
+      "tax": "10.50",
+      "gross": "60.50",
+      "paidAt": "2025-10-01T13:24:34.028Z",
+      "amountPaid": 60.5,
+      "paymentMethod": "manual"
+    },
+    {
+      "object": "invoice",
+      "id": "inv_1759325783247",
+      "idempotencyKey": "facbd527-1b87-4c8f-93b1-d1988f92bac2",
+      "number": "2025-00002",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-01T13:36:23.247Z",
+      "createdAt": 1759325783248,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [
+        {
+          "id": "pay_1759325783601",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-01T13:36:23.601Z"
+        }
+      ],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": "50.00",
+      "tax": "10.50",
+      "gross": "60.50",
+      "paidAt": "2025-10-01T13:36:23.601Z",
+      "amountPaid": 60.5,
+      "paymentMethod": "manual"
+    },
+    {
+      "object": "invoice",
+      "id": "inv_1759326591728",
+      "idempotencyKey": "1fb153cb-ee0a-402c-980b-abfef1493234",
+      "number": "2025-00003",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-01T13:49:51.728Z",
+      "createdAt": 1759326591729,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [
+        {
+          "id": "pay_1759326592042",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-01T13:49:52.042Z"
+        }
+      ],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": "50.00",
+      "tax": "10.50",
+      "gross": "60.50",
+      "paidAt": "2025-10-01T13:49:52.042Z",
+      "amountPaid": 60.5,
+      "paymentMethod": "manual"
+    },
+    {
+      "object": "invoice",
+      "id": "inv_1759327204862",
+      "idempotencyKey": "11f98860-cca5-4729-a7db-9691c705980c",
+      "number": "2025-00004",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-01T14:00:04.862Z",
+      "createdAt": 1759327204862,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [
+        {
+          "id": "pay_1759327205344",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-01T14:00:05.344Z"
+        }
+      ],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": "50.00",
+      "tax": "10.50",
+      "gross": "60.50",
+      "paidAt": "2025-10-01T14:00:05.344Z",
+      "amountPaid": 60.5,
+      "paymentMethod": "manual"
+    },
+    {
+      "object": "invoice",
+      "id": "inv_1759328086797",
+      "idempotencyKey": "2d0d377c-d631-4d79-adaa-80958a0e8b16",
+      "number": "2025-00005",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-01T14:14:46.797Z",
+      "createdAt": 1759328086798,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [
+        {
+          "id": "pay_1759328087172",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-01T14:14:47.172Z"
+        }
+      ],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": "50.00",
+      "tax": "10.50",
+      "gross": "60.50",
+      "paidAt": "2025-10-01T14:14:47.172Z",
+      "amountPaid": 60.5,
+      "paymentMethod": "manual"
+    },
+    {
+      "object": "invoice",
+      "id": "inv_1759328767739",
+      "idempotencyKey": "f57ea296-66a6-483c-9818-618365557b2a",
+      "number": "2025-00006",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-01T14:26:07.739Z",
+      "createdAt": 1759328767740,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [
+        {
+          "id": "pay_1759328768051",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-01T14:26:08.051Z"
+        }
+      ],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": "50.00",
+      "tax": "10.50",
+      "gross": "60.50",
+      "paidAt": "2025-10-01T14:26:08.051Z",
+      "amountPaid": 60.5,
+      "paymentMethod": "manual"
+    },
+    {
+      "object": "invoice",
+      "id": "inv_1759330538772",
+      "idempotencyKey": "a270252c-7740-4ffa-8654-7a9fcfb76a25",
+      "number": "2025-00007",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-01T14:55:38.772Z",
+      "createdAt": 1759330538773,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [
+        {
+          "id": "pay_1759330539091",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-01T14:55:39.091Z"
+        }
+      ],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": "50.00",
+      "tax": "10.50",
+      "gross": "60.50",
+      "paidAt": "2025-10-01T14:55:39.091Z",
+      "amountPaid": 60.5,
+      "paymentMethod": "manual"
+    },
+    {
+      "object": "invoice",
+      "id": "inv_1759331605700",
+      "idempotencyKey": "fc3c3493-0d35-49cc-a3b1-11771c72bc05",
+      "number": "2025-00008",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-01T15:13:25.700Z",
+      "createdAt": 1759331605701,
+      "meta": {
+        "exemptionReason": ""
+      },
+      "payments": [
+        {
+          "id": "pay_1759331606379",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-01T15:13:26.379Z"
+        }
+      ],
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "net": "50.00",
+      "tax": "10.50",
+      "gross": "60.50",
+      "paidAt": "2025-10-01T15:13:26.379Z",
+      "amountPaid": 60.5,
+      "paymentMethod": "manual"
+    }
+  ]
+}

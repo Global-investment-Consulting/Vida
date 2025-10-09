@@ -1,0 +1,807 @@
+{
+  "seq": 16,
+  "invoices": {
+    "inv_1759835248234_138423": {
+      "object": "invoice",
+      "id": "inv_1759835248234_138423",
+      "number": "2025-00001",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co (Patched)",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-07T11:07:28.234Z",
+      "createdAt": 1759835248234,
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "payments": [
+        {
+          "id": "pay_1759835248716_846671",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-07T11:07:28.716Z"
+        }
+      ],
+      "amountPaid": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-07T11:07:28.716Z"
+    },
+    "inv_1759836426461_247345": {
+      "object": "invoice",
+      "id": "inv_1759836426461_247345",
+      "number": "2025-00002",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-07T11:27:06.461Z",
+      "createdAt": 1759836426461,
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "payments": [
+        {
+          "id": "pay_1759836457776_139278",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-07T11:27:37.776Z"
+        }
+      ],
+      "amountPaid": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-07T11:27:37.776Z"
+    },
+    "inv_1759840022353_588692": {
+      "object": "invoice",
+      "id": "inv_1759840022353_588692",
+      "number": "2025-00003",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-07T12:27:02.355Z",
+      "createdAt": 1759840022355,
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "payments": [],
+      "amountPaid": 0,
+      "paymentMethod": null,
+      "paidAt": null
+    },
+    "inv_1759840047811_158862": {
+      "object": "invoice",
+      "id": "inv_1759840047811_158862",
+      "number": "2025-00004",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "issueDate": "2025-10-07T12:27:27.811Z",
+      "createdAt": 1759840047811,
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "vatRate": 0.21,
+      "taxCategory": "S",
+      "payments": [
+        {
+          "id": "pay_1759840077669_102378",
+          "amount": 60.5,
+          "method": "manual",
+          "paidAt": "2025-10-07T12:27:57.669Z"
+        }
+      ],
+      "amountPaid": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-07T12:27:57.669Z"
+    },
+    "inv_1759841971919_278676": {
+      "id": "inv_1759841971919_278676",
+      "number": "2025-00005",
+      "status": "SENT",
+      "issuedAt": "2025-10-07T12:59:31.920Z",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "meta": {}
+    },
+    "inv_1759843300042_616146": {
+      "id": "inv_1759843300042_616146",
+      "number": "2025-00006",
+      "status": "PAID",
+      "issuedAt": "2025-10-07T13:21:40.042Z",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co (Patched)",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "meta": {},
+      "paidAt": "2025-10-07T13:21:41.349Z",
+      "paymentMethod": "manual"
+    },
+    "inv_1759907468589_509359": {
+      "id": "inv_1759907468589_509359",
+      "number": "2025-00007",
+      "status": "SENT",
+      "issuedAt": "2025-10-08T07:11:08.589Z",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co (Patched)",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "meta": {}
+    },
+    "inv_1759913730042_900577": {
+      "id": "inv_1759913730042_900577",
+      "number": "2025-00008",
+      "status": "PAID",
+      "issuedAt": "2025-10-08T08:55:30.049Z",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co (Patched)",
+        "country": "BE",
+        "vat_id": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "meta": {},
+      "paidAt": "2025-10-08T08:55:31.493Z",
+      "paymentMethod": "manual"
+    },
+    "inv_1759916422656_145015": {
+      "id": "inv_1759916422656_145015",
+      "number": "2025-00009",
+      "status": "PAID",
+      "buyer": {
+        "name": "Persist Co (Patched)",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "currency": "EUR",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-08T09:40:22.657Z",
+      "paidAt": "2025-10-08T09:40:23.787Z"
+    },
+    "inv_1759921859516_768825": {
+      "id": "inv_1759921859516_768825",
+      "number": "2025-00010",
+      "status": "SENT",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "currency": "EUR",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-08T11:10:59.516Z"
+    },
+    "inv_1759921904561_832149": {
+      "id": "inv_1759921904561_832149",
+      "number": "2025-00011",
+      "status": "SENT",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "currency": "EUR",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-08T11:11:44.561Z"
+    },
+    "inv_1759921906743_733499": {
+      "id": "inv_1759921906743_733499",
+      "number": "2025-00012",
+      "status": "PAID",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "currency": "EUR",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-08T11:11:46.743Z",
+      "paidAt": "2025-10-08T11:12:46.970Z"
+    },
+    "inv_1759922857977_723954": {
+      "id": "inv_1759922857977_723954",
+      "number": "2025-00013",
+      "status": "SENT",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "currency": "EUR",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-08T11:27:37.977Z"
+    },
+    "inv_1759923265992_170474": {
+      "id": "inv_1759923265992_170474",
+      "number": "2025-00014",
+      "status": "PAID",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "currency": "EUR",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-08T11:34:25.992Z",
+      "paidAt": "2025-10-08T11:34:59.250Z"
+    },
+    "inv_1759924651278_061572": {
+      "id": "inv_1759924651278_061572",
+      "number": "2025-00015",
+      "status": "PAID",
+      "buyer": {
+        "name": "Persist Co (Patched)",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "id": 1,
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "currency": "EUR",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-08T11:57:31.279Z",
+      "paidAt": "2025-10-08T11:57:33.011Z"
+    }
+  },
+  "payments": {
+    "pay_1759835248716_846671": {
+      "id": "pay_1759835248716_846671",
+      "amount": 60.5,
+      "method": "manual",
+      "paidAt": "2025-10-07T11:07:28.716Z"
+    },
+    "pay_1759836457776_139278": {
+      "id": "pay_1759836457776_139278",
+      "amount": 60.5,
+      "method": "manual",
+      "paidAt": "2025-10-07T11:27:37.776Z"
+    },
+    "pay_1759840077669_102378": {
+      "id": "pay_1759840077669_102378",
+      "amount": 60.5,
+      "method": "manual",
+      "paidAt": "2025-10-07T12:27:57.669Z"
+    },
+    "pay_1759843301349_271338": {
+      "id": "pay_1759843301349_271338",
+      "invoiceId": "inv_1759843300042_616146",
+      "amount": 60.5,
+      "currency": "EUR",
+      "paidAt": "2025-10-07T13:21:41.349Z",
+      "method": "manual"
+    },
+    "pay_1759913731493_657819": {
+      "id": "pay_1759913731493_657819",
+      "invoiceId": "inv_1759913730042_900577",
+      "amount": 60.5,
+      "currency": "EUR",
+      "paidAt": "2025-10-08T08:55:31.493Z",
+      "method": "manual"
+    },
+    "inv_1759916422656_145015": {
+      "id": "inv_1759916422656_145015",
+      "invoiceId": "inv_1759916422656_145015",
+      "amount": 60.5,
+      "paymentMethod": "CARD",
+      "createdAt": "2025-10-08T09:40:23.787Z",
+      "currency": "EUR",
+      "status": "SUCCEEDED"
+    },
+    "inv_1759921906743_733499": {
+      "id": "inv_1759921906743_733499",
+      "invoiceId": "inv_1759921906743_733499",
+      "amount": 60.5,
+      "paymentMethod": "CARD",
+      "createdAt": "2025-10-08T11:12:46.970Z",
+      "currency": "EUR",
+      "status": "SUCCEEDED"
+    },
+    "inv_1759923265992_170474": {
+      "id": "inv_1759923265992_170474",
+      "invoiceId": "inv_1759923265992_170474",
+      "amount": 60.5,
+      "paymentMethod": "CARD",
+      "createdAt": "2025-10-08T11:34:59.250Z",
+      "currency": "EUR",
+      "status": "SUCCEEDED"
+    },
+    "inv_1759924651278_061572": {
+      "id": "inv_1759924651278_061572",
+      "invoiceId": "inv_1759924651278_061572",
+      "amount": 60.5,
+      "paymentMethod": "CARD",
+      "createdAt": "2025-10-08T11:57:33.011Z",
+      "currency": "EUR",
+      "status": "SUCCEEDED"
+    }
+  },
+  "idem": {
+    "create": {
+      "81221ea1-28b6-48ad-af86-6550f25c0a0c": "inv_1759835248234_138423",
+      "b259e98d-4b5b-4b1d-9562-b21546361e7a": "inv_1759836426461_247345",
+      "638e1593-8c63-4ab1-bf3a-883447c43013": "inv_1759840022353_588692",
+      "cddabf7d-1026-49dd-bd62-c3267d684dfc": "inv_1759840047811_158862",
+      "85eec563-48e5-4fb2-a403-b8e3a4c241c5": "inv_1759841971919_278676",
+      "b6766647-a11a-46ef-9316-aa1d5a6f317d": "inv_1759843300042_616146",
+      "5cc05f90-2d3e-40bf-9d01-30f868f67003": "inv_1759907468589_509359",
+      "0dbb7838-9fba-4121-b007-b03057720cdb": "inv_1759913730042_900577",
+      "bc98c129-40b9-4c6f-a88a-f95e619d2cf9": {
+        "id": "inv_1759916422656_145015",
+        "number": "2025-00009",
+        "status": "SENT",
+        "buyer": {
+          "name": "Persist Co",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T09:40:22.657Z"
+      },
+      "d4ac525b-a4b3-4d4c-b288-41c6d680884b": {
+        "id": "inv_1759921859516_768825",
+        "number": "2025-00010",
+        "status": "SENT",
+        "buyer": {
+          "name": "Persist Co",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T11:10:59.516Z"
+      },
+      "57c45b6d-51cb-4d79-992d-2a664aa8ef71": {
+        "id": "inv_1759921904561_832149",
+        "number": "2025-00011",
+        "status": "SENT",
+        "buyer": {
+          "name": "Persist Co",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T11:11:44.561Z"
+      },
+      "ba9e45d7-2ef8-489b-a907-7baf8f340802": {
+        "id": "inv_1759921906743_733499",
+        "number": "2025-00012",
+        "status": "SENT",
+        "buyer": {
+          "name": "Persist Co",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T11:11:46.743Z"
+      },
+      "74fd8d79-cf64-4512-87f2-3a33628dd607": {
+        "id": "inv_1759922857977_723954",
+        "number": "2025-00013",
+        "status": "SENT",
+        "buyer": {
+          "name": "Persist Co",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T11:27:37.977Z"
+      },
+      "7dc4589f-a428-4a5c-8f93-4a81f955e09d": {
+        "id": "inv_1759923265992_170474",
+        "number": "2025-00014",
+        "status": "SENT",
+        "buyer": {
+          "name": "Persist Co",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T11:34:25.992Z"
+      },
+      "5bdbb5b0-4d4f-4feb-84bf-eb28ac114e6f": {
+        "id": "inv_1759924651278_061572",
+        "number": "2025-00015",
+        "status": "SENT",
+        "buyer": {
+          "name": "Persist Co",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T11:57:31.279Z"
+      }
+    },
+    "pay": {
+      "8c8ec7ed-ecd6-4f4a-b6a2-06c58a90bb9b": "pay_1759835248716_846671",
+      "8964dbe6-0634-4e01-aee2-876e872c3300": "pay_1759836457776_139278",
+      "6f5a7eec-6af9-4376-9a28-08ccec22f35e": "pay_1759840077669_102378",
+      "a25ac2de-6e5a-4d12-aafb-2aa13bbf939f": {
+        "id": "inv_1759843300042_616146",
+        "number": "2025-00006",
+        "status": "PAID",
+        "issuedAt": "2025-10-07T13:21:40.042Z",
+        "currency": "EUR",
+        "buyer": {
+          "name": "Persist Co (Patched)",
+          "country": "BE",
+          "vat_id": ""
+        },
+        "lines": [
+          {
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "meta": {},
+        "paidAt": "2025-10-07T13:21:41.349Z",
+        "paymentMethod": "manual"
+      },
+      "7c49d4cf-4b4a-46eb-9c69-8f9dff57783e": {
+        "id": "inv_1759913730042_900577",
+        "number": "2025-00008",
+        "status": "PAID",
+        "issuedAt": "2025-10-08T08:55:30.049Z",
+        "currency": "EUR",
+        "buyer": {
+          "name": "Persist Co (Patched)",
+          "country": "BE",
+          "vat_id": ""
+        },
+        "lines": [
+          {
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "meta": {},
+        "paidAt": "2025-10-08T08:55:31.493Z",
+        "paymentMethod": "manual"
+      },
+      "417e3e6c-5eba-4cae-b9ec-c0af758a14bc": {
+        "id": "inv_1759916422656_145015",
+        "number": "2025-00009",
+        "status": "PAID",
+        "buyer": {
+          "name": "Persist Co (Patched)",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T09:40:22.657Z",
+        "paidAt": "2025-10-08T09:40:23.787Z"
+      },
+      "340dd4e7-819d-45c3-9fd4-0db0b534d8f8": {
+        "id": "inv_1759921906743_733499",
+        "number": "2025-00012",
+        "status": "PAID",
+        "buyer": {
+          "name": "Persist Co",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T11:11:46.743Z",
+        "paidAt": "2025-10-08T11:12:46.970Z"
+      },
+      "3f7ee344-17c3-4bb8-a3fb-0e2dfc13eefe": {
+        "id": "inv_1759923265992_170474",
+        "number": "2025-00014",
+        "status": "PAID",
+        "buyer": {
+          "name": "Persist Co",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T11:34:25.992Z",
+        "paidAt": "2025-10-08T11:34:59.250Z"
+      },
+      "4b47bd54-e551-4596-a03b-c7aa270c0c70": {
+        "id": "inv_1759924651278_061572",
+        "number": "2025-00015",
+        "status": "PAID",
+        "buyer": {
+          "name": "Persist Co (Patched)",
+          "country": "BE",
+          "vat": ""
+        },
+        "lines": [
+          {
+            "id": 1,
+            "name": "Service",
+            "qty": 1,
+            "price": 50
+          }
+        ],
+        "currency": "EUR",
+        "net": 50,
+        "tax": 10.5,
+        "gross": 60.5,
+        "issuedAt": "2025-10-08T11:57:31.279Z",
+        "paidAt": "2025-10-08T11:57:33.011Z"
+      }
+    }
+  }
+}
