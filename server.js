@@ -1,71 +1,48 @@
-// server.js (ESM)
-import 'dotenv/config';
+// server.js
 import express from 'express';
 import morgan from 'morgan';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
+import { PORT } from './src/config.js';
 import v1 from './src/routes_v1.js';
+
+// OpenAPI & docs
 import openapi from './openapi.js';
 import swaggerUi from 'swagger-ui-express';
 
-const app = express();
-const PORT = process.env.PORT || 3001;
+// Build the app
+export const app = express();
+export default app;
 
-// ----- utils for __dirname in ESM -----
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// ----- middleware -----
-app.use(express.json());
-
-// Compact request log with method, path, status, bytes, time
-app.use(
-  morgan((tokens, req, res) => {
-    const ts = new Date().toISOString();
-    const method = tokens.method(req, res);
-    const url = tokens.url(req, res);
-    const status = tokens.status(req, res);
-    const len = tokens.res(req, res, 'content-length') || '-';
-    const ms = tokens['response-time'](req, res);
-    return `${ts} ${method} ${url} ${status} ${len} - ${ms} ms reqId=-`;
-  })
-);
-
-// ----- static dashboard -----
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('/', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Attach a lightweight request id (before morgan)
+app.use((req, _res, next) => {
+  req.reqId = req.headers['x-request-id'] || '-';
+  next();
 });
 
-// Small endpoint the dashboard uses to know the API is alive
-app.get('/demo-config', (_req, res) => {
-  // keep the payload tiny; the UI only checks that it 200s
-  const token = process.env.API_KEY || '';
-  res.json({ ok: true, tokenHint: token ? 'present' : '' });
-});
+// Register the custom morgan token used in the format string
+morgan.token('reqId', (req) => req.reqId || '-');
 
-// ----- OpenAPI & Docs -----
-app.get('/openapi.json', (_req, res) => {
-  res.type('application/json').send(openapi);
-});
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
+// Logging
+app.use(morgan(':date[iso] :method :url :status :res[content-length] - :response-time ms reqId=:reqId'));
 
-// ----- API v1 -----
+// Static dashboard
+app.use(express.static('public'));
+
+// Small demo endpoint the dashboard hits
+app.get('/demo-config', (_req, res) => res.json({ ok: true }));
+
+// API v1
 app.use('/v1', v1);
 
-// ----- health (optional, handy for Docker/uptime) -----
-app.get('/healthz', (_req, res) => res.json({ ok: true }));
+// OpenAPI + Swagger UI
+app.get('/openapi.json', (_req, res) => res.type('application/json').send(openapi));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
 
-// ----- start server unless running tests -----
-if (process.env.NODE_ENV !== 'test') {
+// Start server only outside of tests (Vitest sets VITEST_WORKER_ID)
+if (!process.env.VITEST_WORKER_ID && process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
-    console.log(`\nAPI running on http://localhost:${PORT}`);
-    console.log(`- New Stripe-like API at /v1`);
-    console.log(`- OpenAPI spec at /openapi.json`);
-    console.log(`- Swagger UI docs at /docs`);
+    console.log(`\n\nAPI running on http://localhost:${PORT}`);
+    console.log('- New Stripe-like API at /v1');
+    console.log('- OpenAPI spec at /openapi.json');
+    console.log('- Swagger UI docs at /docs\n');
   });
 }
-
-// Export the app for Vitest/Supertest
-export default app;

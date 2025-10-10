@@ -1,37 +1,28 @@
 {
   "name": "vida-mvp-nodb",
-  "version": "0.3.6",
-  "description": "VIDA MVP – Stripe-like API for PEPPOL-ready invoicing (file-store prototype)",
-  "main": "server.js",
+  "version": "0.3.8",
   "type": "module",
   "scripts": {
     "start": "node server.js",
     "smoke": "powershell -ExecutionPolicy Bypass -File .\\tests\\smoke.ps1",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev --name init",
+    "db:reset": "prisma migrate reset --force"
   },
-  "author": "HS <HS@local.argentor.be>",
-  "license": "MIT",
   "dependencies": {
+    "@prisma/client": "^6.17.0",
+    "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
-    "express": "^4.21.1",
+    "express": "^4.19.2",
     "morgan": "^1.10.0",
     "pdfkit": "^0.15.0",
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
-    "supertest": "^7.1.1",
-    "vitest": "^2.1.3"
-  },
-  "keywords": [
-    "vida",
-    "mvp",
-    "peppol",
-    "invoicing",
-    "api",
-    "express",
-    "ubl",
-    "pdf",
-    "stripe-like"
-  ]
+    "prisma": "^6.17.0",
+    "supertest": "^7.0.0",
+    "vitest": "^3.2.4"
+  }
 }

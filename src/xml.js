@@ -1,62 +1,47 @@
 // src/xml.js
-import { VAT_RATE } from './config.js';
-
-function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
-
 export function buildUblXml(inv) {
-  const issueDate = (inv.issuedAt ? new Date(inv.issuedAt) : new Date()).toISOString().slice(0, 10);
+  const issueDate = (inv.issuedAt && String(inv.issuedAt).slice(0, 10)) || new Date().toISOString().slice(0, 10);
+  const fmt = (n) => (Math.round(Number(n) * 100) / 100).toFixed(2);
 
-  const net = inv.lines.reduce((sum, l) => sum + l.qty * l.price, 0);
-  const tax = round2(net * VAT_RATE);
-  const gross = round2(net + tax);
+  const line = (l, idx) => `
+  <cac:InvoiceLine>
+    <cbc:ID>${idx + 1}</cbc:ID>
+    <cbc:InvoicedQuantity>${l.qty || 0}</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount>${fmt((l.qty || 0) * (l.price || 0))}</cbc:LineExtensionAmount>
+    <cac:Item><cbc:Name>${l.name || ''}</cbc:Name></cac:Item>
+    <cac:Price><cbc:PriceAmount>${fmt(l.price || 0)}</cbc:PriceAmount></cac:Price>
+  </cac:InvoiceLine>`.trim();
 
-  const line = inv.lines[0] || { name: 'Service', qty: 1, price: net };
-  const lineExt = round2(line.qty * line.price);
+  const linesXml = (inv.lines || []).map(line).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
          xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
          xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
-  <cbc:ID>${esc(inv.number)}</cbc:ID>
+  <cbc:ID>${inv.number}</cbc:ID>
   <cbc:IssueDate>${issueDate}</cbc:IssueDate>
-  <cbc:DocumentCurrencyCode>${esc(inv.currency)}</cbc:DocumentCurrencyCode>
-
+  <cbc:DocumentCurrencyCode>${inv.currency || 'EUR'}</cbc:DocumentCurrencyCode>
   <cac:AccountingSupplierParty>
     <cac:Party>
       <cbc:Name>VIDA SRL</cbc:Name>
-      <cac:PostalAddress>
-        <cbc:Country>BE</cbc:Country>
-      </cac:PostalAddress>
-      <cac:PartyTaxScheme>
-        <cbc:CompanyID>BE0123.456.789</cbc:CompanyID>
-      </cac:PartyTaxScheme>
+      <cac:PostalAddress><cbc:Country>BE</cbc:Country></cac:PostalAddress>
+      <cac:PartyTaxScheme><cbc:CompanyID>BE0123.456.789</cbc:CompanyID></cac:PartyTaxScheme>
     </cac:Party>
   </cac:AccountingSupplierParty>
-
   <cac:AccountingCustomerParty>
     <cac:Party>
-      <cbc:Name>${esc(inv.buyer?.name || '')}</cbc:Name>
-      <cac:PostalAddress><cbc:Country>${esc(inv.buyer?.country || 'BE')}</cbc:Country></cac:PostalAddress>
-      <cac:PartyTaxScheme><cbc:CompanyID>${esc(inv.buyer?.vat || '')}</cbc:CompanyID></cac:PartyTaxScheme>
+      <cbc:Name>${inv.buyer?.name || ''}</cbc:Name>
+      <cac:PostalAddress><cbc:Country>${inv.buyer?.country || 'BE'}</cbc:Country></cac:PostalAddress>
+      <cac:PartyTaxScheme><cbc:CompanyID>${inv.buyer?.vat || ''}</cbc:CompanyID></cac:PartyTaxScheme>
     </cac:Party>
   </cac:AccountingCustomerParty>
-
-  <cac:TaxTotal><cbc:TaxAmount>${tax.toFixed(2)}</cbc:TaxAmount></cac:TaxTotal>
-
+  <cac:TaxTotal><cbc:TaxAmount>${fmt(inv.tax)}</cbc:TaxAmount></cac:TaxTotal>
   <cac:LegalMonetaryTotal>
-    <cbc:LineExtensionAmount>${net.toFixed(2)}</cbc:LineExtensionAmount>
-    <cbc:TaxExclusiveAmount>${net.toFixed(2)}</cbc:TaxExclusiveAmount>
-    <cbc:TaxInclusiveAmount>${gross.toFixed(2)}</cbc:TaxInclusiveAmount>
-    <cbc:PayableAmount>${gross.toFixed(2)}</cbc:PayableAmount>
+    <cbc:LineExtensionAmount>${fmt(inv.net)}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount>${fmt(inv.net)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount>${fmt(inv.gross)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount>${fmt(inv.gross)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
-
-  <cac:InvoiceLine>
-    <cbc:ID>1</cbc:ID>
-    <cbc:InvoicedQuantity>${line.qty}</cbc:InvoicedQuantity>
-    <cbc:LineExtensionAmount>${lineExt.toFixed(2)}</cbc:LineExtensionAmount>
-    <cac:Item><cbc:Name>${esc(line.name)}</cbc:Name></cac:Item>
-    <cac:Price><cbc:PriceAmount>${Number(line.price).toFixed(2)}</cbc:PriceAmount></cac:Price>
-  </cac:InvoiceLine>
+  ${linesXml}
 </Invoice>`;
 }
