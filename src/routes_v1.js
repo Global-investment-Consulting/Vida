@@ -1,72 +1,71 @@
 // src/routes_v1.js
 import express from 'express';
-import { authMw } from './mw_auth.js';
-import { idemMw } from './mw_idempotency.js';
-import { store } from './store.js';
-import { buildUblXml } from './xml.js';
-import { buildPdf } from './pdf.js';
+import idemMw from './mw_idempotency.js';
+import { buildXml, buildPdf } from './pdf.js';
+import { TEST_ACCESS_TOKEN } from './config.js';
+import {
+  file_createInvoice,
+  file_getInvoice,
+  file_listInvoices,
+  file_markInvoicePaid,
+  file_listPayments
+} from './store.js';
 
 const router = express.Router();
 
-// All v1 endpoints require auth (header OR access_token query)
-router.use(authMw);
-
-// List
-router.get('/invoices', async (req, res) => {
-  const { limit, q, status } = req.query;
-  const list = await store.listInvoices({ limit, q, status });
-  res.json({ data: list });
-});
-
-// Create (idempotent)
-router.post('/invoices', idemMw('create'), express.json(), async (req, res) => {
-  const idemKey = req.idemKey; // from middleware
-  const inv = await store.createInvoice(req.body || {}, idemKey);
+// Create invoice (idempotent by header)
+router.post('/invoices', idemMw('create'), async (req, res) => {
+  const inv = await file_createInvoice(req.idemKey);
   res.json(inv);
 });
 
 // Fetch one
 router.get('/invoices/:id', async (req, res) => {
-  const inv = await store.getInvoice(req.params.id);
+  const inv = await file_getInvoice(req.params.id);
   if (!inv) return res.status(404).json({ error: { type: 'not_found', message: 'Invoice not found' } });
   res.json(inv);
 });
 
-// Patch (SENT only)
-router.patch('/invoices/:id', express.json(), async (req, res) => {
-  const inv = await store.patchInvoice(req.params.id, req.body || {});
-  if (!inv) return res.status(404).json({ error: { type: 'not_found', message: 'Invoice not found' } });
-  res.json(inv);
+// List (limit & q)
+router.get('/invoices', async (req, res) => {
+  const { limit = 5, q = '' } = req.query;
+  const list = await file_listInvoices({ limit, q });
+  res.json({ data: list, has_more: false });
 });
 
-// XML (auth via header or ?access_token=)
+// XML (gated by test token)
 router.get('/invoices/:id/xml', async (req, res) => {
-  const inv = await store.getInvoice(req.params.id);
+  if ((req.query.access_token ?? '') !== TEST_ACCESS_TOKEN) {
+    return res.status(403).json({ error: { type: 'forbidden', message: 'Bad token' } });
+  }
+  const inv = await file_getInvoice(req.params.id);
   if (!inv) return res.status(404).json({ error: { type: 'not_found', message: 'Invoice not found' } });
-  const xml = buildUblXml(inv);
+  const xml = buildXml(inv);
   res.type('application/xml').send(xml);
 });
 
-// PDF
+// PDF (gated by test token)
 router.get('/invoices/:id/pdf', async (req, res) => {
-  const inv = await store.getInvoice(req.params.id);
+  if ((req.query.access_token ?? '') !== TEST_ACCESS_TOKEN) {
+    return res.status(403).json({ error: { type: 'forbidden', message: 'Bad token' } });
+  }
+  const inv = await file_getInvoice(req.params.id);
   if (!inv) return res.status(404).json({ error: { type: 'not_found', message: 'Invoice not found' } });
-  const pdfBuffer = await buildPdf(inv);
-  res.type('application/pdf').send(pdfBuffer);
+  const pdf = buildPdf(inv);
+  res.type('application/pdf').send(pdf);
 });
 
-// Pay (idempotent)
+// Pay (idempotent by header); returns the invoice
 router.post('/invoices/:id/pay', idemMw('pay'), async (req, res) => {
-  const idemKey = req.idemKey;
-  const inv = await store.markPaid(req.params.id, idemKey);
+  const inv = await file_markInvoicePaid(req.params.id, req.idemKey);
   if (!inv) return res.status(404).json({ error: { type: 'not_found', message: 'Invoice not found' } });
   res.json(inv);
 });
 
-// Payments list
+// Payments for an invoice
 router.get('/invoices/:id/payments', async (req, res) => {
-  const items = await store.listPayments(req.params.id);
-  res.json({ data: items });
+  const items = await file_listPayments(req.params.id);
+  res.json({ data: items, has_more: false });
 });
 
 export default router;

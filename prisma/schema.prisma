@@ -4,51 +4,53 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"    // change to "postgresql" for prod later
+  provider = "sqlite"      // local dev; switch to "postgresql" later if needed
   url      = env("DATABASE_URL")
 }
 
 model Invoice {
-  id        String     @id
-  number    String     @unique
-  status    String     // "SENT" | "PAID"
-  currency  String
-  buyerName String
+  id           String   @id @default(cuid())
+  number       String   @unique
+  status       String             // "SENT" | "PAID"
+  currency     String
+  buyerName    String
   buyerCountry String
-  net       Decimal
-  tax       Decimal
-  gross     Decimal
-  issuedAt  DateTime
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  vatRate      Decimal  @default(0)
+  net          Decimal
+  tax          Decimal
+  gross        Decimal
+  issuedAt     DateTime @default(now())   // <-- added
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
   lines     LineItem[]
   payments  Payment[]
 }
 
 model LineItem {
-  id        String   @id
+  id        String  @id @default(cuid())
   invoiceId String
   name      String
   qty       Int
   price     Decimal
 
-  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
 
 model Payment {
-  id           String   @id
-  invoiceId    String
-  amount       Decimal
+  id            String   @id @default(cuid())
+  invoiceId     String
+  amount        Decimal
   paymentMethod String
-  paidAt       DateTime
-  createdAt    DateTime @default(now())
+  paidAt        DateTime @default(now())
 
-  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
 
 model IdempotencyKey {
-  key       String   @id
+  id        String   @id @default(cuid())
   scope     String   // "create" | "pay"
-  objectId  String   // invoiceId (for create) OR paymentId/invoiceId for pay
+  key       String   @unique
+  targetId  String
   createdAt DateTime @default(now())
 }
