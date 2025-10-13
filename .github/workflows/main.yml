@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, feat/** ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, USE_DB=${{ matrix.use_db }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        use_db: [false, true]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Prepare file DB (if USE_DB=false)
+        if: matrix.use_db == 'false'
+        shell: bash
+        run: |
+          mkdir -p data
+          echo '{ "seq":1, "invoices":{}, "payments":{}, "idem":{ "create":{}, "pay":{} } }' > data/db.json
+
+      - name: Generate Prisma client
+        if: matrix.use_db == 'true'
+        run: npx prisma generate
+
+      - name: Prepare SQLite (deploy migrations)
+        if: matrix.use_db == 'true'
+        run: npx prisma migrate deploy
+
+      - name: Run tests
+        env:
+          USE_DB: ${{ matrix.use_db }}
+          PORT: 3001
+        run: npm test
