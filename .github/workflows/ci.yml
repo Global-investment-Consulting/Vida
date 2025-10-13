@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, feat/** ]
+  pull_request:
+    branches: [ main, master ]
+
+# cancel older runs for the same branch/PR
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, USE_DB=${{ matrix.use_db }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        use_db: [false, true]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      # Optional: show Node & npm versions in logs
+      - name: Versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Run tests
+        env:
+          # matrix toggle to run both file-DB and Prisma paths if tests support them
+          USE_DB: ${{ matrix.use_db }}
+          # keep CI non-interactive & consistent
+          CI: 'true'
+          # keep port explicit (supertest won’t bind publicly)
+          PORT: '3001'
+        run: npm test
+        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
