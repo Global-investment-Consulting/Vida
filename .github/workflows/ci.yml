@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [ main, master ]
 
-# cancel older runs for the same branch/PR
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -31,22 +30,23 @@ jobs:
           node-version: '22.x'
           cache: 'npm'
 
-      - name: Install deps
+      - name: Install dependencies
         run: npm ci
 
-      # Optional: show Node & npm versions in logs
-      - name: Versions
+      - name: Show versions
         run: |
           node -v
           npm -v
 
       - name: Run tests
         env:
-          # matrix toggle to run both file-DB and Prisma paths if tests support them
           USE_DB: ${{ matrix.use_db }}
-          # keep CI non-interactive & consistent
-          CI: 'true'
-          # keep port explicit (supertest won’t bind publicly)
-          PORT: '3001'
-        run: npm test
-        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+          PORT: 3001
+          CI: true
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            pwsh -Command "npm test"
+          else
+            npm test
+          fi
