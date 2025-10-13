@@ -6,3 +6,5 @@ coverage/
 *.log
 invoice_*.pdf
 invoice_*.xml
+/prisma/dev.db
+/data/db.json
