@@ -1,0 +1,17 @@
+// auth-either.js
+export function getToken(req) {
+  const h = req.headers?.authorization || "";
+  if (h.startsWith("Bearer ")) return h.slice(7);
+  if (req.query?.access_token) return String(req.query.access_token);
+  return null;
+}
+
+export function requireApiKey(expected) {
+  return (req, res, next) => {
+    const tok = getToken(req);
+    if (!tok || tok !== expected) {
+      return res.status(403).json({ error: { type: "forbidden", message: "Bad token" } });
+    }
+    next();
+  };
+}

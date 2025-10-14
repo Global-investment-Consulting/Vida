@@ -1,0 +1,26 @@
+// utils/normalize-invoice.js
+export function toMinor(x) {
+  if (typeof x === "number") return Math.round(x * 100);
+  if (typeof x === "string") {
+    const n = Number(String(x).replace(",", "."));
+    return Number.isFinite(n) ? Math.round(n * 100) : null;
+  }
+  return null;
+}
+
+export function normalizeInvoice(inv) {
+  const payments = Array.isArray(inv?.payments) ? inv.payments : [];
+  const subtotalMinor = inv.subtotalMinor ?? toMinor(inv.net);
+  const taxMinor = inv.taxMinor ?? toMinor(inv.tax);
+  const totalMinor = inv.totalMinor ?? toMinor(inv.gross);
+  const vatRate = typeof inv.vatRate === "number" ? inv.vatRate : Number(String(inv.vatRate ?? "0").replace(",", "."));
+
+  return {
+    ...inv,
+    payments,
+    subtotalMinor,
+    taxMinor,
+    totalMinor,
+    vatRate
+  };
+}
