@@ -1,49 +1,46 @@
 # Scripts/smoke.ps1
-# -----------------------------------------------------------------------------
-# Simple CI smoke test for ViDA MVP API
-# -----------------------------------------------------------------------------
-param()
-
 $ErrorActionPreference = "Stop"
+$API = "http://localhost:3001"
+$KEY = $env:API_KEY; if (-not $KEY) { $KEY = "key_test_12345" }
 
-$baseUrl = "http://localhost:3001"
-$headers = @{
-    Authorization = "Bearer key_test_12345"
+function GET($p) {
+  Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $KEY"} -Uri ("$API$p")
 }
-Write-Host "🔍 Smoke test started at $baseUrl"
 
-# Wait up to 45s for the API to become reachable
+Write-Host "🔎 Smoke test starting at $API"
+
+# quick readiness probe (up to 45s here; the workflow already waited too)
 $max = 45
-for ($i = 1; $i -le $max; $i++) {
-    try {
-        $r = Invoke-WebRequest -Uri "$baseUrl/openapi.json" -TimeoutSec 2
-        if ($r.StatusCode -eq 200) {
-            Write-Host "✅ API reachable after $i sec"
-            break
-        }
-    } catch {
-        Start-Sleep -Seconds 1
-    }
-    if ($i -eq $max) {
-        throw "❌ API not reachable after ${max}s"
-    }
+for ($i=0; $i -lt $max; $i++) {
+  try { $r = Invoke-WebRequest "$API/openapi.json" -TimeoutSec 2; if ($r.StatusCode -eq 200) { break } } catch {}
+  Start-Sleep -Seconds 1
 }
+if ($i -ge $max) { throw "❌ API not reachable after ${max}s" }
 
-# 1) List invoices
-Write-Host "→ GET /v1/invoices"
-$r = Invoke-WebRequest -UseBasicParsing -Uri "$baseUrl/v1/invoices?limit=1" -Headers $headers
-$r.StatusCode | Should -Be 200
+# List -> Create -> List -> PDF -> XML
+$r = GET "/v1/invoices?limit=1" | Select-Object -ExpandProperty Content
+Write-Host "List OK"
 
-# 2) Create a new invoice
-Write-Host "→ POST /v1/invoices"
 $body = @{
-    externalId = "ext_ci_test"
-    currency   = "EUR"
-    buyer      = @{ name = "CI Buyer"; email = "ci@example.com" }
-    lines      = @(@{ description = "Test service"; quantity = 1; unitPriceMinor = 10000; vatRate = 21 })
+  externalId = "ext_" + [guid]::NewGuid().ToString()
+  currency   = "EUR"
+  buyer      = @{ name="Test Buyer"; email="buyer@example.com" }
+  lines      = @(@{ description="Service"; quantity=1; unitPriceMinor=12345 })
 } | ConvertTo-Json -Depth 5
-$r = Invoke-WebRequest -UseBasicParsing -Uri "$baseUrl/v1/invoices" -Headers $headers -Method POST -Body $body -ContentType "application/json"
-$r.StatusCode | Should -Be 201
 
-Write-Host "✅ Smoke test finished successfully"
-exit 0
+$resp = Invoke-WebRequest -Method POST -Headers @{Authorization="Bearer $KEY"; "Content-Type"="application/json"} -Body $body -Uri "$API/v1/invoices" -UseBasicParsing
+$json = $resp.Content | ConvertFrom-Json
+$id = $json.id
+if (-not $id) { throw "Create did not return id" }
+Write-Host "Create OK ($id)"
+
+GET "/v1/invoices?limit=1" | Out-Null
+Write-Host "List again OK"
+
+GET "/v1/invoices/$id/pdf" | Out-Null
+Write-Host "PDF OK"
+
+GET "/v1/invoices/$id/xml" | Out-Null
+Write-Host "XML OK"
+
+Write-Host "✅ Smoke passed"
