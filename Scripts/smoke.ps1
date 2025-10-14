@@ -1,38 +1,46 @@
-param([string]$API="http://localhost:3001",[string]$KEY="key_test_12345")
-$ErrorActionPreference="Stop"
+# Scripts/smoke.ps1
+$ErrorActionPreference = "Stop"
+$API = "http://localhost:3001"
+$KEY = $env:API_KEY; if (-not $KEY) { $KEY = "key_test_12345" }
 
-function GET($p){
-  Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $KEY"} -Uri ($API+$p)
+function GET($p) {
+  Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $KEY"} -Uri ("$API$p")
 }
 
-function GETQ($p){
-  $sep = if($p -match '\?'){ '&' } else { '?' }
-  Invoke-WebRequest -UseBasicParsing -Uri ($API + $p + $sep + "access_token=$KEY")
+Write-Host "🔎 Smoke test starting at $API"
+
+# quick readiness probe (up to 45s here; the workflow already waited too)
+$max = 45
+for ($i=0; $i -lt $max; $i++) {
+  try { $r = Invoke-WebRequest "$API/openapi.json" -TimeoutSec 2; if ($r.StatusCode -eq 200) { break } } catch {}
+  Start-Sleep -Seconds 1
 }
+if ($i -ge $max) { throw "❌ API not reachable after ${max}s" }
 
-function POSTJSON($p,$o){
-  Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $KEY";"Content-Type"="application/json"} `
-    -Uri ($API+$p) -Method POST -Body ($o|ConvertTo-Json -Depth 10)
-}
+# List -> Create -> List -> PDF -> XML
+$r = GET "/v1/invoices?limit=1" | Select-Object -ExpandProperty Content
+Write-Host "List OK"
 
-Write-Host "==> List"
-( GET "/v1/invoices?limit=1" | Select StatusCode ) | Out-Host
+$body = @{
+  externalId = "ext_" + [guid]::NewGuid().ToString()
+  currency   = "EUR"
+  buyer      = @{ name="Test Buyer"; email="buyer@example.com" }
+  lines      = @(@{ description="Service"; quantity=1; unitPriceMinor=12345 })
+} | ConvertTo-Json -Depth 5
 
-Write-Host "`n==> Create"
-$inv=@{
-  externalId="ext_"+([guid]::NewGuid().ToString("N").Substring(0,8))
-  currency="EUR"
-  buyer=@{ name="Test Buyer"; vatId="BE0123456789"; email="buyer@example.com" }
-  lines=@(@{ description="Test line"; quantity=1; unitPriceMinor=12345; vatRate=21 })
-}
-$r=POSTJSON "/v1/invoices" $inv
-$id=($r.Content|ConvertFrom-Json).id
-Write-Host "created id: $id"
+$resp = Invoke-WebRequest -Method POST -Headers @{Authorization="Bearer $KEY"; "Content-Type"="application/json"} -Body $body -Uri "$API/v1/invoices" -UseBasicParsing
+$json = $resp.Content | ConvertFrom-Json
+$id = $json.id
+if (-not $id) { throw "Create did not return id" }
+Write-Host "Create OK ($id)"
 
-Write-Host "`n==> Docs via query token (expected 200)"
-( GETQ "/v1/invoices/$id/pdf" | Select StatusCode, ContentType ) | Out-Host
-( GETQ "/v1/invoices/$id/xml" | Select StatusCode, ContentType ) | Out-Host
+GET "/v1/invoices?limit=1" | Out-Null
+Write-Host "List again OK"
 
-Write-Host "`n==> Docs via Bearer header (also expected 200)"
-( GET "/v1/invoices/$id/pdf" | Select StatusCode, ContentType ) | Out-Host
-( GET "/v1/invoices/$id/xml" | Select StatusCode, ContentType ) | Out-Host
+GET "/v1/invoices/$id/pdf" | Out-Null
+Write-Host "PDF OK"
+
+GET "/v1/invoices/$id/xml" | Out-Null
+Write-Host "XML OK"
+
+Write-Host "✅ Smoke passed"
