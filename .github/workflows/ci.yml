@@ -1,4 +1,5 @@
-﻿name: CI
+﻿@'
+name: CI
 on:
   push:
     branches: ['**']
@@ -27,7 +28,7 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      # Start the API (works on both Ubuntu and Windows using PowerShell Core)
+      # Start the API
       - name: Start API
         shell: pwsh
         run: |
@@ -35,25 +36,25 @@ jobs:
           Write-Host "Starting API..."
           $p = Start-Process -FilePath node -ArgumentList "server.js" -PassThru
           Set-Content -Path api.pid -Value $p.Id
-          # Wait for http://localhost:3001/openapi.json to be ready
-          $max = 60
+          # Wait up to 120 seconds for API to respond
+          $max = 120
           for ($i=0; $i -lt $max; $i++) {
             try {
               $r = Invoke-WebRequest "http://localhost:3001/openapi.json" -TimeoutSec 2
-              if ($r.StatusCode -eq 200) { Write-Host "API is up."; break }
+              if ($r.StatusCode -eq 200) { Write-Host "✅ API is up"; break }
             } catch { Start-Sleep -Seconds 1 }
           }
-          if ($i -ge $max) { throw "API did not start within $max seconds" }
+          if ($i -ge $max) { throw "❌ API did not start within $max seconds" }
 
+      # Run the smoke test directly with pwsh
       - name: Run smoke
         shell: pwsh
         env:
           USE_DB: ${{ matrix.use_db }}
-          # expose same key the dashboard uses
           API_KEY: key_test_12345
         run: |
-          Write-Host "USE_DB=$env:USE_DB"
-          powershell -ExecutionPolicy Bypass -File tests/smoke.ps1
+          Write-Host "Running smoke test with USE_DB=$env:USE_DB"
+          ./Scripts/smoke.ps1
 
       - name: Stop API
         if: always()
@@ -64,3 +65,4 @@ jobs:
             Write-Host "Stopping API PID $pid"
             try { Stop-Process -Id $pid -Force } catch {}
           }
+'@ | Set-Content -Encoding UTF8 ".github/workflows/ci.yml"
