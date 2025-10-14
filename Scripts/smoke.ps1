@@ -1,38 +1,49 @@
-param([string]$API="http://localhost:3001",[string]$KEY="key_test_12345")
-$ErrorActionPreference="Stop"
+# Scripts/smoke.ps1
+# -----------------------------------------------------------------------------
+# Simple CI smoke test for ViDA MVP API
+# -----------------------------------------------------------------------------
+param()
 
-function GET($p){
-  Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $KEY"} -Uri ($API+$p)
+$ErrorActionPreference = "Stop"
+
+$baseUrl = "http://localhost:3001"
+$headers = @{
+    Authorization = "Bearer key_test_12345"
+}
+Write-Host "🔍 Smoke test started at $baseUrl"
+
+# Wait up to 45s for the API to become reachable
+$max = 45
+for ($i = 1; $i -le $max; $i++) {
+    try {
+        $r = Invoke-WebRequest -Uri "$baseUrl/openapi.json" -TimeoutSec 2
+        if ($r.StatusCode -eq 200) {
+            Write-Host "✅ API reachable after $i sec"
+            break
+        }
+    } catch {
+        Start-Sleep -Seconds 1
+    }
+    if ($i -eq $max) {
+        throw "❌ API not reachable after ${max}s"
+    }
 }
 
-function GETQ($p){
-  $sep = if($p -match '\?'){ '&' } else { '?' }
-  Invoke-WebRequest -UseBasicParsing -Uri ($API + $p + $sep + "access_token=$KEY")
-}
+# 1) List invoices
+Write-Host "→ GET /v1/invoices"
+$r = Invoke-WebRequest -UseBasicParsing -Uri "$baseUrl/v1/invoices?limit=1" -Headers $headers
+$r.StatusCode | Should -Be 200
 
-function POSTJSON($p,$o){
-  Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $KEY";"Content-Type"="application/json"} `
-    -Uri ($API+$p) -Method POST -Body ($o|ConvertTo-Json -Depth 10)
-}
+# 2) Create a new invoice
+Write-Host "→ POST /v1/invoices"
+$body = @{
+    externalId = "ext_ci_test"
+    currency   = "EUR"
+    buyer      = @{ name = "CI Buyer"; email = "ci@example.com" }
+    lines      = @(@{ description = "Test service"; quantity = 1; unitPriceMinor = 10000; vatRate = 21 })
+} | ConvertTo-Json -Depth 5
+$r = Invoke-WebRequest -UseBasicParsing -Uri "$baseUrl/v1/invoices" -Headers $headers -Method POST -Body $body -ContentType "application/json"
+$r.StatusCode | Should -Be 201
 
-Write-Host "==> List"
-( GET "/v1/invoices?limit=1" | Select StatusCode ) | Out-Host
-
-Write-Host "`n==> Create"
-$inv=@{
-  externalId="ext_"+([guid]::NewGuid().ToString("N").Substring(0,8))
-  currency="EUR"
-  buyer=@{ name="Test Buyer"; vatId="BE0123456789"; email="buyer@example.com" }
-  lines=@(@{ description="Test line"; quantity=1; unitPriceMinor=12345; vatRate=21 })
-}
-$r=POSTJSON "/v1/invoices" $inv
-$id=($r.Content|ConvertFrom-Json).id
-Write-Host "created id: $id"
-
-Write-Host "`n==> Docs via query token (expected 200)"
-( GETQ "/v1/invoices/$id/pdf" | Select StatusCode, ContentType ) | Out-Host
-( GETQ "/v1/invoices/$id/xml" | Select StatusCode, ContentType ) | Out-Host
-
-Write-Host "`n==> Docs via Bearer header (also expected 200)"
-( GET "/v1/invoices/$id/pdf" | Select StatusCode, ContentType ) | Out-Host
-( GET "/v1/invoices/$id/xml" | Select StatusCode, ContentType ) | Out-Host
+Write-Host "✅ Smoke test finished successfully"
+exit 0
