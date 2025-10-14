@@ -1,14 +1,8 @@
-name: CI
-
+﻿name: CI
 on:
   push:
-    branches: [ main, master, feat/** ]
+    branches: ['**']
   pull_request:
-    branches: [ main, master ]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   test:
@@ -30,23 +24,43 @@ jobs:
           node-version: '22.x'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install deps
         run: npm ci
 
-      - name: Show versions
+      # Start the API (works on both Ubuntu and Windows using PowerShell Core)
+      - name: Start API
+        shell: pwsh
         run: |
-          node -v
-          npm -v
+          $ErrorActionPreference = "Stop"
+          Write-Host "Starting API..."
+          $p = Start-Process -FilePath node -ArgumentList "server.js" -PassThru
+          Set-Content -Path api.pid -Value $p.Id
+          # Wait for http://localhost:3001/openapi.json to be ready
+          $max = 60
+          for ($i=0; $i -lt $max; $i++) {
+            try {
+              $r = Invoke-WebRequest "http://localhost:3001/openapi.json" -TimeoutSec 2
+              if ($r.StatusCode -eq 200) { Write-Host "API is up."; break }
+            } catch { Start-Sleep -Seconds 1 }
+          }
+          if ($i -ge $max) { throw "API did not start within $max seconds" }
 
-      - name: Run tests
+      - name: Run smoke
+        shell: pwsh
         env:
           USE_DB: ${{ matrix.use_db }}
-          PORT: 3001
-          CI: true
-        shell: bash
+          # expose same key the dashboard uses
+          API_KEY: key_test_12345
         run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            pwsh -Command "npm test"
-          else
-            npm test
-          fi
+          Write-Host "USE_DB=$env:USE_DB"
+          powershell -ExecutionPolicy Bypass -File tests/smoke.ps1
+
+      - name: Stop API
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path api.pid) {
+            $pid = Get-Content api.pid
+            Write-Host "Stopping API PID $pid"
+            try { Stop-Process -Id $pid -Force } catch {}
+          }
