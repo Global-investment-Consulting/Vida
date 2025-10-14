@@ -1,81 +1,58 @@
 // openapi.js
-const openapi = {
-  openapi: '3.0.3',
-  info: {
-    title: 'VIDA MVP API',
-    version: '1.0.0',
-    description: 'Minimal OpenAPI spec for the VIDA MVP (file store, /v1 endpoints)'
-  },
-  servers: [{ url: 'http://localhost:3001/v1' }],
+export const openapi = {
+  openapi: "3.0.3",
+  info: { title: "ViDA API", version: "0.3.8" },
+  servers: [{ url: "http://localhost:3001" }],
   paths: {
-    '/invoices': {
+    "/v1/invoices": {
       get: {
-        summary: 'List invoices',
+        summary: "List invoices",
         parameters: [
-          { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },
-          { name: 'q', in: 'query', schema: { type: 'string' } },
-          { name: 'status', in: 'query', schema: { type: 'string', enum: ['SENT', 'PAID'] } }
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+          { name: "q", in: "query", schema: { type: "string" } }
         ],
-        responses: { 200: { description: 'Array of invoices' } },
-        security: [{ bearerAuth: [] }]
+        responses: { "200": { description: "OK" } }
       },
       post: {
-        summary: 'Create invoice (idempotent)',
-        requestBody: { required: true },
-        responses: { 200: { description: 'Invoice created' } },
-        security: [{ bearerAuth: [] }]
+        summary: "Create invoice (idempotent by externalId)",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object" } } } },
+        responses: { "201": { description: "Created" }, "200": { description: "Idempotent (existing)" } }
       }
     },
-    '/invoices/{id}': {
+    "/v1/invoices/{id}": {
       get: {
-        summary: 'Fetch single invoice',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'Invoice detail' } },
-        security: [{ bearerAuth: [] }]
-      },
-      patch: {
-        summary: 'Patch invoice (SENT only)',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'Updated invoice' } },
-        security: [{ bearerAuth: [] }]
+        summary: "Get invoice by id",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "OK" }, "404": { description: "Not found" } }
       }
     },
-    '/invoices/{id}/xml': {
+    "/v1/invoices/{ref}/pdf": {
       get: {
-        summary: 'Download UBL-style XML',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'UBL XML' } },
-        security: [{ bearerAuth: [] }]
+        summary: "Invoice PDF (auth via Bearer or ?access_token)",
+        parameters: [{ name: "ref", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "OK (application/pdf)" },
+          "403": { description: "Bad token" },
+          "404": { description: "Not found" }
+        }
       }
     },
-    '/invoices/{id}/pdf': {
+    "/v1/invoices/{ref}/xml": {
       get: {
-        summary: 'Download invoice PDF',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'PDF document' } },
-        security: [{ bearerAuth: [] }]
-      }
-    },
-    '/invoices/{id}/pay': {
-      post: {
-        summary: 'Mark invoice paid (idempotent)',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'Invoice paid' } },
-        security: [{ bearerAuth: [] }]
-      }
-    },
-    '/invoices/{id}/payments': {
-      get: {
-        summary: 'List payments for invoice',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'Payments array' } },
-        security: [{ bearerAuth: [] }]
+        summary: "Invoice UBL XML (auth via Bearer or ?access_token)",
+        parameters: [{ name: "ref", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "OK (application/xml)" },
+          "403": { description: "Bad token" },
+          "404": { description: "Not found" }
+        }
       }
     }
   },
   components: {
-    securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } }
+    securitySchemes: {
+      ApiKeyQuery: { type: "apiKey", in: "query", name: "access_token" },
+      ApiKeyHeader: { type: "apiKey", in: "header", name: "Authorization" }
+    }
   }
 };
-
-export default openapi;
