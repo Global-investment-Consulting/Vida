@@ -27,70 +27,48 @@ jobs:
           cache: npm
 
       - name: Show runtime info
-        shell: bash
+        shell: pwsh
         run: |
           node -v
           npm -v
-          pwd
-          ls -la
-          echo "package.json:"
-          cat package.json || true
+          Write-Host "PWD: $PWD"
+          Get-ChildItem -Name package.json, server.js
 
       - name: Install deps
         run: npm ci
 
-      # ---------- Start API (Windows) ----------
-      - name: Start API (Windows)
-        if: runner.os == 'Windows'
+      # --- Start API on the runner (unified for Windows/Linux using pwsh) ---
+      - name: Start API
         shell: pwsh
+        env:
+          API_KEY: key_test_12345
+          PORT: "3001"
         run: |
           $ErrorActionPreference = 'Stop'
-          $env:PORT = 3001
-          Write-Host "Starting API on Windows... PORT=$env:PORT"
-          # Use a background job; tee both stdout/stderr to api.log
-          $script = @'
-            $env:PORT = 3001
-            node --trace-uncaught server.js 2>&1 | Tee-Object -FilePath api.log -Append
-          '@
-          $job = Start-Job -ScriptBlock ([ScriptBlock]::Create($script))
-          # Save job id so we can stop it later
-          Set-Content api.pid $job.Id
 
-          Write-Host "Waiting for readiness (openapi.json)..."
-          $max = 180
+          # Always write combined stdout+stderr to api.log
+          $cmd = "node server.js *>&1 | Tee-Object -FilePath api.log"
+
+          # Start a background pwsh that runs node + tee
+          $p = Start-Process pwsh -ArgumentList @('-NoLogo','-NoProfile','-Command', $cmd) -PassThru
+          $p.Id | Set-Content api.pid
+          Write-Host "Started API pid $($p.Id)"
+
+          # Try to reach the API for up to 120s
+          $max = 120
           for ($i=0; $i -lt $max; $i++) {
             try {
               $r = Invoke-WebRequest 'http://localhost:3001/openapi.json' -TimeoutSec 2
-              if ($r.StatusCode -eq 200) { Write-Host "✅ API is up"; break }
+              if ($r.StatusCode -eq 200) { Write-Host '✅ API is up'; break }
             } catch {
               Start-Sleep -Seconds 1
             }
           }
-          if ($i -ge $max) { throw "❌ API did not start within timeout" }
-
-      # ---------- Start API (Ubuntu) ----------
-      - name: Start API (Ubuntu)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          export PORT=3001
-          echo "Starting API on Ubuntu... PORT=$PORT"
-          nohup bash -c 'PORT=3001 node --trace-uncaught server.js 2>&1 | tee -a api.log' >/dev/null 2>&1 &
-          echo $! > api.pid
-
-          echo "Waiting for readiness (openapi.json)..."
-          for i in {1..180}; do
-            if curl -fsS --max-time 2 http://localhost:3001/openapi.json >/dev/null; then
-              echo "✅ API is up"
-              break
-            fi
-            sleep 1
-            if [ "$i" -eq 180 ]; then
-              echo "❌ API did not start within timeout"
-              exit 1
-            fi
-          done
+          if ($i -ge $max) {
+            Write-Host '--- api.log (tail) ---'
+            if (Test-Path api.log) { Get-Content api.log -Tail 200 }
+            throw "❌ API did not start within timeout"
+          }
 
       - name: Run smoke
         shell: pwsh
@@ -99,42 +77,30 @@ jobs:
           API_KEY: key_test_12345
         run: ./Scripts/smoke.ps1
 
-      # ---------- Debug on failure ----------
       - name: Print API log on failure
         if: failure()
         shell: bash
         run: |
-          echo "========== api.log =========="
-          [[ -f api.log ]] && tail -n +1 -n 500 api.log || echo "no api.log"
-          echo "========== processes =========="
-          if command -v ps >/dev/null; then ps aux | head -n 200; fi
-          echo "========== port 3001 (Ubuntu: ss / Windows: netstat) =========="
-          if command -v ss >/dev/null; then ss -ltnp | grep 3001 || true; fi
+          echo '---- api.log (full) ----'
+          [ -f api.log ] && cat api.log || echo 'api.log not found'
 
       - name: Print API log on failure (Windows extras)
         if: failure() && runner.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Host "========== api.log =========="
-          if (Test-Path api.log) { Get-Content api.log -Raw }
-          Write-Host "========== netstat =========="
-          netstat -ano | findstr :3001 || $true
-          Write-Host "========== tasklist node =========="
-          tasklist /FI "IMAGENAME eq node.exe" || $true
+          if (Test-Path api.log) {
+            Write-Host '---- api.log (tail 200) ----'
+            Get-Content api.log -Tail 200
+          } else {
+            Write-Host 'api.log not found'
+          }
 
       - name: Stop API
         if: always()
         shell: pwsh
         run: |
           if (Test-Path api.pid) {
-            $pidTxt = Get-Content api.pid
-            Write-Host "Stopping background (PID/Job): $pidTxt"
-            try {
-              if ($env:RUNNER_OS -eq 'Windows') {
-                $job = Get-Job -Id $pidTxt -ErrorAction SilentlyContinue
-                if ($job) { Stop-Job -Id $job.Id -Force }
-              } else {
-                Stop-Process -Id [int]$pidTxt -Force
-              }
-            } catch { }
+            $pid = Get-Content api.pid
+            Write-Host "Stopping API PID $pid"
+            try { Stop-Process -Id $pid -Force } catch {}
           }
