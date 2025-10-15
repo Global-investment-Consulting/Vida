@@ -22,43 +22,87 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
-      - name: Install deps
+      - name: Install dependencies
         run: npm ci
 
+      # --- WINDOWS SECTION ---
       - name: Start API (bg) and wait [Windows]
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $p = Start-Process node -ArgumentList "server.js" -NoNewWindow -PassThru `
-               -RedirectStandardOutput api_out.txt -RedirectStandardError api_err.txt
+          $ErrorActionPreference = 'Stop'
+
+          Write-Host "Starting API server..."
+          $p = Start-Process node 'server.js' `
+                -RedirectStandardOutput api_out.txt `
+                -RedirectStandardError  api_err.txt `
+                -NoNewWindow -PassThru
           $p.Id | Out-File server.pid -Encoding ascii -NoNewline
+          Write-Host "Server started with PID $($p.Id)"
 
-          $env:HEALTH_URL = "http://127.0.0.1:3001/healthz"
-          $env:WAIT_TIMEOUT_MS = "150000"
+          Write-Host "Waiting for health endpoint..."
+          $env:HEALTH_URL = 'http://127.0.0.1:3001/healthz'
+          $env:WAIT_TIMEOUT_MS = '150000'
           npm run --silent wait:api
+          Write-Host "✅ API is up!"
 
+      # --- UBUNTU SECTION ---
       - name: Start API (bg) and wait [Ubuntu]
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          nohup node server.js > api_log.txt 2>&1 &
+          echo "Starting API server..."
+          nohup node server.js > api_out.txt 2>api_err.txt &
           echo $! > server.pid
+          echo "Server started with PID $(cat server.pid)"
           export HEALTH_URL="http://127.0.0.1:3001/healthz"
           export WAIT_TIMEOUT_MS="150000"
           npm run --silent wait:api
+          echo "✅ API is up!"
 
-      - name: Smoke
+      # --- SMOKE TEST ---
+      - name: Smoke test
         shell: bash
         run: |
+          echo "Checking /healthz endpoint..."
           curl -fsS http://127.0.0.1:3001/healthz | grep -qi 'ok'
+          echo "Smoke test OK ✅"
 
-      - name: Print API logs on failure
-        if: failure()
+      # --- LOG PRINT ON FAILURE ---
+      - name: Print API logs on failure (Windows)
+        if: failure() && runner.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Host "---- api_out.txt ----"
-          if (Test-Path api_out.txt) { Get-Content api_out.txt | Write-Host } else { Write-Host "(missing api_out.txt)" }
-          Write-Host "---- api_err.txt ----"
-          if (Test-Path api_err.txt) { Get-Content api_err.txt | Write-Host } else { Write-Host "(missing api_err.txt)" }
-          Write-Host "---- api_log.txt (Linux) ----"
-          if (Test-Path api_log.txt) { Get-Content api_log.txt | Write-Host } else { Write-Host "(missing api_log.txt)" }
+          Write-Host "===== api_out.txt ====="
+          if (Test-Path api_out.txt) { Get-Content api_out.txt }
+          Write-Host "===== api_err.txt ====="
+          if (Test-Path api_err.txt) { Get-Content api_err.txt }
+
+      - name: Print API logs on failure (Ubuntu)
+        if: failure() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "===== api_out.txt ====="
+          [ -f api_out.txt ] && cat api_out.txt || echo "(missing)"
+          echo "===== api_err.txt ====="
+          [ -f api_err.txt ] && cat api_err.txt || echo "(missing)"
+
+      # --- STOP SERVER CLEANLY ---
+      - name: Stop API [Windows]
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Test-Path server.pid) {
+            $pid = Get-Content server.pid
+            Write-Host "Stopping API with PID $pid"
+            try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {}
+          }
+
+      - name: Stop API [Ubuntu]
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          if [ -f server.pid ]; then
+            echo "Stopping API with PID $(cat server.pid)"
+            kill -9 $(cat server.pid) || true
+          fi
