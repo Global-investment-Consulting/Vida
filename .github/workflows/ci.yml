@@ -52,7 +52,7 @@ jobs:
           export WAIT_TIMEOUT_MS="150000"
           npm run --silent wait:api
 
-      # ---------- Smoke tests (no package script; call directly) ----------
+      # ---------- Smoke tests ----------
       - name: Smoke test [Windows]
         if: runner.os == 'Windows'
         shell: pwsh
@@ -66,7 +66,7 @@ jobs:
         run: |
           curl -fsS http://127.0.0.1:3001/healthz | grep -q "ok"
 
-      # ---------- Helpful logs on failure ----------
+      # ---------- Logs on failure ----------
       - name: Print API logs on failure (Windows)
         if: failure() && runner.os == 'Windows'
         shell: pwsh
@@ -83,15 +83,19 @@ jobs:
           echo "===== api_log.txt ====="
           [ -f api_log.txt ] && cat api_log.txt || true
 
-      # ---------- Clean shutdown ----------
+      # ---------- Stop API ----------
       - name: Stop API [Windows]
         if: always() && runner.os == 'Windows'
         shell: pwsh
         run: |
           if (Test-Path server.pid) {
-            $pid = Get-Content server.pid
-            Write-Host "Stopping server PID $pid"
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+            $pidStr = (Get-Content server.pid | Out-String).Trim()
+            if ($pidStr) {
+              Write-Host "Stopping server PID $pidStr"
+              Stop-Process -Id $pidStr -Force -ErrorAction SilentlyContinue
+            } else {
+              Write-Host "server.pid was empty"
+            }
           } else {
             Write-Host "No server.pid on Windows"
           }
