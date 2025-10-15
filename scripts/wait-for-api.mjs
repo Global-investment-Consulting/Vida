@@ -1,38 +1,32 @@
 // scripts/wait-for-api.mjs
-// Portable wait-for-HTTP-200 with env-configurable URL & timeouts (Node 18+ ESM)
-
 import fetch from "node-fetch";
 
 const HEALTH_URL = process.env.HEALTH_URL || "http://127.0.0.1:3001/healthz";
-const TIMEOUT_MS = Number(process.env.WAIT_TIMEOUT_MS || 150000); // 150s
-const INTERVAL_MS = Number(process.env.WAIT_INTERVAL_MS || 1000);  // 1s
-const START = Date.now();
+const TIMEOUT_MS = parseInt(process.env.WAIT_TIMEOUT_MS || "150000", 10); // 2.5 min
+const INTERVAL_MS = 500;
 
-async function sleep(ms) {
-  await new Promise((r) => setTimeout(r, ms));
-}
+const start = Date.now();
 
-async function tryOnce() {
+console.log(`[wait-for-api] Waiting for ${HEALTH_URL} (timeout ${TIMEOUT_MS}ms)…`);
+
+while (true) {
   try {
-    const res = await fetch(HEALTH_URL, { timeout: 3000 });
-    if (res.ok) return true;
-    console.log(`[wait-for-api] ${HEALTH_URL} → ${res.status} ${res.statusText}`);
-    return false;
-  } catch (e) {
-    console.log(`[wait-for-api] not ready yet: ${e.message}`);
-    return false;
-  }
-}
-
-(async () => {
-  console.log(`[wait-for-api] Waiting for ${HEALTH_URL} (timeout ${TIMEOUT_MS}ms)…`);
-  while (Date.now() - START < TIMEOUT_MS) {
-    if (await tryOnce()) {
+    const res = await fetch(HEALTH_URL, { method: "GET" });
+    const text = await res.text();
+    if (res.ok && (text === "ok" || text.trim() === "ok")) {
       console.log("[wait-for-api] ✅ API is up");
       process.exit(0);
+    } else {
+      console.log(`[wait-for-api] not ready yet: status ${res.status} body "${text}"`);
     }
-    await sleep(INTERVAL_MS);
+  } catch (err) {
+    console.log(`[wait-for-api] not ready yet: ${err.message}`);
   }
-  console.error("[wait-for-api] ❌ Timed out waiting for API");
-  process.exit(1);
-})();
+
+  if (Date.now() - start > TIMEOUT_MS) {
+    console.error(`[wait-for-api] ❌ Timed out after ${TIMEOUT_MS}ms`);
+    process.exit(1);
+  }
+
+  await new Promise(r => setTimeout(r, INTERVAL_MS));
+}

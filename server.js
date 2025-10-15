@@ -1,26 +1,28 @@
+// server.js
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
+// middleware
 app.use(cors());
 app.use(bodyParser.json());
 
-// ✅ Health check endpoint for CI
-app.get("/healthz", (req, res) => {
-  res.status(200).send("OK");
+// --- healthz: used by CI wait script ---
+app.get("/healthz", (_req, res) => {
+  // keep this ultra fast and deterministic
+  res.status(200).type("text/plain").send("ok");
 });
 
-// Root route (optional)
-app.get("/", (req, res) => {
-  res.send("ViDA MVP API running");
+// (Optional) simple root page
+app.get("/", (_req, res) => {
+  res.status(200).json({ status: "ViDA MVP API up" });
 });
 
-// Start server on all interfaces for CI
-app.listen("3001", "0.0.0.0", () => {
-  console.log(`Server listening on 0.0.0.0:${PORT}`);
-});
+const PORT = parseInt(process.env.PORT || "3001", 10);
+const HOST = "0.0.0.0";
 
-export default app;
+app.listen(PORT, HOST, () => {
+  console.log(`Server listening on ${HOST}:${PORT}`); // CI logs look for this
+});

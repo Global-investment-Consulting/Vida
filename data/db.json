@@ -1,0 +1,914 @@
+{
+  "invoices": [
+    {
+      "id": "inv_1760000787563_854063",
+      "number": "2025-00001",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "status": "PAID",
+      "createdAt": "2025-10-09T09:06:27.563Z",
+      "issuedAt": "2025-10-09T09:06:27.563Z"
+    },
+    {
+      "id": "inv_1760000817964_879532",
+      "number": "2025-00002",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Samco",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "name": "Doll",
+          "qty": 3,
+          "price": 15
+        }
+      ],
+      "net": 45,
+      "tax": 9.45,
+      "gross": 54.45,
+      "status": "PAID",
+      "createdAt": "2025-10-09T09:06:57.964Z",
+      "issuedAt": "2025-10-09T09:06:57.964Z"
+    },
+    {
+      "id": "inv_1760001799205_525748",
+      "number": "2025-00003",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "status": "PAID",
+      "createdAt": "2025-10-09T09:23:19.205Z",
+      "issuedAt": "2025-10-09T09:23:19.205Z"
+    },
+    {
+      "id": "inv_1760004866589_237153",
+      "number": "2025-00004",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "status": "PAID",
+      "createdAt": "2025-10-09T10:14:26.589Z",
+      "issuedAt": "2025-10-09T10:14:26.589Z"
+    },
+    {
+      "id": "inv_1760004883595_147496",
+      "number": "2025-00005",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "status": "PAID",
+      "createdAt": "2025-10-09T10:14:43.595Z",
+      "issuedAt": "2025-10-09T10:14:43.595Z"
+    },
+    {
+      "id": "inv_1760013894984_515962",
+      "number": "2025-00006",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "status": "PAID",
+      "createdAt": "2025-10-09T12:44:54.984Z",
+      "issuedAt": "2025-10-09T12:44:54.985Z"
+    },
+    {
+      "id": "inv_1760013904480_756609",
+      "number": "2025-00007",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test Co",
+        "country": "BE",
+        "vat": ""
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "status": "PAID",
+      "createdAt": "2025-10-09T12:45:04.480Z",
+      "issuedAt": "2025-10-09T12:45:04.481Z"
+    },
+    {
+      "id": "inv_1760024584532_317663",
+      "number": "2025-00008",
+      "currency": "EUR",
+      "buyer": {
+        "country": "BE",
+        "name": "Persist Co"
+      },
+      "lines": [
+        {
+          "price": 50,
+          "name": "Service",
+          "qty": 1
+        }
+      ],
+      "vatRate": 0.21,
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-09T15:43:04.532Z",
+      "status": "PAID"
+    },
+    {
+      "id": "inv_1760078819427_688381",
+      "number": "2025-00009",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE"
+      },
+      "lines": [
+        {
+          "price": 50,
+          "name": "Service",
+          "qty": 1
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-10T06:46:59.441Z",
+      "createdAt": "2025-10-10T06:46:59.441Z",
+      "updatedAt": "2025-10-10T06:46:59.441Z"
+    },
+    {
+      "id": "inv_1760080492401_527365",
+      "number": "2025-00010",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE"
+      },
+      "lines": [
+        {
+          "price": 50,
+          "name": "Service",
+          "qty": 1
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-10T07:14:52.418Z",
+      "createdAt": "2025-10-10T07:14:52.418Z",
+      "updatedAt": "2025-10-10T07:14:52.440Z"
+    },
+    {
+      "id": "inv_1760080494274_754179",
+      "number": "2025-00011",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test Co",
+        "country": "BE"
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-10T07:14:54.287Z",
+      "createdAt": "2025-10-10T07:14:54.287Z",
+      "updatedAt": "2025-10-10T07:14:54.336Z"
+    },
+    {
+      "id": "inv_1760085431911_146381",
+      "number": "2025-00012",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Persist Co",
+        "country": "BE"
+      },
+      "lines": [
+        {
+          "price": 50,
+          "name": "Service",
+          "qty": 1
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-10T08:37:11.929Z",
+      "createdAt": "2025-10-10T08:37:11.929Z",
+      "updatedAt": "2025-10-10T08:37:11.962Z"
+    },
+    {
+      "id": "inv_1760085446809_558031",
+      "number": "2025-00013",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test Co",
+        "country": "BE"
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-10T08:37:26.824Z",
+      "createdAt": "2025-10-10T08:37:26.824Z",
+      "updatedAt": "2025-10-10T08:37:26.894Z"
+    },
+    {
+      "id": "inv_1760085461345_778626",
+      "number": "2025-00014",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test Co",
+        "country": "BE"
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-10T08:37:41.364Z",
+      "createdAt": "2025-10-10T08:37:41.364Z",
+      "updatedAt": "2025-10-10T08:37:41.425Z"
+    },
+    {
+      "id": "inv_1760097194450_689794",
+      "number": "2025-00015",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test Co",
+        "country": "BE"
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-10T11:53:14.465Z",
+      "createdAt": "2025-10-10T11:53:14.465Z",
+      "updatedAt": "2025-10-10T11:53:14.524Z"
+    },
+    {
+      "id": "inv_1760097841093_704973",
+      "number": "2025-00016",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyer": {
+        "name": "Test Co",
+        "country": "BE"
+      },
+      "lines": [
+        {
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "issuedAt": "2025-10-10T12:04:01.109Z",
+      "createdAt": "2025-10-10T12:04:01.109Z",
+      "updatedAt": "2025-10-10T12:04:01.165Z"
+    },
+    {
+      "id": "inv_1760101817184_483776",
+      "number": "2025-77940",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "Unknown",
+      "buyerCountry": "BE",
+      "vatRate": 0.21,
+      "net": 0,
+      "tax": 0,
+      "gross": 0,
+      "createdAt": "2025-10-10T13:10:17.185Z",
+      "updatedAt": "2025-10-10T13:10:17.185Z",
+      "lines": [
+        {
+          "id": "3a6e2532-966a-4498-a2bd-10267a160a02",
+          "name": "Item",
+          "qty": 1,
+          "price": 0
+        }
+      ]
+    },
+    {
+      "id": "inv_1760333627133_193498",
+      "number": "2025-93827",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "",
+      "buyerCountry": "",
+      "lines": [],
+      "net": 0,
+      "tax": 0,
+      "gross": 0,
+      "vatRate": 0.21,
+      "createdAt": "2025-10-13T05:33:47.133Z",
+      "updatedAt": "2025-10-13T05:33:47.133Z"
+    },
+    {
+      "id": "inv_1760333627167_882439",
+      "number": "2025-97658",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "",
+      "buyerCountry": "",
+      "lines": [],
+      "net": 0,
+      "tax": 0,
+      "gross": 0,
+      "vatRate": 0.21,
+      "createdAt": "2025-10-13T05:33:47.167Z",
+      "updatedAt": "2025-10-13T05:33:47.167Z"
+    },
+    {
+      "id": "inv_1760333636801_883760",
+      "number": "2025-90033",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "",
+      "buyerCountry": "",
+      "lines": [],
+      "net": 0,
+      "tax": 0,
+      "gross": 0,
+      "vatRate": 0.21,
+      "createdAt": "2025-10-13T05:33:56.801Z",
+      "updatedAt": "2025-10-13T05:33:56.801Z"
+    },
+    {
+      "id": "inv_1760333636864_207981",
+      "number": "2025-96597",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "",
+      "buyerCountry": "",
+      "lines": [],
+      "net": 0,
+      "tax": 0,
+      "gross": 0,
+      "vatRate": 0.21,
+      "createdAt": "2025-10-13T05:33:56.864Z",
+      "updatedAt": "2025-10-13T05:33:56.864Z"
+    },
+    {
+      "id": "inv_1760334412957_067877",
+      "number": "2025-58111",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "vatRate": 0.21,
+      "lines": [
+        {
+          "id": "9bc687bd-6d2c-4433-a1a7-4082f9164483",
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "createdAt": "2025-10-13T05:46:52.958Z",
+      "updatedAt": "2025-10-13T05:46:52.974Z",
+      "payments": [
+        "pay_1760334412974_803744"
+      ]
+    },
+    {
+      "id": "inv_1760334435008_242952",
+      "number": "2025-65903",
+      "status": "PAID",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "vatRate": 0.21,
+      "lines": [
+        {
+          "id": "6b848f74-aa54-4e20-8044-b52adbae8594",
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "createdAt": "2025-10-13T05:47:15.009Z",
+      "updatedAt": "2025-10-13T05:47:15.036Z",
+      "payments": [
+        "pay_1760334435036_175328"
+      ]
+    },
+    {
+      "id": "inv_1760422941120_933718",
+      "number": "2025-49199",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "net": 50,
+      "tax": 10.5,
+      "gross": 60.5,
+      "vatRate": 0.21,
+      "lines": [
+        {
+          "id": "071d9b44-84c0-4a8c-b4ac-dc67e122e465",
+          "name": "Service",
+          "qty": 1,
+          "price": 50
+        }
+      ],
+      "createdAt": "2025-10-14T06:22:21.121Z",
+      "updatedAt": "2025-10-14T06:22:21.121Z",
+      "payments": []
+    },
+    {
+      "id": "inv_1760425329269_657270",
+      "number": "2025-22",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "issueDate": "2025-10-14",
+      "net": 123.45,
+      "tax": 2592.45,
+      "gross": 2715.9,
+      "vatRate": 21,
+      "subtotalMinor": 12345,
+      "taxMinor": 259245,
+      "totalMinor": 271590,
+      "lines": [
+        {
+          "id": "f64f42f9-8042-4cb7-a5b0-db0e0c23b969",
+          "name": "Test line",
+          "qty": 1,
+          "priceMinor": 12345
+        }
+      ],
+      "payments": [],
+      "externalId": "ext_684edab8",
+      "createdAt": "2025-10-14T07:02:09.269Z",
+      "updatedAt": "2025-10-14T07:02:09.269Z"
+    },
+    {
+      "id": "inv_1760425432178_435626",
+      "number": "2025-23",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "issueDate": "2025-10-14",
+      "net": 123.45,
+      "tax": 2592.45,
+      "gross": 2715.9,
+      "vatRate": 21,
+      "subtotalMinor": 12345,
+      "taxMinor": 259245,
+      "totalMinor": 271590,
+      "lines": [
+        {
+          "id": "1054dd64-ceb4-4bb6-88d2-af2494caa258",
+          "name": "Test line",
+          "qty": 1,
+          "priceMinor": 12345
+        }
+      ],
+      "payments": [],
+      "externalId": "ext_0cc73dae",
+      "createdAt": "2025-10-14T07:03:52.178Z",
+      "updatedAt": "2025-10-14T07:03:52.178Z"
+    },
+    {
+      "id": "inv_1760425983413_783097",
+      "number": "2025-24",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "issueDate": "2025-10-14",
+      "net": 123.45,
+      "tax": 2592.45,
+      "gross": 2715.9,
+      "vatRate": 21,
+      "subtotalMinor": 12345,
+      "taxMinor": 259245,
+      "totalMinor": 271590,
+      "lines": [
+        {
+          "id": "adb079cc-a00e-4085-804b-231c2f4dd99e",
+          "name": "Test line",
+          "qty": 1,
+          "priceMinor": 12345
+        }
+      ],
+      "payments": [],
+      "externalId": "ext_e6146c15",
+      "createdAt": "2025-10-14T07:13:03.413Z",
+      "updatedAt": "2025-10-14T07:13:03.413Z"
+    },
+    {
+      "id": "inv_1760426375838_528646",
+      "number": "2025-25",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "issueDate": "2025-10-14",
+      "net": 123.45,
+      "tax": 2592.45,
+      "gross": 2715.9,
+      "vatRate": 21,
+      "subtotalMinor": 12345,
+      "taxMinor": 259245,
+      "totalMinor": 271590,
+      "lines": [
+        {
+          "id": "971039b2-e554-4dc0-83d0-2950e75b5b9f",
+          "name": "Test line",
+          "qty": 1,
+          "priceMinor": 12345
+        }
+      ],
+      "payments": [],
+      "externalId": "ext_d846015c",
+      "createdAt": "2025-10-14T07:19:35.839Z",
+      "updatedAt": "2025-10-14T07:19:35.839Z"
+    },
+    {
+      "id": "inv_1760426689556_573846",
+      "number": "2025-26",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "issueDate": "2025-10-14",
+      "net": 123.45,
+      "tax": 2592.45,
+      "gross": 2715.9,
+      "vatRate": 21,
+      "subtotalMinor": 12345,
+      "taxMinor": 259245,
+      "totalMinor": 271590,
+      "lines": [
+        {
+          "id": "e093e8f6-2f50-46d1-9dac-3a57d066d2fe",
+          "name": "Test line",
+          "qty": 1,
+          "priceMinor": 12345
+        }
+      ],
+      "payments": [],
+      "externalId": "ext_53f18623",
+      "createdAt": "2025-10-14T07:24:49.556Z",
+      "updatedAt": "2025-10-14T07:24:49.556Z"
+    },
+    {
+      "id": "inv_1760427891768_718218",
+      "number": "2025-27",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "issueDate": "2025-10-14",
+      "net": 123.45,
+      "tax": 2592.45,
+      "gross": 2715.9,
+      "vatRate": 21,
+      "subtotalMinor": 12345,
+      "taxMinor": 259245,
+      "totalMinor": 271590,
+      "lines": [
+        {
+          "id": "676cf475-ff61-43af-a969-f2c82e4f4202",
+          "name": "Test line",
+          "qty": 1,
+          "priceMinor": 12345
+        }
+      ],
+      "payments": [],
+      "externalId": "ext_bfec5525",
+      "createdAt": "2025-10-14T07:44:51.768Z",
+      "updatedAt": "2025-10-14T07:44:51.768Z"
+    },
+    {
+      "id": "inv_1760428324630_625818",
+      "number": "2025-28",
+      "status": "SENT",
+      "currency": "EUR",
+      "buyerName": "Test Buyer",
+      "buyerCountry": "BE",
+      "issueDate": "2025-10-14",
+      "net": 123.45,
+      "tax": 2592.45,
+      "gross": 2715.9,
+      "vatRate": 21,
+      "subtotalMinor": 12345,
+      "taxMinor": 259245,
+      "totalMinor": 271590,
+      "lines": [
+        {
+          "id": "27885e69-cc04-4aeb-b013-7f5d7e33c448",
+          "name": "Test line",
+          "qty": 1,
+          "priceMinor": 12345
+        }
+      ],
+      "payments": [],
+      "externalId": "ext_900d7abb",
+      "createdAt": "2025-10-14T07:52:04.630Z",
+      "updatedAt": "2025-10-14T07:52:04.630Z"
+    },
+    {
+      "id": "inv_1760433313864_228580",
+      "number": "2025-97659",
+      "status": "draft",
+      "currency": "EUR",
+      "createdAt": "2025-10-14T09:15:13.864Z",
+      "externalId": "ext_25e1c816",
+      "buyer": {
+        "email": "buyer@example.com",
+        "name": "Test Buyer",
+        "vatId": "BE0123456789"
+      },
+      "buyerName": "Test Buyer",
+      "lines": [
+        {
+          "vatRate": 21,
+          "description": "Test line",
+          "quantity": 1,
+          "unitPriceMinor": 12345
+        }
+      ],
+      "totalMinor": 12345,
+      "gross": 12345
+    },
+    {
+      "id": "inv_1760449500129_67819",
+      "number": "2025-97660",
+      "status": "draft",
+      "currency": "EUR",
+      "createdAt": "2025-10-14T13:45:00.129Z",
+      "externalId": "ext_konclnkz",
+      "buyer": {
+        "name": "Test Buyer",
+        "vatId": "BE0123456789",
+        "email": "buyer@example.com"
+      },
+      "buyerName": "Test Buyer",
+      "lines": [
+        {
+          "description": "Service",
+          "quantity": 1,
+          "unitPriceMinor": 12345,
+          "vatRate": 21
+        }
+      ],
+      "totalMinor": 12345,
+      "gross": 12345
+    }
+  ],
+  "payments": [
+    [
+      {
+        "id": "inv_1760000817964_879532",
+        "invoiceId": "inv_1760000817964_879532",
+        "amount": 54.45,
+        "paymentMethod": "manual",
+        "paidAt": "2025-10-09T09:07:03.901Z"
+      }
+    ],
+    [
+      {
+        "id": "inv_1760000787563_854063",
+        "invoiceId": "inv_1760000787563_854063",
+        "amount": 60.5,
+        "paymentMethod": "manual",
+        "paidAt": "2025-10-09T09:07:21.581Z"
+      }
+    ],
+    [
+      {
+        "id": "inv_1760001799205_525748",
+        "invoiceId": "inv_1760001799205_525748",
+        "amount": 60.5,
+        "paymentMethod": "manual",
+        "paidAt": "2025-10-09T09:23:19.269Z"
+      }
+    ],
+    [
+      {
+        "id": "inv_1760004866589_237153",
+        "invoiceId": "inv_1760004866589_237153",
+        "amount": 60.5,
+        "paymentMethod": "manual",
+        "paidAt": "2025-10-09T10:14:26.632Z"
+      }
+    ],
+    [
+      {
+        "id": "inv_1760004883595_147496",
+        "invoiceId": "inv_1760004883595_147496",
+        "amount": 60.5,
+        "paymentMethod": "manual",
+        "paidAt": "2025-10-09T10:14:43.607Z"
+      }
+    ],
+    [
+      {
+        "id": "inv_1760013894984_515962",
+        "invoiceId": "inv_1760013894984_515962",
+        "amount": 60.5,
+        "paymentMethod": "manual",
+        "paidAt": "2025-10-09T12:44:55.030Z"
+      }
+    ],
+    [
+      {
+        "id": "inv_1760013904480_756609",
+        "invoiceId": "inv_1760013904480_756609",
+        "amount": 60.5,
+        "paymentMethod": "manual",
+        "paidAt": "2025-10-09T12:45:04.537Z"
+      }
+    ],
+    {
+      "id": "pay_1760024584773_511970",
+      "invoiceId": "inv_1760024584532_317663",
+      "amount": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-09T15:43:04.773Z"
+    },
+    {
+      "id": "inv_1760080492401_527365",
+      "invoiceId": "inv_1760080492401_527365",
+      "amount": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-10T07:14:52.440Z"
+    },
+    {
+      "id": "inv_1760080494274_754179",
+      "invoiceId": "inv_1760080494274_754179",
+      "amount": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-10T07:14:54.336Z"
+    },
+    {
+      "id": "inv_1760085431911_146381",
+      "invoiceId": "inv_1760085431911_146381",
+      "amount": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-10T08:37:11.962Z"
+    },
+    {
+      "id": "inv_1760085446809_558031",
+      "invoiceId": "inv_1760085446809_558031",
+      "amount": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-10T08:37:26.894Z"
+    },
+    {
+      "id": "inv_1760085461345_778626",
+      "invoiceId": "inv_1760085461345_778626",
+      "amount": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-10T08:37:41.425Z"
+    },
+    {
+      "id": "inv_1760097194450_689794",
+      "invoiceId": "inv_1760097194450_689794",
+      "amount": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-10T11:53:14.524Z"
+    },
+    {
+      "id": "inv_1760097841093_704973",
+      "invoiceId": "inv_1760097841093_704973",
+      "amount": 60.5,
+      "paymentMethod": "manual",
+      "paidAt": "2025-10-10T12:04:01.165Z"
+    },
+    [],
+    [],
+    [],
+    [],
+    {
+      "id": "pay_1760334412974_803744",
+      "invoiceId": "inv_1760334412957_067877",
+      "amount": 60.5,
+      "currency": "EUR",
+      "createdAt": "2025-10-13T05:46:52.974Z",
+      "method": "card",
+      "status": "succeeded"
+    },
+    {
+      "id": "pay_1760334435036_175328",
+      "invoiceId": "inv_1760334435008_242952",
+      "amount": 60.5,
+      "currency": "EUR",
+      "createdAt": "2025-10-13T05:47:15.036Z",
+      "method": "card",
+      "status": "succeeded"
+    }
+  ],
+  "seq": 28
+}
