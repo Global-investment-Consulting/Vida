@@ -9,12 +9,11 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
         include:
           - os: ubuntu-latest
-            name: "Ubuntu (Node 18)"
+            name: Ubuntu (Node 18)
           - os: windows-latest
-            name: "Windows (Node 18)"
+            name: Windows (Node 18)
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.name }}
 
@@ -30,5 +29,25 @@ jobs:
       - name: Install dependencies
         run: npm ci || npm install
 
-      - name: Run UBL smoke (best-effort)
+      - name: Start API in background
+        run: |
+          echo "Starting API..."
+          nohup npm start > api.log 2>&1 &
+          echo "Waiting for API health check..."
+          for i in {1..45}; do
+            if curl -fs http://localhost:3001/healthz >/dev/null 2>&1; then
+              echo "API is up!"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API not ready"
+          cat api.log
+          exit 1
+
+      - name: Run UBL smoke test
         run: npm run ubl:smoke
+
+      - name: Print API logs (on failure)
+        if: failure()
+        run: cat api.log || echo "No api.log found"
