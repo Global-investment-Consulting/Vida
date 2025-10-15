@@ -1,40 +1,23 @@
-// Portable wait-for-api: respects HEALTH_URL and WAIT_TIMEOUT_MS.
-// Defaults: http://127.0.0.1:3001/healthz, 150000 ms
-const HEALTH_URL = process.env.HEALTH_URL || 'http://127.0.0.1:3001/healthz';
-const TIMEOUT_MS = Number(process.env.WAIT_TIMEOUT_MS || 150000);
-const INTERVAL_MS = 1000;
+// Portable "wait for API" used on both Windows + Linux runners.
+const { setTimeout: sleep } = await import('node:timers/promises');
+const url = process.env.HEALTH_URL || 'http://127.0.0.1:3001/healthz';
+const timeoutMs = Number(process.env.WAIT_TIMEOUT_MS || 20000);
 
-function now() { return new Date().toISOString(); }
+const started = Date.now();
+process.stdout.write(`[wait-for-api] Waiting for ${url} (timeout ${timeoutMs}ms)…\n`);
 
-async function ping(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4000);
+while (Date.now() - started < timeoutMs) {
   try {
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) return false;
-    const text = (await res.text()).trim();
-    return /ok/i.test(text);
-  } catch {
-    clearTimeout(timer);
-    return false;
-  }
-}
-
-async function wait() {
-  const start = Date.now();
-  console.log(`[wait-for-api] Waiting for ${HEALTH_URL} (timeout ${TIMEOUT_MS}ms)…`);
-  while (Date.now() - start < TIMEOUT_MS) {
-    // eslint-disable-next-line no-await-in-loop
-    if (await ping(HEALTH_URL)) {
-      console.log('[wait-for-api] ✅ API is up');
+    const res = await fetch(url, { cache: 'no-store' });
+    if (res.ok) {
+      process.stdout.write('[wait-for-api] ✅ API is up\n');
       process.exit(0);
     }
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise(r => setTimeout(r, INTERVAL_MS));
+  } catch (_) {
+    // ignore and retry
   }
-  console.error(`[wait-for-api] ❌ Timed out after ${TIMEOUT_MS}ms`);
-  process.exit(1);
+  await sleep(500);
 }
 
-wait();
+process.stderr.write('[wait-for-api] ❌ Timed out waiting for API\n');
+process.exit(1);
