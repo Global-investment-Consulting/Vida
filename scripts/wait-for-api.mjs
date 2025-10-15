@@ -1,21 +1,18 @@
 // Portable wait-for-api script (Node 18/20+)
-// Uses global fetch; waits until HEALTH_URL responds 200 or timeout
+// Waits until HEALTH_URL responds 200 OK or timeout reached
 
 const url = process.env.HEALTH_URL || 'http://127.0.0.1:3001/healthz';
 const timeoutMs = Number(process.env.WAIT_TIMEOUT_MS || '30000');
 const intervalMs = 500;
-
 const deadline = Date.now() + timeoutMs;
 
-process.stdout.write(`[wait-for-api] Waiting for ${url} (timeout ${timeoutMs}ms)…\n`);
+console.log(`[wait-for-api] Waiting for ${url} (timeout ${timeoutMs}ms)…`);
 
-async function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function ok() {
+async function check() {
   try {
-    const res = await fetch(url, { method: 'GET' });
+    const res = await fetch(url);
     return res.ok;
   } catch {
     return false;
@@ -24,12 +21,12 @@ async function ok() {
 
 (async () => {
   while (Date.now() < deadline) {
-    if (await ok()) {
-      process.stdout.write('[wait-for-api] ✅ API is up\n');
+    if (await check()) {
+      console.log('[wait-for-api] ✅ API is up');
       process.exit(0);
     }
     await sleep(intervalMs);
   }
-  process.stderr.write('[wait-for-api] ❌ Timed out waiting for API\n');
+  console.error('[wait-for-api] ❌ Timed out waiting for API');
   process.exit(1);
 })();
