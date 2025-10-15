@@ -2,15 +2,18 @@ name: ci
 
 on:
   push:
-    branches: [ feat/a1-json-to-ubl, main ]
+    branches:
+      - feat/a1-json-to-ubl
+      - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  test-ubuntu:
+    name: test (ubuntu-latest)
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -25,89 +28,102 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ---------- Start + Wait (Windows) ----------
-      - name: Start API (bg) and wait [Windows]
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          # Start API in background and capture PID
-          $p = Start-Process node "server.js" `
-                -RedirectStandardOutput api_out.txt `
-                -RedirectStandardError  api_err.txt `
-                -NoNewWindow -PassThru
-          $p.Id | Out-File server.pid -Encoding ascii -NoNewline
-
-          # Wait until /healthz is up
-          $env:HEALTH_URL = "http://127.0.0.1:3001/healthz"
-          $env:WAIT_TIMEOUT_MS = "150000"
-          npm run --silent wait:api
-
-      # ---------- Start + Wait (Ubuntu) ----------
+      # --- Start API, wait, smoke on Ubuntu ---
       - name: Start API (bg) and wait [Ubuntu]
-        if: runner.os != 'Windows'
         shell: bash
         run: |
-          nohup node server.js > api_log.txt 2>&1 & echo $! > server.pid
+          # start in background and persist the PID
+          nohup node server.js > api_log.txt 2>&1 &
+          echo $! > server.pid
+
+          # wait for health endpoint
           export HEALTH_URL="http://127.0.0.1:3001/healthz"
           export WAIT_TIMEOUT_MS="150000"
           npm run --silent wait:api
 
-      # ---------- Smoke tests ----------
-      - name: Smoke test [Windows]
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $res = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:3001/healthz).Content
-          if ($res -ne "ok") { throw "healthz returned '$res' instead of 'ok'" }
-
       - name: Smoke test [Ubuntu]
-        if: runner.os != 'Windows'
         shell: bash
         run: |
-          curl -fsS http://127.0.0.1:3001/healthz | grep -q "ok"
+          set -e
+          curl -fsS http://127.0.0.1:3001/healthz | grep -i "ok"
 
-      # ---------- Logs on failure ----------
-      - name: Print API logs on failure (Windows)
-        if: failure() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Write-Host "===== api_out.txt ====="
-          if (Test-Path api_out.txt) { Get-Content api_out.txt -Raw }
-          Write-Host "===== api_err.txt ====="
-          if (Test-Path api_err.txt) { Get-Content api_err.txt -Raw }
-
-      - name: Print API logs on failure (Ubuntu)
-        if: failure() && runner.os != 'Windows'
+      # --- If anything failed above, dump server logs for debugging ---
+      - name: Print API logs on failure [Ubuntu]
+        if: failure()
         shell: bash
         run: |
-          echo "===== api_log.txt ====="
-          [ -f api_log.txt ] && cat api_log.txt || true
+          echo "==== api_log.txt ===="
+          (test -f api_log.txt && cat api_log.txt) || echo "(no api_log.txt)"
 
-      # ---------- Stop API ----------
-      - name: Stop API [Windows]
-        if: always() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          if (Test-Path server.pid) {
-            $pidStr = (Get-Content server.pid | Out-String).Trim()
-            if ($pidStr) {
-              Write-Host "Stopping server PID $pidStr"
-              Stop-Process -Id $pidStr -Force -ErrorAction SilentlyContinue
-            } else {
-              Write-Host "server.pid was empty"
-            }
-          } else {
-            Write-Host "No server.pid on Windows"
-          }
-
+      # --- Always try to stop the server so the job is clean ---
       - name: Stop API [Ubuntu]
-        if: always() && runner.os != 'Windows'
+        if: always()
         shell: bash
         run: |
           if [ -f server.pid ]; then
-            PID="$(cat server.pid)"
-            echo "Stopping server PID $PID"
-            kill -9 "$PID" 2>/dev/null || true
-          else
-            echo "No server.pid on Ubuntu"
+            kill -TERM "$(cat server.pid)" 2>/dev/null || true
           fi
+
+  test-windows:
+    name: test (windows-latest)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: npm ci
+
+      # --- Start API, wait, smoke on Windows ---
+      - name: Start API (bg) and wait [Windows]
+        shell: pwsh
+        run: |
+          # Start the API; redirect stdout/stderr to SEPARATE files
+          $p = Start-Process node "server.js" `
+                 -RedirectStandardOutput api_out.txt `
+                 -RedirectStandardError  api_err.txt `
+                 -NoNewWindow -PassThru
+
+          # Persist PID for the stop step
+          $p.Id | Out-File server.pid -Encoding ascii -NoNewline
+
+          # Wait for /healthz
+          $env:HEALTH_URL = "http://127.0.0.1:3001/healthz"
+          $env:WAIT_TIMEOUT_MS = "150000"
+          npm run --silent wait:api
+
+      - name: Smoke test [Windows]
+        shell: pwsh
+        run: |
+          $resp = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:3001/healthz).Content
+          if (-not ($resp -match 'ok')) { throw "Healthz did not return ok. Body: $resp" }
+
+      - name: Print API logs on failure (Windows)
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "==== api_out.txt ===="
+          if (Test-Path api_out.txt) { Get-Content api_out.txt | Write-Host } else { Write-Host "(no api_out.txt)" }
+          Write-Host "==== api_err.txt ===="
+          if (Test-Path api_err.txt) { Get-Content api_err.txt | Write-Host } else { Write-Host "(no api_err.txt)" }
+
+      - name: Stop API [Windows]
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path server.pid) {
+            # IMPORTANT: do NOT use $PID — it's a read-only automatic var for the current PowerShell process.
+            $serverPid = Get-Content server.pid
+            Write-Host "Stopping server pid $serverPid"
+            Stop-Process -Id $serverPid -Force -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "No server.pid file found; nothing to stop."
+          }
