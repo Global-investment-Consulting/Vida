@@ -4,19 +4,13 @@ on:
   push:
     branches: [ feat/a1-json-to-ubl ]
   pull_request:
+    branches: [ feat/a1-json-to-ubl ]
+  workflow_dispatch: {}
 
 jobs:
-  test:
-    name: test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-
-    env:
-      HEALTH_URL: http://127.0.0.1:3001/healthz
-      WAIT_TIMEOUT_MS: 150000
+  test-ubuntu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -25,81 +19,110 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      # ----- START API -----
-      - name: Start API (bg) and wait [Windows]
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
+      - name: Start API (bg) and wait (Ubuntu)
+        env:
+          HEALTH_URL: http://127.0.0.1:3001/healthz
+          WAIT_TIMEOUT_MS: 20000
         run: |
-          New-Item -ItemType Directory -Force -Path .\logs | Out-Null
-          $logPath = "$(Resolve-Path .\logs\api_windows.log)"
-          # Do NOT override $PID (automatic variable)
-          $p = Start-Process -FilePath "node" -ArgumentList "server.js" -RedirectStandardOutput $logPath -RedirectStandardError $logPath -WindowStyle Hidden -PassThru
-          $env:SERVER_PID = $p.Id
-          Write-Host "Started API pid=$($env:SERVER_PID), log=$logPath"
+          set -e
+          LOG="$RUNNER_TEMP/vida_api_ubuntu.log"
+          PIDFILE="$RUNNER_TEMP/vida_api_ubuntu.pid"
+          : > "$LOG"
+          nohup node server.js >"$LOG" 2>&1 & echo $! > "$PIDFILE"
+          node scripts/wait-for-api.mjs
+          echo "API is up (Ubuntu)."
 
-          npm run --silent wait:api
-
-      - name: Start API (bg) and wait [Ubuntu]
-        if: matrix.os == 'ubuntu-latest'
+      - name: Smoke test (Ubuntu)
         run: |
-          mkdir -p logs
-          (node server.js > logs/api_ubuntu.log 2>&1) &
-          echo $! > server.pid
-          echo "Started API pid=$(cat server.pid)"
-          npm run --silent wait:api
+          curl -fsS "http://127.0.0.1:3001/healthz" | grep -q "ready"
 
-      # ----- SMOKE -----
-      - name: Smoke test [Windows]
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
+      - name: Print API logs on failure (Ubuntu)
+        if: failure()
         run: |
-          # simple curl-based smoke
-          curl -fsS $env:HEALTH_URL | Select-String -Pattern 'ok' | Out-Null
+          LOG="$RUNNER_TEMP/vida_api_ubuntu.log"
+          test -f "$LOG" && tail -n 200 "$LOG" || echo "No ubuntu log found."
 
-      - name: Smoke test [Ubuntu]
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run smoke
-
-      # ----- LOGS ON FAILURE -----
-      - name: Print API logs on failure [Windows]
-        if: failure() && matrix.os == 'windows-latest'
-        shell: pwsh
+      - name: Stop API (Ubuntu)
+        if: always()
         run: |
-          Write-Host "----- API LOG (Windows) -----"
-          Get-ChildItem -Path .\logs -Filter api_windows.log -ErrorAction SilentlyContinue | ForEach-Object {
-            Get-Content $_.FullName -Raw | Write-Host
-          }
-
-      - name: Print API logs on failure [Ubuntu]
-        if: failure() && matrix.os == 'ubuntu-latest'
-        run: |
-          echo "----- API LOG (Ubuntu) -----"
-          test -f logs/api_ubuntu.log && cat logs/api_ubuntu.log || true
-
-      # ----- STOP API -----
-      - name: Stop API [Windows]
-        if: always() && matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          if ($env:SERVER_PID) {
-            Write-Host "Stopping pid=$env:SERVER_PID"
-            try { Stop-Process -Id $env:SERVER_PID -Force -ErrorAction Stop } catch { Write-Host $_ }
-          }
-
-      - name: Stop API [Ubuntu]
-        if: always() && matrix.os == 'ubuntu-latest'
-        run: |
-          if [ -f server.pid ]; then
-            kill -9 "$(cat server.pid)" 2>/dev/null || true
+          PIDFILE="$RUNNER_TEMP/vida_api_ubuntu.pid"
+          if [ -f "$PIDFILE" ]; then
+            kill "$(cat "$PIDFILE")" 2>/dev/null || true
           fi
 
-      - name: Post Setup Node
-        if: always()
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start API (bg) and wait (Windows)
+        shell: pwsh
+        env:
+          HEALTH_URL: http://127.0.0.1:3001/healthz
+          WAIT_TIMEOUT_MS: 20000
+        run: |
+          $Log     = Join-Path $env:RUNNER_TEMP 'vida_api_windows.log'
+          $PidFile = Join-Path $env:RUNNER_TEMP 'vida_api_windows.pid'
+
+          # Ensure log file exists before any Get-Content or redirection
+          New-Item -Path $Log -ItemType File -Force | Out-Null
+
+          # Start node in background with the repository as working directory
+          $proc = Start-Process -FilePath 'node' `
+                                -ArgumentList 'server.js' `
+                                -WorkingDirectory $env:GITHUB_WORKSPACE `
+                                -WindowStyle Hidden `
+                                -RedirectStandardOutput $Log `
+                                -RedirectStandardError  $Log `
+                                -PassThru
+
+          $proc.Id | Set-Content -Path $PidFile
+
+          # Wait until the API answers 200/OK on /healthz
+          node scripts/wait-for-api.mjs
+
+          Write-Host "API is up (Windows). PID=$($proc.Id)"
+
+      - name: Smoke test (Windows)
+        shell: pwsh
+        run: |
+          # Use curl.exe so we get the real curl, not Invoke-WebRequest alias
+          $res = & curl.exe -fsS "http://127.0.0.1:3001/healthz"
+          if ($LASTEXITCODE -ne 0 -or ($res | Select-String -SimpleMatch 'ready') -eq $null) {
+            Write-Error "Smoke check failed."
+          }
+
+      - name: Print API logs on failure (Windows)
+        if: failure()
+        shell: pwsh
+        run: |
+          $Log = Join-Path $env:RUNNER_TEMP 'vida_api_windows.log'
+          if (Test-Path $Log) { Get-Content -Path $Log -Tail 200 } else { Write-Host "No windows log found." }
+
+      - name: Stop API (Windows)
+        if: always()
+        shell: pwsh
+        run: |
+          $PidFile = Join-Path $env:RUNNER_TEMP 'vida_api_windows.pid'
+          if (Test-Path $PidFile) {
+            $pid = Get-Content $PidFile | Select-Object -First 1
+            if ($pid) { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue }
+          }
