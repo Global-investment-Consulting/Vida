@@ -2,14 +2,16 @@ name: ci
 
 on:
   push:
-    branches: [ main, feat/a1-json-to-ubl ]
+    branches:
+      - feat/a1-json-to-ubl
+      - main
   pull_request:
-    branches: [ main ]
 
 jobs:
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -26,80 +28,88 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      # ---------- Start API (Windows) ----------
-      - name: Start API (bg) and wait (Windows)
+      # ---------- Start API + wait (Windows) ----------
+      - name: Start API (bg) and wait [Windows]
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          HEALTH_URL: http://127.0.0.1:3001/healthz
+          WAIT_TIMEOUT_MS: 150000
         run: |
-          # start server in background and capture PID
-          $p = Start-Process node "server.js" `
-                -RedirectStandardOutput api_out.txt `
-                -RedirectStandardError  api_err.txt `
-                -NoNewWindow -PassThru
+          # start API and write PID
+          $p = Start-Process -FilePath "node" -ArgumentList "server.js" `
+                -RedirectStandardOutput "api_win.log" `
+                -RedirectStandardError  "api_win.log" `
+                -PassThru
           $p.Id | Out-File server.pid -Encoding ascii -NoNewline
 
-          # wait for /healthz
-          $env:HEALTH_URL = "http://127.0.0.1:3001/healthz"
-          $env:WAIT_TIMEOUT_MS = "150000"
+          # probe until it’s up
           npm run --silent wait:api
 
-      # ---------- Start API (Ubuntu) ----------
-      - name: Start API (bg) and wait (Ubuntu)
-        if: runner.os != 'Windows'
+      # ---------- Start API + wait (Ubuntu) ----------
+      - name: Start API (bg) and wait [Ubuntu]
+        if: runner.os == 'Linux'
         shell: bash
+        env:
+          HEALTH_URL: http://127.0.0.1:3001/healthz
+          WAIT_TIMEOUT_MS: 150000
         run: |
-          nohup node server.js > api_out.txt 2> api_err.txt &
+          nohup node server.js > api_linux.log 2>&1 &
           echo $! > server.pid
-
-          export HEALTH_URL="http://127.0.0.1:3001/healthz"
-          export WAIT_TIMEOUT_MS="150000"
           npm run --silent wait:api
 
       # ---------- Smoke test ----------
-      - name: Smoke test
+      - name: Smoke test [Windows]
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: npm run smoke:win
+
+      - name: Smoke test [Ubuntu]
+        if: runner.os == 'Linux'
         shell: bash
-        run: |
-          curl -fsS http://127.0.0.1:3001/healthz | grep -E '^ok$'
+        run: npm run smoke:linux
 
       # ---------- Print logs on failure ----------
       - name: Print API logs on failure (Windows)
         if: failure() && runner.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Host "=== api_out.txt ==="
-          Get-Content api_out.txt -Raw
-          Write-Host "=== api_err.txt ==="
-          Get-Content api_err.txt -Raw
+          Write-Host "===== api_win.log ====="
+          if (Test-Path api_win.log) { Get-Content api_win.log -Raw | Write-Host } else { Write-Host "(no api_win.log)" }
+          Write-Host "===== server.pid ====="
+          if (Test-Path server.pid) { Get-Content server.pid | Write-Host } else { Write-Host "(no server.pid)" }
 
       - name: Print API logs on failure (Ubuntu)
-        if: failure() && runner.os != 'Windows'
+        if: failure() && runner.os == 'Linux'
         shell: bash
         run: |
-          echo "=== api_out.txt ==="; cat api_out.txt || true
-          echo "=== api_err.txt ==="; cat api_err.txt || true
+          echo "===== api_linux.log ====="
+          [ -f api_linux.log ] && cat api_linux.log || echo "(no api_linux.log)"
+          echo "===== server.pid ====="
+          [ -f server.pid ] && cat server.pid || echo "(no server.pid)"
 
       # ---------- Stop API ----------
-      - name: Stop API (Windows)
-        if: runner.os == 'Windows'
+      - name: Stop API [Windows]
+        if: always() && runner.os == 'Windows'
         shell: pwsh
-        continue-on-error: true
         run: |
           if (Test-Path server.pid) {
-            $pid = Get-Content server.pid | % { $_.Trim() }
+            $pid = Get-Content server.pid | ForEach-Object { $_.Trim() }
             if ($pid) {
-              Stop-Process -Id $pid -Force
+              try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {}
             }
-            Remove-Item server.pid -Force
+          } else {
+            Write-Host "No server.pid present; nothing to stop."
           }
 
-      - name: Stop API (Ubuntu)
-        if: runner.os != 'Windows'
+      - name: Stop API [Ubuntu]
+        if: always() && runner.os == 'Linux'
         shell: bash
-        continue-on-error: true
         run: |
           if [ -f server.pid ]; then
-            kill -9 "$(cat server.pid)" || true
-            rm -f server.pid
+            kill "$(cat server.pid)" 2>/dev/null || true
+          else
+            echo "No server.pid present; nothing to stop."
           fi
