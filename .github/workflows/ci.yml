@@ -33,9 +33,8 @@ jobs:
           WAIT_TIMEOUT_MS: '30000'
         run: |
           set -euo pipefail
-          # start server from repo root; log to runner temp; record PID
+          cd "${GITHUB_WORKSPACE}"   # ensure correct working dir
           nohup node server.js >"$LOG_PATH" 2>&1 & echo $! > "$PID_PATH"
-          # wait for health
           npm run wait:api
 
       - name: Smoke test (Ubuntu)
@@ -43,7 +42,6 @@ jobs:
           set -euo pipefail
           curl -fsS http://127.0.0.1:3001/healthz | grep -i "ready"
 
-      # if anything fails, show logs
       - name: Print API logs on failure (Ubuntu)
         if: failure()
         env:
@@ -62,7 +60,6 @@ jobs:
             PID="$(cat "$PID_PATH" || true)"
             if [ -n "${PID:-}" ] && kill -0 "$PID" 2>/dev/null; then
               kill "$PID" || true
-              # give it a moment then hard kill if needed
               sleep 2
               kill -9 "$PID" 2>/dev/null || true
             fi
@@ -95,28 +92,29 @@ jobs:
           WAIT_TIMEOUT_MS: '30000'
         run: |
           $ErrorActionPreference = 'Stop'
-          $log = $env:LOG_PATH
+          $logMerged = $env:LOG_PATH
           $pidFile = $env:PID_PATH
+          $logOut = "$env:RUNNER_TEMP\api_windows_out.log"
+          $logErr = "$env:RUNNER_TEMP\api_windows_err.log"
 
-          # Ensure the log directory exists
-          New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($log)) | Out-Null
+          New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($logMerged)) | Out-Null
 
-          # Start the server in repo root; capture process and PID; redirect both out/err to the same log
           $proc = Start-Process -FilePath "node" `
                                 -ArgumentList "server.js" `
                                 -WorkingDirectory $PWD.Path `
-                                -RedirectStandardOutput $log `
-                                -RedirectStandardError  $log `
+                                -RedirectStandardOutput $logOut `
+                                -RedirectStandardError  $logErr `
                                 -PassThru -WindowStyle Hidden
 
           Set-Content -Path $pidFile -Value $proc.Id -Encoding ascii
 
-          # Wait for health
+          # merge logs so later steps can read one file
+          Get-Content $logOut, $logErr | Set-Content $logMerged
+
           npm run wait:api
 
       - name: Smoke test (Windows)
         run: |
-          # PowerShell's curl is an alias for Invoke-WebRequest; -UseBasicParsing avoids IE engine
           (Invoke-WebRequest -Uri "http://127.0.0.1:3001/healthz" -UseBasicParsing).Content | Select-String -Pattern "ready" | Out-Null
 
       - name: Print API logs on failure (Windows)
