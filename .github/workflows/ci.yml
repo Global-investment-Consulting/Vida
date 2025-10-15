@@ -1,13 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
       - name: Start API (bg) and wait [Windows]
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # start server in background and capture PID
           $p = Start-Process node -ArgumentList "server.js" -NoNewWindow -PassThru `
                -RedirectStandardOutput api_out.txt -RedirectStandardError api_err.txt
           $p.Id | Out-File server.pid -Encoding ascii -NoNewline
 
-          # wait for health
           $env:HEALTH_URL = "http://127.0.0.1:3001/healthz"
           $env:WAIT_TIMEOUT_MS = "150000"
           npm run --silent wait:api
@@ -18,10 +43,14 @@
         run: |
           nohup node server.js > api_log.txt 2>&1 &
           echo $! > server.pid
-
           export HEALTH_URL="http://127.0.0.1:3001/healthz"
           export WAIT_TIMEOUT_MS="150000"
           npm run --silent wait:api
+
+      - name: Smoke
+        shell: bash
+        run: |
+          curl -fsS http://127.0.0.1:3001/healthz | grep -qi 'ok'
 
       - name: Print API logs on failure
         if: failure()
