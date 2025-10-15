@@ -1,4 +1,3 @@
-// server.js
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
@@ -7,22 +6,31 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// --- health & basics -------------------------------------------------
+// Fast, stable health endpoint for CI
 app.get("/healthz", (_req, res) => {
-  // keep this dirt-simple and FAST for CI probers
-  res.type("text").send("ok");
+  res.type("text/plain").send("ok");
 });
 
-// minimal root so a human can see something locally
+// (Optional) hello
 app.get("/", (_req, res) => {
-  res.type("text").send("ViDA MVP API is running");
+  res.json({ ok: true, ts: new Date().toISOString() });
 });
 
-// --- start server -----------------------------------------------------
-const PORT = Number(process.env.PORT || 3001);
-const HOST = process.env.HOST || "0.0.0.0";
+const PORT = process.env.PORT || 3001;
+const HOST = "0.0.0.0";
 
-app.listen(PORT, HOST, () => {
-  // CI looks for this exact text in some places; don’t change casually
+const server = app.listen(PORT, HOST, () => {
   console.log(`Server listening on ${HOST}:${PORT}`);
 });
+
+// graceful shutdown (mainly for CI)
+const stop = () => {
+  try {
+    server.close(() => process.exit(0));
+  } catch {
+    process.exit(0);
+  }
+};
+
+process.on("SIGTERM", stop);
+process.on("SIGINT", stop);

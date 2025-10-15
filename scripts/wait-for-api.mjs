@@ -1,47 +1,31 @@
-// scripts/wait-for-api.mjs
-import fetch from "node-fetch";
-
+// Portable wait-for-api: uses global fetch (Node 18+)
 const HEALTH_URL = process.env.HEALTH_URL || "http://127.0.0.1:3001/healthz";
 const TIMEOUT_MS = Number(process.env.WAIT_TIMEOUT_MS || 150000);
-const INTERVAL_MS = 1000;
+const INTERVAL_MS = 750;
 
-const started = Date.now();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function probeOnce() {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 5000);
+const deadline = Date.now() + TIMEOUT_MS;
+console.log(`[wait-for-api] Waiting for ${HEALTH_URL} (timeout ${TIMEOUT_MS}ms)…`);
 
+let lastErr;
+while (Date.now() < deadline) {
   try {
-    const res = await fetch(HEALTH_URL, { signal: controller.signal });
-    const txt = await res.text();
-    if (res.ok && typeof txt === "string" && txt.includes("ok")) {
-      return true;
+    const res = await fetch(HEALTH_URL, { cache: "no-store" });
+    const text = (await res.text()).trim();
+    if (res.ok && text === "ok") {
+      console.log("[wait-for-api] ✅ API is up");
+      process.exit(0);
+    } else {
+      lastErr = new Error(`HTTP ${res.status} body=${JSON.stringify(text)}`);
     }
-    throw new Error(`status=${res.status} body=${JSON.stringify(txt)}`);
-  } finally {
-    clearTimeout(t);
+  } catch (e) {
+    lastErr = e;
   }
+  console.log(`[wait-for-api] not ready yet: ${lastErr?.message}`);
+  await sleep(INTERVAL_MS);
 }
 
-(async () => {
-  /* eslint no-constant-condition: 0 */
-  while (true) {
-    try {
-      const ok = await probeOnce();
-      if (ok) {
-        console.log(`[wait-for-api] ✅ API is up`);
-        process.exit(0);
-      }
-    } catch (err) {
-      const msg =
-        err?.name === "AbortError" ? "request timeout" : String(err?.message || err);
-      console.log(`[wait-for-api] not ready yet: ${msg}`);
-    }
-
-    if (Date.now() - started > TIMEOUT_MS) {
-      console.error(`[wait-for-api] ❌ timed out after ${TIMEOUT_MS}ms waiting for ${HEALTH_URL}`);
-      process.exit(1);
-    }
-    await new Promise(r => setTimeout(r, INTERVAL_MS));
-  }
-})();
+console.error(`[wait-for-api] ❌ Timed out after ${TIMEOUT_MS}ms`);
+if (lastErr) console.error(lastErr);
+process.exit(1);

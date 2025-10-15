@@ -13,8 +13,8 @@
     "start": "node server.js",
     "start:ci": "node server.js",
     "wait:api": "node scripts/wait-for-api.mjs",
-    "smoke:linux": "curl -fsS http://127.0.0.1:3001/healthz | grep -q \"ok\"",
-    "smoke:win": "powershell -NoProfile -Command \"(Invoke-WebRequest -UseBasicParsing http://127.0.0.1:3001/healthz).Content -match 'ok' | Out-Null; if (-not $?) { exit 1 }\"",
+    "ubl:smoke": "node scripts/ci-ubl-smoke.mjs",
+    "to-ubl": "node scripts/to-ubl.mjs",
     "lint": "echo \"(no lint configured)\"",
     "test": "echo \"(no tests configured)\""
   },
