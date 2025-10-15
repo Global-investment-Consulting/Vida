@@ -1,146 +1,81 @@
-name: ci
+name: CI
 
 on:
   push:
-    branches: [ feat/a1-json-to-ubl ]
+    branches:
+      - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  test-ubuntu:
+  lint:
+    name: Lint (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-        working-directory: ${{ github.workspace }}
+    env:
+      CI: true
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - 20
+          - 22
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
-          node-version: '20.x'
-          cache: 'npm'
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0c17529a66aca453f9227af23103ed11469b1e47
+        with:
+          version: 9
+          run_install: false
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Start API (bg) and wait (Ubuntu)
-        env:
-          LOG_PATH: ${{ runner.temp }}/api_ubuntu.log
-          PID_PATH: ${{ runner.temp }}/server.pid
-          HEALTH_URL: http://127.0.0.1:3001/healthz
-          WAIT_TIMEOUT_MS: '30000'
-        run: |
-          set -euo pipefail
-          cd "${GITHUB_WORKSPACE}"   # ensure correct working dir
-          nohup node server.js >"$LOG_PATH" 2>&1 & echo $! > "$PID_PATH"
-          npm run wait:api
+      - name: Run lint
+        run: pnpm run lint -- --max-warnings=0
 
-      - name: Smoke test (Ubuntu)
-        run: |
-          set -euo pipefail
-          curl -fsS http://127.0.0.1:3001/healthz | grep -i "ready"
-
-      - name: Print API logs on failure (Ubuntu)
-        if: failure()
-        env:
-          LOG_PATH: ${{ runner.temp }}/api_ubuntu.log
-        run: |
-          echo "::group::api_ubuntu.log"
-          [ -f "$LOG_PATH" ] && tail -n +1 "$LOG_PATH" || echo "no log file"
-          echo "::endgroup::"
-
-      - name: Stop API (Ubuntu)
-        if: always()
-        env:
-          PID_PATH: ${{ runner.temp }}/server.pid
-        run: |
-          if [ -f "$PID_PATH" ]; then
-            PID="$(cat "$PID_PATH" || true)"
-            if [ -n "${PID:-}" ] && kill -0 "$PID" 2>/dev/null; then
-              kill "$PID" || true
-              sleep 2
-              kill -9 "$PID" 2>/dev/null || true
-            fi
-          fi
-
-  test-windows:
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: pwsh
-        working-directory: ${{ github.workspace }}
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    needs:
+      - lint
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - 20
+          - 22
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
-          node-version: '20.x'
-          cache: 'npm'
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0c17529a66aca453f9227af23103ed11469b1e47
+        with:
+          version: 9
+          run_install: false
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Start API (bg) and wait (Windows)
-        env:
-          LOG_PATH: ${{ runner.temp }}\api_windows.log
-          PID_PATH: ${{ runner.temp }}\server.pid
-          HEALTH_URL: http://127.0.0.1:3001/healthz
-          WAIT_TIMEOUT_MS: '30000'
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $logMerged = $env:LOG_PATH
-          $pidFile = $env:PID_PATH
-          $logOut = "$env:RUNNER_TEMP\api_windows_out.log"
-          $logErr = "$env:RUNNER_TEMP\api_windows_err.log"
-
-          New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($logMerged)) | Out-Null
-
-          $proc = Start-Process -FilePath "node" `
-                                -ArgumentList "server.js" `
-                                -WorkingDirectory $PWD.Path `
-                                -RedirectStandardOutput $logOut `
-                                -RedirectStandardError  $logErr `
-                                -PassThru -WindowStyle Hidden
-
-          Set-Content -Path $pidFile -Value $proc.Id -Encoding ascii
-
-          # merge logs so later steps can read one file
-          Get-Content $logOut, $logErr | Set-Content $logMerged
-
-          npm run wait:api
-
-      - name: Smoke test (Windows)
-        run: |
-          (Invoke-WebRequest -Uri "http://127.0.0.1:3001/healthz" -UseBasicParsing).Content | Select-String -Pattern "ready" | Out-Null
-
-      - name: Print API logs on failure (Windows)
-        if: failure()
-        env:
-          LOG_PATH: ${{ runner.temp }}\api_windows.log
-        run: |
-          Write-Host "::group::api_windows.log"
-          if (Test-Path $env:LOG_PATH) {
-            Get-Content $env:LOG_PATH -Raw
-          } else {
-            Write-Host "no log file"
-          }
-          Write-Host "::endgroup::"
-
-      - name: Stop API (Windows)
-        if: always()
-        env:
-          PID_PATH: ${{ runner.temp }}\server.pid
-        run: |
-          $pidFile = $env:PID_PATH
-          if (Test-Path $pidFile) {
-            $pid = Get-Content $pidFile -ErrorAction SilentlyContinue
-            if ($pid) {
-              try {
-                Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue
-              } catch {}
-            }
-          }
+      - name: Run tests
+        run: pnpm test
