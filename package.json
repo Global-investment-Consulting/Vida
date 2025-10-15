@@ -1,19 +1,20 @@
 {
   "name": "vida-mvp-nodb",
   "version": "0.5.0",
-  "description": "Minimal API for CI smoke tests (no DB)",
-  "license": "MIT",
-  "private": true,
+  "description": "Vida MVP (JSON -> UBL) minimal API (no DB)",
   "type": "module",
-  "main": "server.js",
+  "private": true,
   "engines": {
     "node": ">=18.17"
   },
   "scripts": {
     "start": "node server.js",
     "start:ci": "node server.js",
-    "wait:api": "node scripts/wait-for-api.mjs"
+    "wait:api": "node scripts/wait-for-api.mjs",
+    "smoke:curl": "curl -fsS http://127.0.0.1:3001/healthz | grep -q \"ok\"",
+    "smoke": "npm run smoke:curl"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "express": "^4.19.2"
+  }
 }
