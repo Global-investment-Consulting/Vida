@@ -1,74 +1,33 @@
-# =========================================
-# Node.js / npm
-# =========================================
+# === Node / general ===
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 package-lock.json
-
-# =========================================
-# Environment and local config
-# =========================================
+.pnp.*
+.vscode/
+.DS_Store
+*.local
 .env
 .env.*
-!.env.example
+*.swp
 
-# =========================================
-# Logs and runtime artifacts
-# =========================================
-*.log
-logs/
-api_out.txt
-api_err.txt
-api_log.txt
-server.pid
-nohup.out
-
-# =========================================
-# Build / dist outputs
-# =========================================
+# === Build / temp ===
 dist/
 build/
 coverage/
 .tmp/
 .temp/
-.cache/
+*.log
 
-# =========================================
-# OS / Editor cruft
-# =========================================
-.DS_Store
+# === CI artifacts ===
+server.pid
+api_*.log
+api.log
+*.pid
+
+# === OS junk ===
 Thumbs.db
 ehthumbs.db
-desktop.ini
-
-# =========================================
-# VSCode / IDE settings
-# =========================================
-.vscode/
-.idea/
-*.swp
-*.swo
-*.sublime-project
-*.sublime-workspace
-
-# =========================================
-# Tests / CI Artifacts
-# =========================================
-*.tap
-*.lcov
-coverage-final.json
-test-results/
-.jest/
-jest-coverage/
-nyc_output/
-
-# =========================================
-# Local scripts / debug
-# =========================================
-scratch/
-notes.txt
-*.bak
-*.tmp
+Icon?
