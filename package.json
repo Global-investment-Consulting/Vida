@@ -1,29 +1,21 @@
-{
-  "name": "vida-mvp-nodb",
-  "version": "0.3.8",
+﻿{
+  "name": "vida_mvp_nodb",
+  "version": "0.5.0",
+  "description": "ViDA e-invoicing MVP â€“ JSONâ†’UBLâ†’PEPPOL",
   "type": "module",
-  "scripts": {
+  "main": "server.js",
+  "scripts": {"ubl:smoke": "node scripts/ci-ubl-smoke.mjs",
     "start": "node server.js",
-    "smoke": "powershell -ExecutionPolicy Bypass -File .\\tests\\smoke.ps1",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev --name init",
-    "db:reset": "prisma migrate reset --force"
+    "test": "echo \"(no tests yet)\"",
+    "ubl:smoke": "node scripts/ci-ubl-smoke.mjs"
   },
   "dependencies": {
-    "@prisma/client": "^6.17.0",
     "cors": "^2.8.5",
-    "decimal.js": "^10.4.3",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2",
-    "morgan": "^1.10.0",
-    "pdfkit": "^0.15.2",
-    "swagger-ui-express": "^5.0.1"
+    "express": "^4.19.2",
+    "pdfkit": "^0.15.0"
   },
-  "devDependencies": {
-    "prisma": "^6.17.0",
-    "supertest": "^7.0.0",
-    "vitest": "^3.2.4"
+  "engines": {
+    "node": ">=18"
   }
 }
+
