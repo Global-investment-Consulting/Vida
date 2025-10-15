@@ -1,10 +1,74 @@
+# =========================================
+# Node.js / npm
+# =========================================
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+
+# =========================================
+# Environment and local config
+# =========================================
 .env
-data/db.json
-data/db.test.json
-coverage/
+.env.*
+!.env.example
+
+# =========================================
+# Logs and runtime artifacts
+# =========================================
 *.log
-invoice_*.pdf
-invoice_*.xml
-/prisma/dev.db
-/data/db.json
+logs/
+api_out.txt
+api_err.txt
+api_log.txt
+server.pid
+nohup.out
+
+# =========================================
+# Build / dist outputs
+# =========================================
+dist/
+build/
+coverage/
+.tmp/
+.temp/
+.cache/
+
+# =========================================
+# OS / Editor cruft
+# =========================================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# =========================================
+# VSCode / IDE settings
+# =========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# =========================================
+# Tests / CI Artifacts
+# =========================================
+*.tap
+*.lcov
+coverage-final.json
+test-results/
+.jest/
+jest-coverage/
+nyc_output/
+
+# =========================================
+# Local scripts / debug
+# =========================================
+scratch/
+notes.txt
+*.bak
+*.tmp
