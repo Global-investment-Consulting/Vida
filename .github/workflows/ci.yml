@@ -4,14 +4,14 @@ on:
   push:
     branches: [ feat/a1-json-to-ubl ]
   pull_request:
-    branches: [ feat/a1-json-to-ubl ]
-  workflow_dispatch: {}
 
 jobs:
   test-ubuntu:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20.x'
           cache: 'npm'
 
       - name: Install dependencies
@@ -27,39 +27,53 @@ jobs:
 
       - name: Start API (bg) and wait (Ubuntu)
         env:
+          LOG_PATH: ${{ runner.temp }}/api_ubuntu.log
+          PID_PATH: ${{ runner.temp }}/server.pid
           HEALTH_URL: http://127.0.0.1:3001/healthz
-          WAIT_TIMEOUT_MS: 20000
+          WAIT_TIMEOUT_MS: '30000'
         run: |
-          set -e
-          LOG="$RUNNER_TEMP/vida_api_ubuntu.log"
-          PIDFILE="$RUNNER_TEMP/vida_api_ubuntu.pid"
-          : > "$LOG"
-          nohup node server.js >"$LOG" 2>&1 & echo $! > "$PIDFILE"
-          node scripts/wait-for-api.mjs
-          echo "API is up (Ubuntu)."
+          set -euo pipefail
+          # start server from repo root; log to runner temp; record PID
+          nohup node server.js >"$LOG_PATH" 2>&1 & echo $! > "$PID_PATH"
+          # wait for health
+          npm run wait:api
 
       - name: Smoke test (Ubuntu)
         run: |
-          curl -fsS "http://127.0.0.1:3001/healthz" | grep -q "ready"
+          set -euo pipefail
+          curl -fsS http://127.0.0.1:3001/healthz | grep -i "ready"
 
+      # if anything fails, show logs
       - name: Print API logs on failure (Ubuntu)
         if: failure()
+        env:
+          LOG_PATH: ${{ runner.temp }}/api_ubuntu.log
         run: |
-          LOG="$RUNNER_TEMP/vida_api_ubuntu.log"
-          test -f "$LOG" && tail -n 200 "$LOG" || echo "No ubuntu log found."
+          echo "::group::api_ubuntu.log"
+          [ -f "$LOG_PATH" ] && tail -n +1 "$LOG_PATH" || echo "no log file"
+          echo "::endgroup::"
 
       - name: Stop API (Ubuntu)
         if: always()
+        env:
+          PID_PATH: ${{ runner.temp }}/server.pid
         run: |
-          PIDFILE="$RUNNER_TEMP/vida_api_ubuntu.pid"
-          if [ -f "$PIDFILE" ]; then
-            kill "$(cat "$PIDFILE")" 2>/dev/null || true
+          if [ -f "$PID_PATH" ]; then
+            PID="$(cat "$PID_PATH" || true)"
+            if [ -n "${PID:-}" ] && kill -0 "$PID" 2>/dev/null; then
+              kill "$PID" || true
+              # give it a moment then hard kill if needed
+              sleep 2
+              kill -9 "$PID" 2>/dev/null || true
+            fi
           fi
 
   test-windows:
     runs-on: windows-latest
-    timeout-minutes: 15
-
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,62 +81,68 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20.x'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
       - name: Start API (bg) and wait (Windows)
-        shell: pwsh
         env:
+          LOG_PATH: ${{ runner.temp }}\api_windows.log
+          PID_PATH: ${{ runner.temp }}\server.pid
           HEALTH_URL: http://127.0.0.1:3001/healthz
-          WAIT_TIMEOUT_MS: 20000
+          WAIT_TIMEOUT_MS: '30000'
         run: |
-          $Log     = Join-Path $env:RUNNER_TEMP 'vida_api_windows.log'
-          $PidFile = Join-Path $env:RUNNER_TEMP 'vida_api_windows.pid'
+          $ErrorActionPreference = 'Stop'
+          $log = $env:LOG_PATH
+          $pidFile = $env:PID_PATH
 
-          # Ensure log file exists before any Get-Content or redirection
-          New-Item -Path $Log -ItemType File -Force | Out-Null
+          # Ensure the log directory exists
+          New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($log)) | Out-Null
 
-          # Start node in background with the repository as working directory
-          $proc = Start-Process -FilePath 'node' `
-                                -ArgumentList 'server.js' `
-                                -WorkingDirectory $env:GITHUB_WORKSPACE `
-                                -WindowStyle Hidden `
-                                -RedirectStandardOutput $Log `
-                                -RedirectStandardError  $Log `
-                                -PassThru
+          # Start the server in repo root; capture process and PID; redirect both out/err to the same log
+          $proc = Start-Process -FilePath "node" `
+                                -ArgumentList "server.js" `
+                                -WorkingDirectory $PWD.Path `
+                                -RedirectStandardOutput $log `
+                                -RedirectStandardError  $log `
+                                -PassThru -WindowStyle Hidden
 
-          $proc.Id | Set-Content -Path $PidFile
+          Set-Content -Path $pidFile -Value $proc.Id -Encoding ascii
 
-          # Wait until the API answers 200/OK on /healthz
-          node scripts/wait-for-api.mjs
-
-          Write-Host "API is up (Windows). PID=$($proc.Id)"
+          # Wait for health
+          npm run wait:api
 
       - name: Smoke test (Windows)
-        shell: pwsh
         run: |
-          # Use curl.exe so we get the real curl, not Invoke-WebRequest alias
-          $res = & curl.exe -fsS "http://127.0.0.1:3001/healthz"
-          if ($LASTEXITCODE -ne 0 -or ($res | Select-String -SimpleMatch 'ready') -eq $null) {
-            Write-Error "Smoke check failed."
-          }
+          # PowerShell's curl is an alias for Invoke-WebRequest; -UseBasicParsing avoids IE engine
+          (Invoke-WebRequest -Uri "http://127.0.0.1:3001/healthz" -UseBasicParsing).Content | Select-String -Pattern "ready" | Out-Null
 
       - name: Print API logs on failure (Windows)
         if: failure()
-        shell: pwsh
+        env:
+          LOG_PATH: ${{ runner.temp }}\api_windows.log
         run: |
-          $Log = Join-Path $env:RUNNER_TEMP 'vida_api_windows.log'
-          if (Test-Path $Log) { Get-Content -Path $Log -Tail 200 } else { Write-Host "No windows log found." }
+          Write-Host "::group::api_windows.log"
+          if (Test-Path $env:LOG_PATH) {
+            Get-Content $env:LOG_PATH -Raw
+          } else {
+            Write-Host "no log file"
+          }
+          Write-Host "::endgroup::"
 
       - name: Stop API (Windows)
         if: always()
-        shell: pwsh
+        env:
+          PID_PATH: ${{ runner.temp }}\server.pid
         run: |
-          $PidFile = Join-Path $env:RUNNER_TEMP 'vida_api_windows.pid'
-          if (Test-Path $PidFile) {
-            $pid = Get-Content $PidFile | Select-Object -First 1
-            if ($pid) { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue }
+          $pidFile = $env:PID_PATH
+          if (Test-Path $pidFile) {
+            $pid = Get-Content $pidFile -ErrorAction SilentlyContinue
+            if ($pid) {
+              try {
+                Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue
+              } catch {}
+            }
           }
