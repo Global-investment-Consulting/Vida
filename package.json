@@ -13,6 +13,7 @@
     "start": "node server.js",
     "start:ci": "node server.js",
     "dev": "NODE_ENV=development node server.js",
+    "wait:api": "node scripts/wait-for-api.mjs",
     "to-ubl": "node scripts/to-ubl.mjs",
     "ubl:smoke": "node scripts/ci-ubl-smoke.mjs",
     "lint": "echo \"(no lint configured)\"",
