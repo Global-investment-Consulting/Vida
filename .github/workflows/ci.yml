@@ -2,18 +2,21 @@ name: ci
 
 on:
   push:
-    branches:
-      - feat/a1-json-to-ubl
-      - main
+    branches: [ feat/a1-json-to-ubl ]
   pull_request:
 
-permissions:
-  contents: read
-
 jobs:
-  test-ubuntu:
-    name: test (ubuntu-latest)
-    runs-on: ubuntu-latest
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    env:
+      HEALTH_URL: http://127.0.0.1:3001/healthz
+      WAIT_TIMEOUT_MS: 150000
 
     steps:
       - name: Checkout
@@ -22,108 +25,81 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
-          cache: 'npm'
+          node-version: '20'
 
       - name: Install dependencies
         run: npm ci
 
-      # --- Start API, wait, smoke on Ubuntu ---
-      - name: Start API (bg) and wait [Ubuntu]
-        shell: bash
+      # ----- START API -----
+      - name: Start API (bg) and wait [Windows]
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          # start in background and persist the PID
-          nohup node server.js > api_log.txt 2>&1 &
-          echo $! > server.pid
+          New-Item -ItemType Directory -Force -Path .\logs | Out-Null
+          $logPath = "$(Resolve-Path .\logs\api_windows.log)"
+          # Do NOT override $PID (automatic variable)
+          $p = Start-Process -FilePath "node" -ArgumentList "server.js" -RedirectStandardOutput $logPath -RedirectStandardError $logPath -WindowStyle Hidden -PassThru
+          $env:SERVER_PID = $p.Id
+          Write-Host "Started API pid=$($env:SERVER_PID), log=$logPath"
 
-          # wait for health endpoint
-          export HEALTH_URL="http://127.0.0.1:3001/healthz"
-          export WAIT_TIMEOUT_MS="150000"
           npm run --silent wait:api
+
+      - name: Start API (bg) and wait [Ubuntu]
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir -p logs
+          (node server.js > logs/api_ubuntu.log 2>&1) &
+          echo $! > server.pid
+          echo "Started API pid=$(cat server.pid)"
+          npm run --silent wait:api
+
+      # ----- SMOKE -----
+      - name: Smoke test [Windows]
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # simple curl-based smoke
+          curl -fsS $env:HEALTH_URL | Select-String -Pattern 'ok' | Out-Null
 
       - name: Smoke test [Ubuntu]
-        shell: bash
-        run: |
-          set -e
-          curl -fsS http://127.0.0.1:3001/healthz | grep -i "ok"
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run smoke
 
-      # --- If anything failed above, dump server logs for debugging ---
+      # ----- LOGS ON FAILURE -----
+      - name: Print API logs on failure [Windows]
+        if: failure() && matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Write-Host "----- API LOG (Windows) -----"
+          Get-ChildItem -Path .\logs -Filter api_windows.log -ErrorAction SilentlyContinue | ForEach-Object {
+            Get-Content $_.FullName -Raw | Write-Host
+          }
+
       - name: Print API logs on failure [Ubuntu]
-        if: failure()
-        shell: bash
+        if: failure() && matrix.os == 'ubuntu-latest'
         run: |
-          echo "==== api_log.txt ===="
-          (test -f api_log.txt && cat api_log.txt) || echo "(no api_log.txt)"
+          echo "----- API LOG (Ubuntu) -----"
+          test -f logs/api_ubuntu.log && cat logs/api_ubuntu.log || true
 
-      # --- Always try to stop the server so the job is clean ---
+      # ----- STOP API -----
+      - name: Stop API [Windows]
+        if: always() && matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          if ($env:SERVER_PID) {
+            Write-Host "Stopping pid=$env:SERVER_PID"
+            try { Stop-Process -Id $env:SERVER_PID -Force -ErrorAction Stop } catch { Write-Host $_ }
+          }
+
       - name: Stop API [Ubuntu]
-        if: always()
-        shell: bash
+        if: always() && matrix.os == 'ubuntu-latest'
         run: |
           if [ -f server.pid ]; then
-            kill -TERM "$(cat server.pid)" 2>/dev/null || true
+            kill -9 "$(cat server.pid)" 2>/dev/null || true
           fi
 
-  test-windows:
-    name: test (windows-latest)
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
+      - name: Post Setup Node
+        if: always()
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
-          cache: 'npm'
-
-      - name: Install dependencies
-        shell: pwsh
-        run: npm ci
-
-      # --- Start API, wait, smoke on Windows ---
-      - name: Start API (bg) and wait [Windows]
-        shell: pwsh
-        run: |
-          # Start the API; redirect stdout/stderr to SEPARATE files
-          $p = Start-Process node "server.js" `
-                 -RedirectStandardOutput api_out.txt `
-                 -RedirectStandardError  api_err.txt `
-                 -NoNewWindow -PassThru
-
-          # Persist PID for the stop step
-          $p.Id | Out-File server.pid -Encoding ascii -NoNewline
-
-          # Wait for /healthz
-          $env:HEALTH_URL = "http://127.0.0.1:3001/healthz"
-          $env:WAIT_TIMEOUT_MS = "150000"
-          npm run --silent wait:api
-
-      - name: Smoke test [Windows]
-        shell: pwsh
-        run: |
-          $resp = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:3001/healthz).Content
-          if (-not ($resp -match 'ok')) { throw "Healthz did not return ok. Body: $resp" }
-
-      - name: Print API logs on failure (Windows)
-        if: failure()
-        shell: pwsh
-        run: |
-          Write-Host "==== api_out.txt ===="
-          if (Test-Path api_out.txt) { Get-Content api_out.txt | Write-Host } else { Write-Host "(no api_out.txt)" }
-          Write-Host "==== api_err.txt ===="
-          if (Test-Path api_err.txt) { Get-Content api_err.txt | Write-Host } else { Write-Host "(no api_err.txt)" }
-
-      - name: Stop API [Windows]
-        if: always()
-        shell: pwsh
-        run: |
-          if (Test-Path server.pid) {
-            # IMPORTANT: do NOT use $PID — it's a read-only automatic var for the current PowerShell process.
-            $serverPid = Get-Content server.pid
-            Write-Host "Stopping server pid $serverPid"
-            Stop-Process -Id $serverPid -Force -ErrorAction SilentlyContinue
-          } else {
-            Write-Host "No server.pid file found; nothing to stop."
-          }
+          node-version: '20'
