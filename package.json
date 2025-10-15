@@ -2,27 +2,16 @@
   "name": "vida-mvp-nodb",
   "version": "0.5.0",
   "private": true,
-  "type": "module",
-  "description": "ViDA MVP (no DB) — JSON → UBL 2.1 → PEPPOL scaffolding + smoke tests",
+  "description": "Vida MVP (no DB) — API with stable /healthz and cross-OS CI support",
   "main": "server.js",
-  "engines": {
-    "node": ">=18.17 <23",
-    "npm": ">=9"
-  },
+  "license": "MIT",
   "scripts": {
     "start": "node server.js",
     "start:ci": "node server.js",
     "wait:api": "node scripts/wait-for-api.mjs",
-    "ubl:smoke": "node scripts/ci-ubl-smoke.mjs",
-    "to-ubl": "node scripts/to-ubl.mjs",
-    "lint": "echo \"(no lint configured)\"",
-    "test": "echo \"(no tests configured)\""
+    "test": "echo \"No tests configured\" && exit 0"
   },
-  "dependencies": {
-    "body-parser": "^1.20.3",
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "node-fetch": "^3.3.2",
-    "xmlbuilder2": "^3.1.1"
+  "engines": {
+    "node": ">=18.17"
   }
 }
