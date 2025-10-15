@@ -1,122 +1,101 @@
-name: CI
+name: ci
 
 on:
   push:
-    branches:
-      - "**"
   pull_request:
 
 jobs:
   test:
-    name: test (${{ matrix.os }}, USE_DB=${{ matrix.use_db }})
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        use_db: [false, true]
 
     steps:
-      - name: Checkout
+      # 1️⃣ Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      # 2️⃣ Set up Node
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
-          cache: npm
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Install deps
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
         run: npm ci
 
-      # --- Start API and wait for readiness -----------------------------------
-      - name: Start API
+      # 4️⃣ Start API in background and wait until /healthz returns OK (Linux)
+      - name: Start API (bg) and wait [Linux]
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Starting API in background..."
+          npm run start:ci > api_log.txt 2>&1 &
+          echo $! > server.pid
+
+          echo "Waiting for /healthz to return OK..."
+          HEALTH_URL="http://127.0.0.1:3001/healthz" \
+          WAIT_TIMEOUT_MS=150000 \
+          npm run --silent wait:api
+
+      # 5️⃣ Start API in background and wait until /healthz returns OK (Windows)
+      - name: Start API (bg) and wait [Windows]
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          Write-Host "Starting API in background..."
+          $p = Start-Process node "server.js" `
+               -RedirectStandardOutput api_log.txt `
+               -RedirectStandardError  api_log.txt `
+               -NoNewWindow -PassThru
+          $p.Id | Out-File server.pid -Encoding ascii -NoNewline
 
-          # env for the demo server
-          $env:API_KEY = 'key_test_12345'
-          $env:USE_DB  = '${{ matrix.use_db }}'
+          Write-Host "Waiting for /healthz to return OK..."
+          $env:HEALTH_URL = "http://127.0.0.1:3001/healthz"
+          $env:WAIT_TIMEOUT_MS = "150000"
+          npm run --silent wait:api
 
-          # fresh log
-          if (Test-Path api.log) { Remove-Item api.log -Force }
+      # 6️⃣ Run smoke test (adjust or replace this with your actual test)
+      - name: Run smoke test
+        run: npm run ubl:smoke
 
-          Write-Host "Starting API (node server.js) and tee-ing to api.log ..."
-          # Start a pwsh child that runs node and appends all streams to api.log
-          $proc = Start-Process pwsh -ArgumentList @(
-            '-NoLogo','-NoProfile','-Command','node server.js *>> api.log'
-          ) -PassThru
-
-          # record PID
-          Set-Content -Path api.pid -Value $proc.Id
-          Write-Host "API PID: $($proc.Id)"
-
-          # wait for readiness (http://localhost:3001/openapi.json)
-          $max = 120
-          for ($i = 0; $i -lt $max; $i++) {
-            try {
-              $r = Invoke-WebRequest 'http://localhost:3001/openapi.json' -TimeoutSec 2
-              if ($r.StatusCode -eq 200) {
-                Write-Host "✅ API is up (after $i s)"
-                break
-              }
-            } catch {
-              Start-Sleep -Seconds 1
-            }
-          }
-          if ($i -ge $max) {
-            Write-Host "❌ API did not start within $max seconds"
-            if (Test-Path api.log) {
-              Write-Host "---- api.log (tail) ----"
-              Get-Content api.log -Tail 200
-              Write-Host "------------------------"
-            }
-            throw "API not ready"
-          }
-
-      # --- Run smoke using your repo script -----------------------------------
-      - name: Run smoke
-        shell: pwsh
-        env:
-          API_KEY: key_test_12345
-          USE_DB: ${{ matrix.use_db }}
-        run: ./Scripts/smoke.ps1
-
-      # --- If anything failed, print logs to help debugging -------------------
-      - name: Print API log on failure
-        if: failure()
-        shell: pwsh
+      # 7️⃣ Print logs if anything failed (Linux)
+      - name: Print API log on failure [Linux]
+        if: failure() && runner.os != 'Windows'
+        shell: bash
         run: |
-          if (Test-Path api.log) {
-            Write-Host "==== api.log (full) ===="
-            Get-Content api.log -Raw
-          } else {
-            Write-Host "api.log not found."
-          }
+          echo "---- api_log.txt (first 200 lines) ----"
+          sed -n '1,200p' api_log.txt || true
 
-      - name: Print API log on failure (Windows extras)
+      # 8️⃣ Print logs if anything failed (Windows)
+      - name: Print API log on failure [Windows]
         if: failure() && runner.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Host "==== netstat -ano | findstr :3001 ===="
-          netstat -ano | findstr :3001 | Out-String
-          Write-Host "==== tasklist | findstr node ===="
-          tasklist | findstr node | Out-String
+          if (Test-Path api_log.txt) {
+            Write-Host "---- api_log.txt (first 200 lines) ----"
+            Get-Content api_log.txt -TotalCount 200
+          }
 
-      # --- Always try to stop the API cleanly ---------------------------------
-      - name: Stop API
-        if: always()
+      # 9️⃣ Always stop the background API (Linux)
+      - name: Stop API [Linux]
+        if: always() && runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [[ -f server.pid ]]; then
+            kill $(cat server.pid) 2>/dev/null || true
+          fi
+
+      # 🔟 Always stop the background API (Windows)
+      - name: Stop API [Windows]
+        if: always() && runner.os == 'Windows'
         shell: pwsh
         run: |
-          if (Test-Path api.pid) {
-            $apiPid = (Get-Content api.pid | Select-Object -First 1).Trim()
-            if ($apiPid) {
-              Write-Host "Stopping API PID $apiPid"
-              try { Stop-Process -Id ([int]$apiPid) -Force -ErrorAction SilentlyContinue } catch {}
-            } else {
-              Write-Host "api.pid was empty"
-            }
-          } else {
-            Write-Host "No api.pid file present; nothing to stop."
+          if (Test-Path server.pid) {
+            $pid = Get-Content server.pid
+            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
           }
