@@ -1,40 +1,27 @@
 {
-  "name": "vida_mvp_nodb",
-  "version": "1.0.0",
-  "description": "ViDA e-invoicing MVP (no database) – JSON → UBL → PEPPOL API prototype",
-  "main": "server.js",
+  "name": "vida-mvp-nodb",
+  "version": "0.5.0",
+  "private": true,
   "type": "module",
+  "description": "ViDA MVP (no DB) — JSON → UBL 2.1 → PEPPOL scaffolding + smoke tests",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.17 <23",
+    "npm": ">=9"
+  },
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "ubl:smoke": "node scripts/ci-ubl-smoke.mjs",
+    "dev": "NODE_ENV=development node server.js",
     "to-ubl": "node scripts/to-ubl.mjs",
-    "test": "echo \"No test suite yet\""
+    "ubl:smoke": "node scripts/ci-ubl-smoke.mjs",
+    "lint": "echo \"(no lint configured)\"",
+    "test": "echo \"(no tests configured)\""
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "body-parser": "^1.20.3",
     "cors": "^2.8.5",
-    "node-fetch": "^3.3.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.3"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "license": "MIT",
-  "author": "Global Investment Consulting",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Global-investment-Consulting/Vida.git"
-  },
-  "keywords": [
-    "ViDA",
-    "UBL",
-    "Peppol",
-    "E-invoicing",
-    "Shopify",
-    "WooCommerce",
-    "API"
-  ]
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "xmlbuilder2": "^3.1.1"
+  }
 }
