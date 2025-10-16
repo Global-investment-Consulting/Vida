@@ -64,7 +64,7 @@ const OrderLine = z.object({
   unitCode: z.string().trim().min(1).default("EA"),
   unitPriceMinor: Minor,          // price per unit in minor currency (e.g. cents)
   discountMinor: Minor.default(0),
-  vatRate: z.number().optional(), // optional; if omitted treat as 0 in totals
+  vatRate: VatRate.optional(),    // optional; if omitted treat as 0 in totals
   vatCategory: z.enum(["S", "Z", "E", "AE", "O", "L", "AA"]).optional(),
   vatExemptionReason: z.string().trim().optional(),
   itemName: z.string().trim().optional(),

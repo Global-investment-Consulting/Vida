@@ -6,6 +6,7 @@ export default defineConfig({
     setupFiles: ["./tests/setup.mjs"],
     reporters: "default",
     restoreMocks: true,
-    isolate: true
+    isolate: true,
+    pool: "vmThreads"
   }
 });
