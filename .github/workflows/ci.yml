@@ -2,53 +2,80 @@ name: CI
 
 on:
   push:
-    branches: [ main, "feat/*" ]
+    branches:
+      - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
+  lint:
+    name: Lint (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    env:
+      CI: true
     strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
       fail-fast: false
-    runs-on: ${{ matrix.os }}
-    name: Test on ${{ matrix.os }}
-
+      matrix:
+        node:
+          - 20
+          - 22
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
-          node-version: 18
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0c17529a66aca453f9227af23103ed11469b1e47
+        with:
+          version: 9
+          run_install: false
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: pnpm install --no-frozen-lockfile
 
-      # ---------- START SERVER ----------
-      - name: Start API in background
-        shell: bash
-        run: |
-          echo "Starting API..."
-          npm start > api.log 2>&1 &
-          echo "Waiting for /healthz..."
-          for i in {1..60}; do
-            if curl -fs http://127.0.0.1:3001/healthz >/dev/null 2>&1; then
-              echo "✅ API ready"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "❌ API not ready after 60s"
-          cat api.log || true
-          exit 1
+      - name: Run lint
+        run: pnpm run lint -- --max-warnings=0
 
-      # ---------- RUN SMOKE ----------
-      - name: Run UBL smoke test
-        run: npm run ubl:smoke
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    needs:
+      - lint
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - 20
+          - 22
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
-      # ---------- PRINT LOGS IF FAILED ----------
-      - name: Print API log on failure
-        if: failure()
-        run: cat api.log || echo "no api.log found"
+      - name: Setup Node.js
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0c17529a66aca453f9227af23103ed11469b1e47
+        with:
+          version: 9
+          run_install: false
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test

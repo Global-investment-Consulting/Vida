@@ -1,0 +1,33 @@
+{
+  "invoiceNumber": "INV-2000",
+  "issueDate": "2025-01-15",
+  "currency": "EUR",
+  "supplier": {
+    "name": "Example Supplier NV",
+    "registrationName": "Example Supplier NV",
+    "vatId": "BE0987654321",
+    "endpoint": {
+      "id": "1234567890123",
+      "scheme": "0088"
+    },
+    "address": {
+      "streetName": "Kerkstraat 1",
+      "cityName": "Gent",
+      "postalZone": "9000",
+      "countryCode": "BE"
+    }
+  },
+  "buyer": {
+    "name": "Buyer BV",
+    "vatId": "NL123456789B01",
+    "address": {
+      "countryCode": "NL"
+    }
+  },
+  "lines": [
+    { "description": "Standard service", "quantity": 1, "unitPriceMinor": 10000, "vatRate": 21 },
+    { "description": "Reduced goods", "quantity": 3, "unitPriceMinor": 2000, "vatRate": 6 },
+    { "description": "Hotel", "quantity": 1, "unitPriceMinor": 8000, "vatRate": 12 }
+  ],
+  "allowances": []
+}

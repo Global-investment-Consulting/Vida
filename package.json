@@ -1,29 +1,34 @@
 {
   "name": "vida-mvp-nodb",
-  "version": "0.3.8",
+  "version": "0.5.0",
+  "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "scripts": {
     "start": "node server.js",
-    "smoke": "powershell -ExecutionPolicy Bypass -File .\\tests\\smoke.ps1",
+    "start:ci": "node server.js",
+    "wait:api": "node scripts/wait-for-api.mjs",
+    "smoke:health": "curl -fsS http://127.0.0.1:3001/healthz",
+    "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev --name init",
-    "db:reset": "prisma migrate reset --force"
+    "peppol:gen": "node scripts/peppol-generate.mjs data.json"
   },
   "dependencies": {
-    "@prisma/client": "^6.17.0",
-    "cors": "^2.8.5",
-    "decimal.js": "^10.4.3",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2",
-    "morgan": "^1.10.0",
-    "pdfkit": "^0.15.2",
-    "swagger-ui-express": "^5.0.1"
+    "ts-node": "^10.9.2",
+    "xmlbuilder2": "^3.1.1",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
-    "prisma": "^6.17.0",
-    "supertest": "^7.0.0",
+    "@types/node": "^24.7.2",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "eslint": "^9.37.0",
+    "globals": "^16.4.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.1",
     "vitest": "^3.2.4"
   }
 }

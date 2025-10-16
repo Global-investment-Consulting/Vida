@@ -1,0 +1,58 @@
+{
+  "invoiceNumber": "INV-1000",
+  "issueDate": "2024-12-31",
+  "currency": "EUR",
+  "defaultVatRate": 21,
+  "buyerReference": "PO-9001",
+  "paymentReference": "RF18539007547034",
+  "paymentTerms": "Payment due within 30 days.",
+  "supplier": {
+    "name": "Example Supplier NV",
+    "registrationName": "Example Supplier NV",
+    "vatId": "BE0987654321",
+    "companyId": "BE0987654321",
+    "endpoint": {
+      "id": "1234567890123",
+      "scheme": "0088"
+    },
+    "address": {
+      "streetName": "Kerkstraat 1",
+      "cityName": "Gent",
+      "postalZone": "9000",
+      "countryCode": "BE"
+    }
+  },
+  "buyer": {
+    "name": "Buyer BV",
+    "vatId": "NL123456789B01",
+    "address": {
+      "streetName": "Keizersgracht 1",
+      "cityName": "Amsterdam",
+      "postalZone": "1015",
+      "countryCode": "NL"
+    }
+  },
+  "lines": [
+    {
+      "id": "1",
+      "description": "Consulting services",
+      "quantity": 2,
+      "unitPriceMinor": 25000,
+      "vatRate": 21
+    },
+    {
+      "id": "2",
+      "description": "Implementation support",
+      "quantity": 1,
+      "unitPriceMinor": 10000,
+      "discountMinor": 1000,
+      "vatRate": 6
+    }
+  ],
+  "allowances": [
+    {
+      "reason": "Project discount",
+      "amountMinor": 500
+    }
+  ]
+}

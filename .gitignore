@@ -1,10 +1,39 @@
+# Node
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+
+# Env / local config
 .env
-data/db.json
-data/db.test.json
+.env.*
+!.env.example
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Build / artifacts
+dist/
+build/
 coverage/
+.cache/
+.tmp/
+
+# CI scratch
+api_log.txt
+api_out.txt
+api_err.txt
+server.pid
+nohup.out
+
+# Logs
 *.log
-invoice_*.pdf
-invoice_*.xml
-/prisma/dev.db
-/data/db.json
+logs/

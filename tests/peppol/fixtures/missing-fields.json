@@ -1,0 +1,18 @@
+{
+  "invoiceNumber": "INV-4000",
+  "issueDate": "2025-03-01",
+  "currency": "EUR",
+  "buyer": {
+    "name": "Buyer BV",
+    "address": {
+      "countryCode": "NL"
+    }
+  },
+  "lines": [
+    {
+      "description": "Service",
+      "quantity": 1,
+      "unitPriceMinor": 10000
+    }
+  ]
+}
