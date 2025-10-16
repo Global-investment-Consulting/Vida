@@ -13,7 +13,7 @@
     "smoke:health": "curl -fsS http://127.0.0.1:3001/healthz",
     "lint": "eslint .",
     "test": "vitest run",
-    "peppol:gen": "node scripts/peppol-generate.mjs data.json"
+    "peppol:gen": "node --import tsx scripts/peppol-generate.mjs"
   },
   "dependencies": {
     "ts-node": "^10.9.2",
