@@ -1,81 +1,41 @@
+# Codex: Generate a GitHub Actions workflow that:
+# - Runs on push and pull_request
+# - Uses Node.js 20
+# - Installs dependencies with npm
+# - Runs `npm run lint` and `npm test`
 name: CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
+  push:
 
 permissions:
   contents: read
 
 jobs:
   lint:
-    name: Lint (Node ${{ matrix.node }})
+    name: Lint (Node 20)
     runs-on: ubuntu-latest
-    env:
-      CI: true
-    strategy:
-      fail-fast: false
-      matrix:
-        node:
-          - 20
-          - 22
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
-
-      - name: Setup Node.js
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
-          cache: pnpm
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0c17529a66aca453f9227af23103ed11469b1e47
-        with:
-          version: 9
-          run_install: false
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Run lint
-        run: pnpm run lint -- --max-warnings=0
+          node-version: '20'
+          cache: 'npm'     # <-- use npm cache; do NOT use pnpm
+      - run: npm ci
+      - run: npm run lint
 
   test:
-    name: Test (Node ${{ matrix.node }})
+    name: Test (Node 20)
+    needs: lint
     runs-on: ubuntu-latest
     env:
-      CI: true
-    needs:
-      - lint
-    strategy:
-      fail-fast: false
-      matrix:
-        node:
-          - 20
-          - 22
+      CI: 'true'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
-
-      - name: Setup Node.js
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
-          cache: pnpm
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0c17529a66aca453f9227af23103ed11469b1e47
-        with:
-          version: 9
-          run_install: false
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Run tests
-        run: pnpm test
+          node-version: '20'
+          cache: 'npm'     # <-- use npm cache; avoids “pnpm not found”
+      - run: npm ci
+      - run: npm run test -- --pool=forks

@@ -1,11 +1,10 @@
 {
   "name": "vida-mvp-nodb",
   "version": "0.5.0",
-  "private": true,
+  "description": "ViDA e-invoicing MVP – JSON→UBL→PEPPOL",
   "type": "module",
-  "engines": {
-    "node": ">=18.18.0"
-  },
+  "main": "server.js",
+  "engines": { "node": ">=20 <21" },
   "scripts": {
     "start": "node server.js",
     "start:ci": "node server.js",
@@ -13,8 +12,12 @@
     "smoke:health": "curl -fsS http://127.0.0.1:3001/healthz",
     "lint": "eslint .",
     "test": "vitest run",
+    "peppol:gen": "node --import tsx scripts/peppol-generate.mjs"
   },
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "pdfkit": "^0.15.0",
     "ts-node": "^10.9.2",
     "xmlbuilder2": "^3.1.1",
     "zod": "^4.1.12"
@@ -29,5 +32,7 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",
     "vitest": "^3.2.4"
-  }
+  },
+  "peerDependencies": {},
+  "optionalDependencies": {}
 }
