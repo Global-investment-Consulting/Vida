@@ -1,5 +1,4 @@
-#!/usr/bin/env node
-import "ts-node/register";
+#!/usr/bin/env -S node --import tsx
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import process from "node:process";
