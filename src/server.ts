@@ -68,6 +68,45 @@ export const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
+function resolveApiKeys(): string[] {
+  const raw = process.env.VIDA_API_KEYS ?? "";
+  return raw
+    .split(",")
+    .map((key) => key.trim())
+    .filter(Boolean);
+}
+
+function extractApiKey(req: Request): string | null {
+  const header = req.header("x-vida-api-key") ?? req.header("authorization");
+  if (!header) return null;
+  const trimmed = header.trim();
+  if (trimmed.toLowerCase().startsWith("bearer ")) {
+    return trimmed.slice(7).trim();
+  }
+  return trimmed;
+}
+
+app.use((req, res, next) => {
+  const apiKeys = resolveApiKeys();
+  if (apiKeys.length === 0 || req.method === "GET") {
+    next();
+    return;
+  }
+
+  const providedKey = extractApiKey(req);
+  if (!providedKey) {
+    res.status(401).json({ error: "missing API key" });
+    return;
+  }
+
+  if (!apiKeys.includes(providedKey)) {
+    res.status(403).json({ error: "invalid API key" });
+    return;
+  }
+
+  next();
+});
+
 app.get("/healthz", (_req, res) => {
   res.type("text/plain").send("ok");
 });

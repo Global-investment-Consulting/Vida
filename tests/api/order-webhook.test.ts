@@ -9,6 +9,7 @@ import { listHistory } from "../../src/history/logger";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
 const wooFixturePath = path.resolve(__dirname, "../connectors/fixtures/woocommerce-order.json");
+const API_KEY = "test-key";
 const supplier = {
   name: "Supplier BV",
   registrationName: "Supplier BV",
@@ -32,6 +33,7 @@ let recordHistorySpy: ReturnType<typeof vi.spyOn>;
 beforeEach(async () => {
   historyDir = await mkdtemp(path.join(tmpdir(), "vida-history-"));
   process.env.VIDA_HISTORY_DIR = historyDir;
+  process.env.VIDA_API_KEYS = API_KEY;
   recordHistorySpy = vi.spyOn(historyLogger, "recordHistory");
   vi.useFakeTimers();
   vi.setSystemTime(fixedDate);
@@ -49,6 +51,7 @@ afterEach(async () => {
   }
   recordHistorySpy.mockRestore();
   delete process.env.VIDA_HISTORY_DIR;
+  delete process.env.VIDA_API_KEYS;
 });
 
 describe("POST /webhook/order-created", () => {
@@ -57,6 +60,7 @@ describe("POST /webhook/order-created", () => {
 
     const response = await request(app)
       .post("/webhook/order-created")
+      .set("x-vida-api-key", API_KEY)
       .send({
         source: "shopify",
         payload,
@@ -97,6 +101,7 @@ describe("POST /webhook/order-created", () => {
 
     const response = await request(app)
       .post("/webhook/order-created")
+      .set("x-vida-api-key", API_KEY)
       .send({
         source: "woocommerce",
         payload,
@@ -128,6 +133,7 @@ describe("POST /webhook/order-created", () => {
   it("rejects invalid payloads", async () => {
     await request(app)
       .post("/webhook/order-created")
+      .set("x-vida-api-key", API_KEY)
       .send({ source: "shopify" })
       .expect(400);
 
@@ -141,6 +147,7 @@ describe("POST /webhook/order-created", () => {
 
     const response = await request(app)
       .post("/webhook/order-created")
+      .set("x-vida-api-key", API_KEY)
       .send({
         source: "shopify",
         payload
@@ -151,5 +158,36 @@ describe("POST /webhook/order-created", () => {
     expect(recordHistorySpy).toHaveBeenCalledWith(
       expect.objectContaining({ status: "error", error: expect.stringMatching(/supplier/i) })
     );
+  });
+
+  it("returns 401 when API key is missing", async () => {
+    const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
+
+    await request(app)
+      .post("/webhook/order-created")
+      .send({
+        source: "shopify",
+        payload,
+        supplier
+      })
+      .expect(401);
+
+    expect(recordHistorySpy).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when API key is invalid", async () => {
+    const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
+
+    await request(app)
+      .post("/webhook/order-created")
+      .set("x-vida-api-key", "wrong-key")
+      .send({
+        source: "shopify",
+        payload,
+        supplier
+      })
+      .expect(403);
+
+    expect(recordHistorySpy).not.toHaveBeenCalled();
   });
 });
