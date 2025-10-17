@@ -40,19 +40,37 @@ jobs:
       - run: npm ci
       - run: npm run test -- --pool=forks
 
-  docker-image:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  docker:
     name: Build Docker image
-    needs: test
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v5
+
+      # Optional: login only if credentials exist
+      - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build + Push (Docker Hub)
+        if: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
+        uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/vida:${{ github.sha }}
+
+      - name: Build only (no push)
+        if: ${{ !secrets.DOCKERHUB_USERNAME || !secrets.DOCKERHUB_TOKEN }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
           load: true
           tags: vida:ci
