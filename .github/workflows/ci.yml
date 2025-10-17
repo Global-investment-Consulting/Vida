@@ -39,3 +39,20 @@ jobs:
           cache: 'npm'     # <-- use npm cache; avoids “pnpm not found”
       - run: npm ci
       - run: npm run test -- --pool=forks
+
+  docker-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Build Docker image
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: vida:ci

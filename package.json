@@ -10,6 +10,8 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "start:ci": "tsx src/server.ts",
+    "start:prod": "node dist/server.js",
+    "build": "tsc -p tsconfig.build.json",
     "wait:api": "node scripts/wait-for-api.mjs",
     "smoke:health": "curl -fsS http://127.0.0.1:3001/healthz",
     "lint": "eslint .",
