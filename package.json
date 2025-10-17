@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "peppol:gen": "node --import tsx scripts/peppol-generate.mjs",
-    "codex": "node scripts/codex.mjs"
+    "codex": "node scripts/codex.mjs",
+    "history:list": "tsx src/cli/history-list.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
