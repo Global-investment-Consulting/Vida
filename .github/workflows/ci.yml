@@ -12,9 +12,6 @@ on:
 permissions:
   contents: read
 
-env:
-  HAS_DOCKER_CREDENTIALS: "${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}"
-
 jobs:
   lint:
     name: Lint (Node 20)
@@ -44,25 +41,25 @@ jobs:
       - run: npm run test -- --pool=forks
 
   docker:
-    name: Build Docker image
+    name: Build Docker image (main)
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    needs: test
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_DOCKER_CREDENTIALS == 'true' }}
-
+    env:
+      DOCKER_PUSH: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+      DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE || format('{0}/vida', secrets.DOCKERHUB_USERNAME) }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-
       - name: Login to Docker Hub
+        if: ${{ env.DOCKER_PUSH == 'true' || env.DOCKER_PUSH == true }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build + Push (Docker Hub)
+      - name: Build & (conditionally) push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/vida:${{ github.sha }}
+          push: ${{ env.DOCKER_PUSH == 'true' || env.DOCKER_PUSH == true }}
+          tags: ${{ env.DOCKERHUB_IMAGE }}:latest,${{ env.DOCKERHUB_IMAGE }}:${{ github.sha }}
