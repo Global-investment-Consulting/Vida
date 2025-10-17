@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  vida:
+    build: .
+    ports:
+      - "8080:3001"
+    environment:
+      - PORT=3001
+      - VIDA_HISTORY_DIR=/app/data/history
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "./scripts/docker-healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

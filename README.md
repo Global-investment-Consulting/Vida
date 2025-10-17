@@ -9,8 +9,29 @@ npm start
 ```
 
 ## Configuration
-- Set `VIDA_API_KEYS` to a comma-separated list of API keys (for example `VIDA_API_KEYS=dev-key-1,dev-key-2`) to unlock POST routes such as `/webhook/order-created`.
-- Set `VIDA_VALIDATE_UBL=true` to enforce UBL validation before delivery.
+| Variable | Purpose |
+| --- | --- |
+| `VIDA_API_KEYS` | Comma-separated API keys allowed to access POST endpoints (e.g. `/webhook/order-created`). |
+| `VIDA_HISTORY_DIR` | Override directory for JSONL history logs (defaults to `./data/history`). |
+| `VIDA_PEPPOL_SEND` | When `true`, enables Access Point delivery (stub integration scaffold). |
+| `VIDA_PEPPOL_AP` | Access Point mode (defaults to `stub`). |
 
 ## Useful Commands
 - `npm run history:list` – print the most recent webhook history entries.
+
+## Docker
+
+Build an image and run it locally:
+
+```bash
+docker build -t vida:dev .
+VIDA_API_KEYS=dev-key docker run --rm -p 8080:3001 vida:dev
+```
+
+Or with Compose for persistent history:
+
+```bash
+docker compose up --build
+```
+
+The container exposes the API on port `8080` and mounts `./data` for history logs.
