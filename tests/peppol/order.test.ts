@@ -6,6 +6,7 @@ describe("Order schema", () => {
     const order = {
       orderNumber: "ORD-1001",
       currency: "EUR",
+      issueDate: "2025-01-01",
       buyer: { name: "Buyer BV" },
       supplier: { name: "Supplier NV" },
       lines: [
@@ -22,6 +23,7 @@ describe("Order schema", () => {
     const invalid = {
       orderNumber: "ORD-1002",
       currency: "USD",
+      issueDate: "2025-01-02",
       buyer: { name: "Buyer" },
       supplier: { name: "Supplier" },
       lines: [],
