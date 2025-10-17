@@ -9,6 +9,7 @@ import { ZodError } from "zod";
 import { shopifyToOrder } from "./connectors/shopify";
 import { wooToOrder } from "./connectors/woocommerce";
 import { orderToInvoiceXml } from "./peppol/convert";
+import { sendInvoice } from "./peppol/apClient";
 import { parseOrder, type OrderT } from "./schemas/order";
 import { recordHistory } from "./history/logger";
 
@@ -125,6 +126,8 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
   let invoicePath: string | undefined;
   let errorMessage: string | undefined;
   let responseSent = false;
+  let peppolStatus: string | undefined;
+  let peppolId: string | undefined;
 
   try {
     const { source, payload, supplier, defaultVatRate, currencyMinorUnit } = req.body ?? {};
@@ -143,6 +146,26 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
 
     await writeFile(invoicePath, xml, "utf8");
     console.log(`[webhook] Generated invoice at ${invoicePath}`);
+
+    const shouldSendPeppol = (process.env.VIDA_PEPPOL_SEND ?? "").toLowerCase() === "true";
+
+    if (shouldSendPeppol) {
+      const supplierName = order.supplier.name ?? "unknown";
+      const receiverName = order.buyer.name ?? "unknown";
+      const docId = order.orderNumber ?? requestId;
+      try {
+        const result = await sendInvoice(xml, {
+          sender: supplierName,
+          receiver: receiverName,
+          docId
+        });
+        peppolStatus = result.status;
+        peppolId = result.id;
+      } catch (apError) {
+        const message = apError instanceof Error ? apError.message : "PEPPOL send failed";
+        throw new HttpError(`PEPPOL send failed: ${message}`, 502);
+      }
+    }
 
     res.json({ path: invoicePath, xmlLength: xml.length });
     responseSent = true;
@@ -175,7 +198,9 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
         status: responseSent && !errorMessage ? "ok" : "error",
         invoicePath,
         durationMs: Date.now() - startedAt,
-        error: errorMessage
+        error: responseSent && !errorMessage ? undefined : errorMessage,
+        peppolStatus,
+        peppolId
       });
     } catch (historyError) {
       console.error("[history] failed to record event", historyError);
