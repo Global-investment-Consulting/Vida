@@ -168,10 +168,9 @@ describe("POST /webhook/order-created", () => {
     const stats = await stat(expectedOutboxFile);
     expect(stats.isFile()).toBe(true);
 
-    const history = await listHistory();
-    expect(history).toHaveLength(1);
-    expect(history[0].peppolStatus).toBe("SENT");
-    expect(history[0].peppolId).toBe("#1001");
+    expect(recordHistorySpy).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "ok", peppolStatus: "SENT", peppolId: "#1001" })
+    );
     expect(response.body.path).toContain("invoice_2025-01-22T12-00-00-000Z.xml");
   });
 

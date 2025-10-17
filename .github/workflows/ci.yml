@@ -41,6 +41,7 @@ jobs:
       - run: npm run test -- --pool=forks
 
   docker-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     name: Build Docker image
     needs: test
     runs-on: ubuntu-latest
@@ -50,12 +51,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: Build image
-        run: docker build -t ghcr.io/${{ github.repository }}/vida:${{ github.sha }} .
-      - name: Push image
-        if: github.ref == 'refs/heads/main'
-        env:
-          IMAGE: ghcr.io/${{ github.repository }}/vida:${{ github.sha }}
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker push "$IMAGE"
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: vida:ci
