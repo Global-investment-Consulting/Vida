@@ -1,0 +1,49 @@
+{
+  "id": 4550001234,
+  "name": "#1001",
+  "order_number": 1001,
+  "created_at": "2025-01-20T10:15:00Z",
+  "currency": "EUR",
+  "customer": {
+    "first_name": "Ada",
+    "last_name": "Lovelace",
+    "email": "ada@example.com"
+  },
+  "shipping_address": {
+    "name": "Ada Lovelace",
+    "address1": "123 Analytical Engine Way",
+    "address2": "Suite 42",
+    "city": "London",
+    "zip": "EC1A 1BB",
+    "country_code": "GB"
+  },
+  "line_items": [
+    {
+      "title": "Consulting Day",
+      "quantity": 2,
+      "price": "750.00",
+      "total_discount": "0.00",
+      "tax_lines": [
+        {
+          "rate": 0.21,
+          "price": "315.00",
+          "title": "VAT 21%"
+        }
+      ],
+      "sku": "CONSULT-1D"
+    },
+    {
+      "title": "Support Plan",
+      "quantity": 1,
+      "price": "120.00",
+      "total_discount": "20.00",
+      "tax_lines": [
+        {
+          "rate": 0.06,
+          "price": "6.00",
+          "title": "Reduced VAT"
+        }
+      ]
+    }
+  ]
+}

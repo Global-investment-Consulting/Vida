@@ -17,18 +17,31 @@ const CountryCode = z
   .toUpperCase()
   .length(2, "countryCode must be ISO 3166-1 alpha-2");
 
-const VatRate = z
+const VatRate = z.coerce
   .number()
-  .refine((n) => VAT_RATES.includes(n as (typeof VAT_RATES)[number]), {
-    message: `vatRate must be one of: ${VAT_RATES.join(", ")}`,
+  .refine((value) => VAT_RATES.includes(value as (typeof VAT_RATES)[number]), {
+    message: `vatRate must be one of: ${VAT_RATES.join(", ")}`
   });
 
-const Endpoint = z.object({
-  id: NonEmptyString,
-  scheme: NonEmptyString,
-}).partial().refine((o) => !o.id || !!o.scheme, {
-  message: "endpoint.scheme required when endpoint.id is present",
-});
+const DateLike = z
+  .union([z.date(), z.string(), z.number()])
+  .transform((value) => {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      throw new Error("invalid date");
+    }
+    return date;
+  });
+
+const Endpoint = z
+  .object({
+    id: NonEmptyString,
+    scheme: NonEmptyString
+  })
+  .partial()
+  .refine((value) => !value.id || !!value.scheme, {
+    message: "endpoint.scheme required when endpoint.id is present"
+  });
 
 const Address = z.object({
   streetName: z.string().trim().optional(),
@@ -36,13 +49,13 @@ const Address = z.object({
   buildingNumber: z.string().trim().optional(),
   cityName: z.string().trim().optional(),
   postalZone: z.string().trim().optional(),
-  countryCode: CountryCode.optional(),
+  countryCode: CountryCode.optional()
 });
 
 const Contact = z.object({
   name: z.string().trim().optional(),
   telephone: z.string().trim().optional(),
-  electronicMail: z.string().trim().optional(),
+  electronicMail: z.string().trim().optional()
 });
 
 const Party = z.object({
@@ -52,7 +65,7 @@ const Party = z.object({
   vatId: z.string().trim().optional(),
   endpoint: Endpoint.optional(),
   address: Address.optional(),
-  contact: Contact.optional(),
+  contact: Contact.optional()
 });
 
 const Minor = z.coerce.number().int().min(0, "must be >= 0");
@@ -62,13 +75,13 @@ const OrderLine = z.object({
   description: NonEmptyString,
   quantity: z.coerce.number().positive(),
   unitCode: z.string().trim().min(1).default("EA"),
-  unitPriceMinor: Minor,          // price per unit in minor currency (e.g. cents)
+  unitPriceMinor: Minor,
   discountMinor: Minor.default(0),
-  vatRate: VatRate.optional(),    // optional; if omitted treat as 0 in totals
+  vatRate: VatRate.optional(),
   vatCategory: z.enum(["S", "Z", "E", "AE", "O", "L", "AA"]).optional(),
   vatExemptionReason: z.string().trim().optional(),
   itemName: z.string().trim().optional(),
-  buyerAccountingReference: z.string().trim().optional(),
+  buyerAccountingReference: z.string().trim().optional()
 });
 
 const PartialTotals = z.object({
@@ -77,18 +90,22 @@ const PartialTotals = z.object({
   payableAmountMinor: Minor.optional(),
   allowanceTotalMinor: Minor.optional(),
   chargeTotalMinor: Minor.optional(),
-  roundingMinor: z.coerce.number().int().optional(),
+  roundingMinor: z.coerce.number().int().optional()
 });
 
 export const OrderSchema = z.object({
   id: z.string().trim().optional(),
   orderNumber: NonEmptyString,
   currency: CurrencyCode,
+  currencyMinorUnit: z.number().int().min(0).max(3).default(2),
+  issueDate: DateLike,
+  dueDate: DateLike.optional(),
   buyer: Party,
   supplier: Party,
   lines: z.array(OrderLine).min(1, "at least one line"),
+  defaultVatRate: VatRate.optional().default(21),
   totals: PartialTotals.optional(),
-  meta: z.record(z.unknown()).optional(),
+  meta: z.any().optional()
 });
 
 export type OrderLineT = z.infer<typeof OrderLine>;
