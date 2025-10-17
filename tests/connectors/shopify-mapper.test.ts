@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { shopifyToOrder } from "../../src/connectors/shopify";
+import { shopifyToOrder } from "../../src/connectors/shopify.js";
 
 const fixturePath = path.resolve(__dirname, "fixtures", "shopify-order.json");
 

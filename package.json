@@ -11,7 +11,9 @@
     "start": "tsx src/server.ts",
     "start:ci": "tsx src/server.ts",
     "start:prod": "node dist/server.js",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "npm run build:types && npm run build:emit",
+    "build:types": "tsc -p tsconfig.build.json",
+    "build:emit": "tsc -p tsconfig.build.emit.json",
     "wait:api": "node scripts/wait-for-api.mjs",
     "smoke:health": "curl -fsS http://127.0.0.1:3001/healthz",
     "lint": "eslint .",
@@ -29,17 +31,17 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
     "@types/node": "^24.7.2",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
     "@typescript-eslint/parser": "^8.46.1",
     "eslint": "^9.37.0",
     "globals": "^16.4.0",
+    "supertest": "^7.1.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",
-    "vitest": "^3.2.4",
-    "supertest": "^7.1.1"
-  },
-  "peerDependencies": {},
-  "optionalDependencies": {}
+    "vitest": "^3.2.4"
+  }
 }

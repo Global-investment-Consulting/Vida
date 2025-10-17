@@ -1,7 +1,7 @@
 import { create } from "xmlbuilder2";
-import type { XMLBuilder } from "xmlbuilder2/lib/interfaces";
-import type { InvoiceAllowance, InvoiceLine, NormalizedInvoice } from "../src/schemas/invoice.ts";
-import { parseInvoice } from "../src/schemas/invoice.ts";
+import type { XMLBuilder } from "xmlbuilder2/lib/interfaces.js";
+import type { InvoiceAllowance, InvoiceLine, NormalizedInvoice } from "../src/schemas/invoice.js";
+import { parseInvoice } from "../src/schemas/invoice.js";
 
 type BuildOptions = {
   pretty?: boolean;

@@ -1,4 +1,4 @@
-import { listHistory } from "../history/logger";
+import { listHistory } from "../history/logger.js";
 
 async function main() {
   const arg = process.argv[2];
