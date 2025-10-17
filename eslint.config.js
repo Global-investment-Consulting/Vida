@@ -4,8 +4,8 @@ import globals from "globals";
 
 const filesTs = [
   "peppol/**/*.ts",
-  "src/schemas/**/*.ts",
-  "tests/peppol/**/*.ts"
+  "src/**/*.ts",
+  "tests/**/*.ts"
 ];
 
 const filesJs = [

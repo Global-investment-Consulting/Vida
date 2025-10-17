@@ -8,8 +8,8 @@
     "node": ">=20 <21"
   },
   "scripts": {
-    "start": "node server.js",
-    "start:ci": "node server.js",
+    "start": "tsx src/server.ts",
+    "start:ci": "tsx src/server.ts",
     "wait:api": "node scripts/wait-for-api.mjs",
     "smoke:health": "curl -fsS http://127.0.0.1:3001/healthz",
     "lint": "eslint .",
@@ -34,7 +34,8 @@
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "supertest": "^7.1.1"
   },
   "peerDependencies": {},
   "optionalDependencies": {}

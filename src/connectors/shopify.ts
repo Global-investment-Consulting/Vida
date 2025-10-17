@@ -55,8 +55,6 @@ type MapperOptions = {
   currencyMinorUnit?: number;
 };
 
-const MINOR_FACTOR = 100;
-
 function toMinor(value: ShopifyMoney | undefined, minorUnit = 2): number {
   if (value === undefined || value === null) {
     return 0;
