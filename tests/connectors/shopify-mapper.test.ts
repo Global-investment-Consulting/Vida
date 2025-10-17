@@ -68,4 +68,54 @@ describe("shopifyToOrder", () => {
     expect(result.lines[0].vatRate).toBe(0);
     expect(result.lines[0].vatCategory).toBe("Z");
   });
+
+  it("applies default VAT rate when no tax lines exist", () => {
+    const order = {
+      id: 501,
+      order_number: 501,
+      created_at: "2025-03-01T09:00:00Z",
+      currency: "EUR",
+      line_items: [
+        {
+          title: "Consulting Block",
+          quantity: 1,
+          price: "120.00",
+          total_discount: "0.00"
+        }
+      ]
+    };
+
+    const mapped = shopifyToOrder(order, { supplier, defaultVatRate: 21 });
+    expect(mapped.lines[0].vatRate).toBe(21);
+    expect(mapped.lines[0].vatCategory).toBe("S");
+  });
+
+  it("rounds discounts and prices correctly", () => {
+    const order = {
+      id: 777,
+      order_number: 777,
+      created_at: "2025-03-05T10:00:00Z",
+      currency: "EUR",
+      line_items: [
+        {
+          title: "Subscription",
+          quantity: 1,
+          price: "19.995",
+          total_discount: "0.995",
+          tax_lines: [
+            {
+              rate: 0.06,
+              price: "1.14"
+            }
+          ]
+        }
+      ]
+    };
+
+    const mapped = shopifyToOrder(order, { supplier, defaultVatRate: 6, currencyMinorUnit: 2 });
+    expect(mapped.lines[0].unitPriceMinor).toBe(2000);
+    expect(mapped.lines[0].discountMinor).toBe(100);
+    expect(mapped.lines[0].vatRate).toBe(6);
+    expect(mapped.lines[0].vatCategory).toBe("AA");
+  });
 });

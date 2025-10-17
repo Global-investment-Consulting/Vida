@@ -12,6 +12,15 @@ import { parseOrder, type OrderT } from "./schemas/order";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
 
+class HttpError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 function buildOrderFromSource(
   source: SupportedSource | undefined,
   payload: unknown,
@@ -21,12 +30,12 @@ function buildOrderFromSource(
   const normalizedSource = source?.toLowerCase() as SupportedSource | undefined;
 
   if (!payload) {
-    throw new Error("payload is required");
+    throw new HttpError("payload is required", 400);
   }
 
   if (normalizedSource === "shopify") {
     if (!supplier?.name) {
-      throw new Error("supplier.name is required for Shopify orders");
+      throw new HttpError("supplier.name is required for Shopify orders", 422);
     }
     return shopifyToOrder(payload as Parameters<typeof shopifyToOrder>[0], {
       supplier,
@@ -37,13 +46,17 @@ function buildOrderFromSource(
 
   if (normalizedSource === "woocommerce") {
     if (!supplier?.name) {
-      throw new Error("supplier.name is required for WooCommerce orders");
+      throw new HttpError("supplier.name is required for WooCommerce orders", 422);
     }
     return wooToOrder(payload as Parameters<typeof wooToOrder>[0], {
       supplier,
       defaultVatRate: options.defaultVatRate,
       currencyMinorUnit: options.currencyMinorUnit
     });
+  }
+
+  if (normalizedSource && normalizedSource !== "order") {
+    throw new HttpError(`unsupported source '${normalizedSource}'`, 422);
   }
 
   return parseOrder(payload);
@@ -84,6 +97,11 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
   } catch (error) {
     if (error instanceof ZodError) {
       res.status(400).json({ error: "Invalid order payload", details: error.errors });
+      return;
+    }
+
+    if (error instanceof HttpError) {
+      res.status(error.status).json({ error: error.message });
       return;
     }
 
