@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { app } from "../../src/server";
 import * as historyLogger from "../../src/history/logger";
 import { listHistory } from "../../src/history/logger";
+import * as validation from "../../src/validation/ubl";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
 const wooFixturePath = path.resolve(__dirname, "../connectors/fixtures/woocommerce-order.json");
@@ -30,12 +31,14 @@ const apFiles: string[] = [];
 const fixedDate = new Date("2025-01-22T12:00:00.000Z");
 let historyDir: string;
 let recordHistorySpy: ReturnType<typeof vi.spyOn>;
+let validateUblSpy: ReturnType<typeof vi.spyOn> | undefined;
 
 beforeEach(async () => {
   historyDir = await mkdtemp(path.join(tmpdir(), "vida-history-"));
   process.env.VIDA_HISTORY_DIR = historyDir;
   process.env.VIDA_API_KEYS = API_KEY;
   recordHistorySpy = vi.spyOn(historyLogger, "recordHistory");
+  validateUblSpy = undefined;
   vi.useFakeTimers();
   vi.setSystemTime(fixedDate);
 });
@@ -51,10 +54,15 @@ afterEach(async () => {
     await rm(historyDir, { recursive: true, force: true }).catch(() => undefined);
   }
   recordHistorySpy.mockRestore();
+  if (validateUblSpy) {
+    validateUblSpy.mockRestore();
+    validateUblSpy = undefined;
+  }
   delete process.env.VIDA_HISTORY_DIR;
   delete process.env.VIDA_API_KEYS;
   delete process.env.VIDA_PEPPOL_SEND;
   delete process.env.VIDA_PEPPOL_OUTBOX_DIR;
+  delete process.env.VIDA_VALIDATE_UBL;
   while (apFiles.length > 0) {
     const file = apFiles.pop();
     if (!file) continue;
@@ -226,5 +234,55 @@ describe("POST /webhook/order-created", () => {
       .expect(403);
 
     expect(recordHistorySpy).not.toHaveBeenCalled();
+  });
+
+  it("validates UBL when flag enabled", async () => {
+    const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
+    process.env.VIDA_VALIDATE_UBL = "true";
+    validateUblSpy = vi.spyOn(validation, "validateUbl");
+
+    await request(app)
+      .post("/webhook/order-created")
+      .set("x-vida-api-key", API_KEY)
+      .send({
+        source: "shopify",
+        payload,
+        supplier,
+        defaultVatRate: 21
+      })
+      .expect(200);
+
+    expect(validateUblSpy).toHaveBeenCalled();
+    const history = await listHistory();
+    expect(history[0]?.validationErrors).toBeUndefined();
+  });
+
+  it("returns 422 when UBL validation fails", async () => {
+    const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
+    process.env.VIDA_VALIDATE_UBL = "true";
+    validateUblSpy = vi.spyOn(validation, "validateUbl").mockReturnValue({
+      ok: false,
+      errors: [{ path: "/", msg: "Invalid UBL" }]
+    });
+
+    const response = await request(app)
+      .post("/webhook/order-created")
+      .set("x-vida-api-key", API_KEY)
+      .send({
+        source: "shopify",
+        payload,
+        supplier,
+        defaultVatRate: 21
+      })
+      .expect(422);
+
+    expect(response.body.error).toBe("UBL validation failed");
+    expect(response.body.details).toEqual([{ path: "/", msg: "Invalid UBL" }]);
+    expect(recordHistorySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "error",
+        validationErrors: [{ path: "/", msg: "Invalid UBL" }]
+      })
+    );
   });
 });

@@ -17,6 +17,7 @@ export type HistoryRecord = {
   error?: string;
   peppolStatus?: string;
   peppolId?: string;
+  validationErrors?: { path: string; msg: string }[];
 };
 
 function resolveHistoryDir(): string {
