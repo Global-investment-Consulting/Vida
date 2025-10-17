@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseOrder } from "../../src/schemas/order";
+import { parseOrder } from "../../src/schemas/order.js";
 
 describe("Order schema", () => {
   it("parses a valid order", () => {

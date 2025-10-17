@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { create } from "xmlbuilder2";
-import { buildInvoiceXml, invoiceToUbl } from "../../peppol/ubl21.ts";
-import { parseInvoice } from "../../src/schemas/invoice.ts";
+import { buildInvoiceXml, invoiceToUbl } from "../../peppol/ubl21.js";
+import { parseInvoice } from "../../src/schemas/invoice.js";
 import validFixture from "./fixtures/valid-invoice.json" assert { type: "json" };
 import mixedVatFixture from "./fixtures/mixed-vat.json" assert { type: "json" };
 import zeroVatFixture from "./fixtures/zero-vat.json" assert { type: "json" };

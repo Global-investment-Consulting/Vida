@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { validateUbl } from "../../src/validation/ubl";
+import { validateUbl } from "../../src/validation/ubl.js";
 
 const fixturesDir = path.resolve(__dirname);
 

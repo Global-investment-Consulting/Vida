@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { wooToOrder } from "../../src/connectors/woocommerce";
+import { wooToOrder } from "../../src/connectors/woocommerce.js";
 
 const fixturePath = path.resolve(__dirname, "fixtures", "woocommerce-order.json");
 

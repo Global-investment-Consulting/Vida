@@ -1,6 +1,6 @@
 import { create } from "xmlbuilder2";
-import type { XMLBuilder } from "xmlbuilder2/lib/interfaces";
-import type { OrderLineT, OrderT } from "../schemas/order";
+import type { XMLBuilder } from "xmlbuilder2/lib/interfaces.js";
+import type { OrderLineT, OrderT } from "../schemas/order.js";
 
 type ComputedLine = {
   line: OrderLineT;

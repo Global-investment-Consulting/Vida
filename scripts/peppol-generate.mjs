@@ -2,7 +2,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import process from "node:process";
-import { buildInvoiceXml } from "../peppol/ubl21.ts";
+import { buildInvoiceXml } from "../peppol/ubl21.js";
 
 const DEFAULT_OUTPUT = "invoice.xml";
 const DEFAULT_SUPPLIER = {

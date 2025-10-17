@@ -6,13 +6,13 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { ZodError } from "zod";
-import { shopifyToOrder } from "./connectors/shopify";
-import { wooToOrder } from "./connectors/woocommerce";
-import { orderToInvoiceXml } from "./peppol/convert";
-import { sendInvoice } from "./peppol/apClient";
-import { parseOrder, type OrderT } from "./schemas/order";
-import { validateUbl } from "./validation/ubl";
-import { recordHistory } from "./history/logger";
+import { shopifyToOrder } from "./connectors/shopify.js";
+import { wooToOrder } from "./connectors/woocommerce.js";
+import { orderToInvoiceXml } from "./peppol/convert.js";
+import { sendInvoice } from "./peppol/apClient.js";
+import { parseOrder, type OrderT } from "./schemas/order.js";
+import { validateUbl } from "./validation/ubl.js";
+import { recordHistory } from "./history/logger.js";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
 
@@ -184,7 +184,7 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
     errorMessage = error instanceof Error ? error.message : "Failed to generate invoice";
 
     if (error instanceof ZodError) {
-      res.status(400).json({ error: "Invalid order payload", details: error.errors });
+      res.status(400).json({ error: "Invalid order payload", details: error.issues });
       responseSent = true;
     } else if (error instanceof HttpError) {
       const payload: Record<string, unknown> = { error: error.message };
@@ -202,7 +202,10 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
     }
   } finally {
     const meta = order?.meta as Record<string, unknown> | undefined;
-    const originalOrderId = meta?.originalOrderId;
+    const originalOrderId =
+      typeof meta?.originalOrderId === "string" || typeof meta?.originalOrderId === "number"
+        ? (meta.originalOrderId as string | number)
+        : undefined;
     try {
       await recordHistory({
         requestId,

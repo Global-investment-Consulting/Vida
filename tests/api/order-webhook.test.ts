@@ -3,10 +3,10 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { app } from "../../src/server";
-import * as historyLogger from "../../src/history/logger";
-import { listHistory } from "../../src/history/logger";
-import * as validation from "../../src/validation/ubl";
+import { app } from "../../src/server.js";
+import * as historyLogger from "../../src/history/logger.js";
+import { listHistory } from "../../src/history/logger.js";
+import * as validation from "../../src/validation/ubl.js";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
 const wooFixturePath = path.resolve(__dirname, "../connectors/fixtures/woocommerce-order.json");

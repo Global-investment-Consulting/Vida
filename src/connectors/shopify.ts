@@ -1,4 +1,4 @@
-import { parseOrder, type OrderT, type OrderLineT } from "../schemas/order";
+import { parseOrder, type OrderT, type OrderLineT } from "../schemas/order.js";
 
 type ShopifyMoney = string | number;
 

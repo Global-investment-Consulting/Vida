@@ -1,4 +1,4 @@
-import { parseOrder, type OrderLineT, type OrderT } from "../schemas/order";
+import { parseOrder, type OrderLineT, type OrderT } from "../schemas/order.js";
 
 type WooMoney = string | number;
 
