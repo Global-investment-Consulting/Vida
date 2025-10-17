@@ -1,5 +1,6 @@
 import cors from "cors";
 import express, { type Request, type Response } from "express";
+import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -9,6 +10,7 @@ import { shopifyToOrder } from "./connectors/shopify";
 import { wooToOrder } from "./connectors/woocommerce";
 import { orderToInvoiceXml } from "./peppol/convert";
 import { parseOrder, type OrderT } from "./schemas/order";
+import { recordHistory } from "./history/logger";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
 
@@ -75,10 +77,20 @@ app.get("/", (_req, res) => {
 });
 
 app.post("/webhook/order-created", async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  const requestId = randomUUID();
+  const rawSource = req.body?.source;
+  const sourceLabel = typeof rawSource === "string" ? rawSource.toLowerCase() : undefined;
+
+  let order: OrderT | undefined;
+  let invoicePath: string | undefined;
+  let errorMessage: string | undefined;
+  let responseSent = false;
+
   try {
     const { source, payload, supplier, defaultVatRate, currencyMinorUnit } = req.body ?? {};
 
-    const order = buildOrderFromSource(source, payload, supplier, {
+    order = buildOrderFromSource(source, payload, supplier, {
       defaultVatRate,
       currencyMinorUnit
     });
@@ -88,29 +100,47 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
     const outputDir = path.resolve(process.cwd(), "output");
     await mkdir(outputDir, { recursive: true });
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const outputPath = path.join(outputDir, `invoice_${timestamp}.xml`);
+    invoicePath = path.join(outputDir, `invoice_${timestamp}.xml`);
 
-    await writeFile(outputPath, xml, "utf8");
-    console.log(`[webhook] Generated invoice at ${outputPath}`);
+    await writeFile(invoicePath, xml, "utf8");
+    console.log(`[webhook] Generated invoice at ${invoicePath}`);
 
-    res.json({ path: outputPath, xmlLength: xml.length });
+    res.json({ path: invoicePath, xmlLength: xml.length });
+    responseSent = true;
   } catch (error) {
+    errorMessage = error instanceof Error ? error.message : "Failed to generate invoice";
+
     if (error instanceof ZodError) {
       res.status(400).json({ error: "Invalid order payload", details: error.errors });
-      return;
-    }
-
-    if (error instanceof HttpError) {
+      responseSent = true;
+    } else if (error instanceof HttpError) {
       res.status(error.status).json({ error: error.message });
-      return;
-    }
-
-    if (error instanceof Error) {
+      responseSent = true;
+    } else if (error instanceof Error) {
       res.status(400).json({ error: error.message });
-      return;
+      responseSent = true;
+    } else {
+      res.status(500).json({ error: "Failed to generate invoice" });
+      responseSent = true;
     }
-
-    res.status(500).json({ error: "Failed to generate invoice" });
+  } finally {
+    const meta = order?.meta as Record<string, unknown> | undefined;
+    const originalOrderId = meta?.originalOrderId;
+    try {
+      await recordHistory({
+        requestId,
+        timestamp: new Date().toISOString(),
+        source: sourceLabel,
+        orderNumber: order?.orderNumber,
+        originalOrderId,
+        status: responseSent && !errorMessage ? "ok" : "error",
+        invoicePath,
+        durationMs: Date.now() - startedAt,
+        error: errorMessage
+      });
+    } catch (historyError) {
+      console.error("[history] failed to record event", historyError);
+    }
   }
 });
 
