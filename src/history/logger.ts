@@ -15,6 +15,8 @@ export type HistoryRecord = {
   invoicePath?: string;
   durationMs: number;
   error?: string;
+  peppolStatus?: string;
+  peppolId?: string;
 };
 
 function resolveHistoryDir(): string {

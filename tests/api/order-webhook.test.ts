@@ -26,6 +26,7 @@ const supplier = {
 };
 
 const createdFiles: string[] = [];
+const apFiles: string[] = [];
 const fixedDate = new Date("2025-01-22T12:00:00.000Z");
 let historyDir: string;
 let recordHistorySpy: ReturnType<typeof vi.spyOn>;
@@ -52,6 +53,13 @@ afterEach(async () => {
   recordHistorySpy.mockRestore();
   delete process.env.VIDA_HISTORY_DIR;
   delete process.env.VIDA_API_KEYS;
+  delete process.env.VIDA_PEPPOL_SEND;
+  delete process.env.VIDA_PEPPOL_OUTBOX_DIR;
+  while (apFiles.length > 0) {
+    const file = apFiles.pop();
+    if (!file) continue;
+    await rm(file, { force: true }).catch(() => undefined);
+  }
 });
 
 describe("POST /webhook/order-created", () => {
@@ -128,6 +136,35 @@ describe("POST /webhook/order-created", () => {
     expect(history).toHaveLength(1);
     expect(history[0].status).toBe("ok");
     expect(history[0].source).toBe("woocommerce");
+  });
+
+  it("sends the invoice to the PEPPOL stub when enabled", async () => {
+    const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
+    const outboxDir = await mkdtemp(path.join(tmpdir(), "vida-ap-"));
+    process.env.VIDA_PEPPOL_SEND = "true";
+    process.env.VIDA_PEPPOL_OUTBOX_DIR = outboxDir;
+
+    const response = await request(app)
+      .post("/webhook/order-created")
+      .set("x-vida-api-key", API_KEY)
+      .send({
+        source: "shopify",
+        payload,
+        supplier,
+        defaultVatRate: 21
+      })
+      .expect(200);
+
+    const expectedOutboxFile = path.join(outboxDir, "#1001.xml");
+    apFiles.push(expectedOutboxFile);
+    const stats = await stat(expectedOutboxFile);
+    expect(stats.isFile()).toBe(true);
+
+    const history = await listHistory();
+    expect(history).toHaveLength(1);
+    expect(history[0].peppolStatus).toBe("SENT");
+    expect(history[0].peppolId).toBe("#1001");
+    expect(response.body.path).toContain("invoice_2025-01-22T12-00-00-000Z.xml");
   });
 
   it("rejects invalid payloads", async () => {
