@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 env:
-  HAS_DOCKER_CREDENTIALS: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+  HAS_DOCKER_CREDENTIALS: "${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}"
 
 jobs:
   lint:
