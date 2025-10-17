@@ -11,6 +11,7 @@ import { wooToOrder } from "./connectors/woocommerce";
 import { orderToInvoiceXml } from "./peppol/convert";
 import { sendInvoice } from "./peppol/apClient";
 import { parseOrder, type OrderT } from "./schemas/order";
+import { validateUbl } from "./validation/ubl";
 import { recordHistory } from "./history/logger";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
@@ -128,6 +129,7 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
   let responseSent = false;
   let peppolStatus: string | undefined;
   let peppolId: string | undefined;
+  let validationErrors: { path: string; msg: string }[] | undefined;
 
   try {
     const { source, payload, supplier, defaultVatRate, currencyMinorUnit } = req.body ?? {};
@@ -138,6 +140,15 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
     });
 
     const xml = await orderToInvoiceXml(order);
+
+    const shouldValidate = (process.env.VIDA_VALIDATE_UBL ?? "").toLowerCase() === "true";
+    if (shouldValidate) {
+      const validation = validateUbl(xml);
+      if (!validation.ok) {
+        validationErrors = validation.errors;
+        throw new HttpError("UBL validation failed", 422);
+      }
+    }
 
     const outputDir = path.resolve(process.cwd(), "output");
     await mkdir(outputDir, { recursive: true });
@@ -176,7 +187,11 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
       res.status(400).json({ error: "Invalid order payload", details: error.errors });
       responseSent = true;
     } else if (error instanceof HttpError) {
-      res.status(error.status).json({ error: error.message });
+      const payload: Record<string, unknown> = { error: error.message };
+      if (error.status === 422 && validationErrors?.length) {
+        payload.details = validationErrors;
+      }
+      res.status(error.status).json(payload);
       responseSent = true;
     } else if (error instanceof Error) {
       res.status(400).json({ error: error.message });
@@ -200,7 +215,8 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
         durationMs: Date.now() - startedAt,
         error: responseSent && !errorMessage ? undefined : errorMessage,
         peppolStatus,
-        peppolId
+        peppolId,
+        validationErrors
       });
     } catch (historyError) {
       console.error("[history] failed to record event", historyError);

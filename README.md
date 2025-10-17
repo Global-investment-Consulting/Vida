@@ -10,6 +10,7 @@ npm start
 
 ## Configuration
 - Set `VIDA_API_KEYS` to a comma-separated list of API keys (for example `VIDA_API_KEYS=dev-key-1,dev-key-2`) to unlock POST routes such as `/webhook/order-created`.
+- Set `VIDA_VALIDATE_UBL=true` to enforce UBL validation before delivery.
 
 ## Useful Commands
 - `npm run history:list` – print the most recent webhook history entries.
