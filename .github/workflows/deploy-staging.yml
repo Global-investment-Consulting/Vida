@@ -136,6 +136,10 @@ jobs:
             echo "JWT_SECRET secret is required" >&2
             exit 1
           fi
+          if ! flyctl apps show vida-staging >/dev/null 2>&1; then
+            flyctl apps create vida-staging
+          fi
+
           flyctl secrets set --app vida-staging --stage \
             JWT_SECRET="${JWT_SECRET}" \
             PEPPOL_MODE=sandbox
