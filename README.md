@@ -36,6 +36,16 @@ docker compose up --build
 
 The container exposes the API on port `8080` and mounts `./data` for history logs.
 
+## API
+Generate an invoice directly through `/api/invoice` (see [openapi.js](openapi.js) for the payload schema):
+
+```bash
+curl -sS http://localhost:3001/api/invoice \
+  -H "x-vida-api-key: <api-key>" \
+  -H "Content-Type: application/json" \
+  --data @order.json > invoice.xml
+```
+
 ## Quickstart (staging)
 
 Use the [OpenAPI spec](openapi.js) for field details. The sample payload in [`examples/order.sample.json`](examples/order.sample.json) matches the `/api/invoice` schema. Staging runs at **https://vida-staging.fly.dev**.
@@ -50,7 +60,12 @@ Example request payload:
   "buyer": {
     "name": "Acme GmbH",
     "endpoint": { "id": "9915:acme", "scheme": "9915" },
-    "address": { "streetName": "Alexanderplatz 1", "cityName": "Berlin", "postalZone": "10178", "countryCode": "DE" }
+    "address": {
+      "streetName": "Alexanderplatz 1",
+      "cityName": "Berlin",
+      "postalZone": "10178",
+      "countryCode": "DE"
+    }
   },
   "supplier": {
     "name": "Vida Demo BV",
