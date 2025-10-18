@@ -124,6 +124,7 @@ jobs:
             echo "FLY_API_TOKEN is required" >&2
             exit 1
           fi
+          export FLY_ACCESS_TOKEN="${FLY_API_TOKEN}"
           if [ -z "${IMAGE}" ]; then
             echo "vars.DOCKERHUB_IMAGE (or DOCKERHUB_USERNAME) is required" >&2
             exit 1
@@ -132,6 +133,11 @@ jobs:
             echo "Image digest not found" >&2
             exit 1
           fi
+          if ! flyctl auth whoami >/dev/null 2>&1; then
+            echo "FLY_API_TOKEN failed authentication; update the secret with a valid Fly.io token" >&2
+            exit 1
+          fi
+
           if [ -z "${JWT_SECRET}" ]; then
             echo "JWT_SECRET secret is required" >&2
             exit 1
