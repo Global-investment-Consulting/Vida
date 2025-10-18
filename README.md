@@ -35,3 +35,14 @@ docker compose up --build
 ```
 
 The container exposes the API on port `8080` and mounts `./data` for history logs.
+
+## API
+
+Generate an invoice directly through `/api/invoice` (see [openapi.js](openapi.js) for the payload schema):
+
+```bash
+curl -sS http://localhost:3001/api/invoice \
+  -H "x-vida-api-key: <api-key>" \
+  -H "Content-Type: application/json" \
+  --data @order.json > invoice.xml
+```

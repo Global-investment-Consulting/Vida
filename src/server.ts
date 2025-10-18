@@ -1,6 +1,6 @@
 import cors from "cors";
 import express, { type Request, type Response } from "express";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -13,6 +13,7 @@ import { sendInvoice } from "./peppol/apClient.js";
 import { parseOrder, type OrderT } from "./schemas/order.js";
 import { validateUbl } from "./validation/ubl.js";
 import { recordHistory } from "./history/logger.js";
+import { recordInvoiceRequest } from "./history/invoiceRequestLog.js";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
 
@@ -115,6 +116,102 @@ app.get("/healthz", (_req, res) => {
 
 app.get("/", (_req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
+});
+
+type ValidationErrorShape = {
+  path: string;
+  msg: string;
+  ruleId?: string;
+};
+
+app.post("/api/invoice", async (req: Request, res: Response) => {
+  const rawRequestId = req.header("x-request-id") ?? randomUUID();
+  const requestId = rawRequestId.trim() || randomUUID();
+  const tenantHeader = req.header("x-vida-tenant") ?? undefined;
+  const tenantFromBody =
+    typeof req.body?.tenantId === "string" && req.body.tenantId.trim().length > 0
+      ? req.body.tenantId.trim()
+      : undefined;
+  const tenantId = tenantHeader?.trim() || tenantFromBody;
+  const createdAt = new Date().toISOString();
+  res.setHeader("X-Request-Id", requestId);
+
+  try {
+    const order = parseOrder(req.body);
+    const xml = await orderToInvoiceXml(order);
+    const validation = validateUbl(xml);
+    const digest = createHash("sha256").update(xml).digest("hex");
+    const errors = validation.errors as ValidationErrorShape[];
+
+    if (!validation.ok) {
+      const primaryError = errors[0];
+      await recordInvoiceRequest({
+        requestId,
+        tenantId,
+        status: "INVALID",
+        xmlSha256: digest,
+        createdAt
+      });
+      const summary =
+        primaryError?.msg ?? "BIS 3.0 validation failed";
+      console.info(
+        `[api/invoice] requestId=${requestId} status=INVALID digest=${digest.slice(0, 12)} errors=${errors.length} first="${summary}"`
+      );
+      const responseBody: {
+        code: string;
+        message: string;
+        field?: string;
+        ruleId?: string;
+      } = {
+        code: "BIS_RULE_VIOLATION",
+        message: summary
+      };
+      if (primaryError?.path && primaryError.path !== "/") {
+        responseBody.field = primaryError.path;
+      }
+      if (primaryError?.ruleId) {
+        responseBody.ruleId = primaryError.ruleId;
+      }
+      return res.status(422).json(responseBody);
+    }
+
+    await recordInvoiceRequest({
+      requestId,
+      tenantId,
+      status: "OK",
+      xmlSha256: digest,
+      createdAt
+    });
+    console.info(
+      `[api/invoice] requestId=${requestId} status=OK digest=${digest.slice(0, 12)} errors=${errors.length}`
+    );
+    res.type("application/xml; charset=utf-8");
+    return res.send(xml);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      const firstIssue = error.issues[0];
+      await recordInvoiceRequest({
+        requestId,
+        tenantId,
+        status: "INVALID",
+        createdAt
+      });
+      console.info(
+        `[api/invoice] requestId=${requestId} status=INVALID payloadError=${firstIssue?.message ?? "unknown"}`
+      );
+      return res.status(400).json({
+        code: "INVALID_ORDER",
+        message: firstIssue?.message ?? "Invalid order payload",
+        field: firstIssue?.path?.length ? firstIssue.path.map(String).join(".") : undefined
+      });
+    }
+
+    console.error(`[api/invoice] requestId=${requestId} status=ERROR`, error);
+    return res.status(500).json({
+      code: "INTERNAL_ERROR",
+      message: "Failed to generate invoice"
+    });
+  }
 });
 
 app.post("/webhook/order-created", async (req: Request, res: Response) => {
