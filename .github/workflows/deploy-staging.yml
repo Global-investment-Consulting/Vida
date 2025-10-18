@@ -1,12 +1,9 @@
 name: Deploy staging
-
 on:
   workflow_dispatch: {}
   workflow_run:
     workflows: ["CI"]
-    types:
-      - completed
-
+    types: [completed]
 permissions:
   contents: read
   actions: read
@@ -14,97 +11,49 @@ permissions:
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
-    outputs:
-      digest: ${{ steps.grab.outputs.digest }}
-      url: ${{ steps.deploy.outputs.url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Grab Docker job logs & extract digest
-        id: grab
+      - uses: actions/checkout@v4
+      - id: grab
         uses: actions/github-script@v7
         with:
           script: |
-            const runId = context.payload.workflow_run.id;
-            const headBranch = context.payload.workflow_run.head_branch;
-            if (headBranch !== "main") {
-              core.info(`Skipping deploy for branch ${headBranch}`);
-              return;
+            const {owner,repo}=context.repo
+            async function runId(){
+              if(context.eventName==="workflow_run"){
+                const r=context.payload.workflow_run
+                if(!r||r.head_branch!=="main"||r.conclusion!=="success")return null
+                return r.id
+              }
+              const rs=await github.rest.actions.listWorkflowRuns({owner,repo,workflow_id:"ci.yml",branch:"main",per_page:5})
+              const h=rs.data.workflow_runs.find(r=>r.status==="completed"&&r.conclusion==="success")
+              return h?.id
             }
-            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: runId
-            });
-            const dockerJob = jobs.find((job) => job.name?.includes("Build Docker image"));
-            if (!dockerJob) {
-              core.setFailed("Docker job not found");
-              return;
-            }
-            const { data } = await github.rest.actions.downloadJobLogsForWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              job_id: dockerJob.id
-            });
-            let buffer = Buffer.from(data);
-            try {
-              const { gunzipSync } = require("zlib");
-              buffer = gunzipSync(buffer);
-            } catch (error) {
-              core.info(`Failed to gunzip logs (continuing with raw buffer): ${error.message}`);
-            }
-            const text = buffer.toString("utf8");
-            const match = text.match(/containerimage\.digest":\s*"([^"]+)"/);
-            if (!match) {
-              core.setFailed("Digest not found in logs");
-              return;
-            }
-            const digest = match[1];
-            core.setOutput("digest", digest);
-
-      - name: Show digest
-        if: ${{ steps.grab.outputs.digest != '' }}
-        run: echo "DIGEST=${{ steps.grab.outputs.digest }}"
-
-      - name: Install flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@v1
-
-      - name: Deploy pinned image
-        id: deploy
+            const id=await runId(); if(!id){core.setFailed("No successful CI run");return}
+            const jobs=await github.paginate(github.rest.actions.listJobsForWorkflowRun,{owner,repo,run_id:id})
+            const j=jobs.find(x=>(x.name||"").includes("Build Docker image"))
+            if(!j){core.setFailed("Docker job missing");return}
+            const {data}=await github.rest.actions.downloadJobLogsForWorkflowRun({owner,repo,job_id:j.id})
+            let b=Buffer.from(data);try{b=require("zlib").gunzipSync(b)}catch{}
+            const m=b.toString("utf8").match(/containerimage\.digest":\s*"([^"]+)"/)
+            if(!m){core.setFailed("Digest not found");return}
+            core.setOutput("digest",m[1])
+      - uses: superfly/flyctl-actions/setup-flyctl@v1
+      - id: deploy
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           IMAGE: ${{ vars.DOCKERHUB_IMAGE || format('{0}/vida', secrets.DOCKERHUB_USERNAME) }}
           DIGEST: ${{ steps.grab.outputs.digest }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          set -eo pipefail
-          if [ -z "${FLY_API_TOKEN}" ]; then
-            echo "FLY_API_TOKEN is required" >&2
-            exit 1
-          fi
-          if [ -z "${IMAGE}" ]; then
-            echo "vars.DOCKERHUB_IMAGE (or DOCKERHUB_USERNAME) is required" >&2
-            exit 1
-          fi
-          if [ -z "${DIGEST}" ]; then
-            echo "Image digest not found" >&2
-            exit 1
-          fi
-          if [ -z "${JWT_SECRET}" ]; then
-            echo "JWT_SECRET secret is required" >&2
-            exit 1
-          fi
-          printf "JWT_SECRET=%s\nPEPPOL_MODE=sandbox\n" "${JWT_SECRET}" | flyctl secrets set --app vida-staging --stage --yes
+          set -e
+          export FLY_ACCESS_TOKEN="$FLY_API_TOKEN"
+          flyctl auth whoami >/dev/null 2>&1 || { echo "Bad Fly token"; exit 1; }
+          flyctl apps show vida-staging >/dev/null 2>&1 || flyctl apps create vida-staging
+          printf "JWT_SECRET=%s\nPEPPOL_MODE=sandbox\n" "$JWT_SECRET" | flyctl secrets set --app vida-staging --stage
           flyctl deploy --app vida-staging --image "docker.io/${IMAGE}@${DIGEST}" --yes
           host=$(flyctl status --app vida-staging --json | jq -r '.hostname')
-          if [ -z "${host}" ] || [ "${host}" = "null" ]; then
-            echo "Unable to determine staging hostname" >&2
-            exit 1
-          fi
-          echo "Staging URL: https://${host}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Image digest: ${DIGEST}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Staging URL: https://${host}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Image digest: ${DIGEST}" | tee -a "$GITHUB_STEP_SUMMARY"
           curl -fsSL "https://${host}/healthz" >/dev/null
-          echo "url=https://${host}" >> "${GITHUB_OUTPUT}"
