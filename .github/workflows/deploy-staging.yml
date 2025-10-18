@@ -58,9 +58,9 @@ jobs:
           if ! flyctl auth whoami >/dev/null 2>&1; then
             echo "FLY_API_TOKEN failed authentication" | tee -a "$GITHUB_STEP_SUMMARY"
             exit 1
-          fi
+          }
           flyctl apps show vida-staging >/dev/null 2>&1 || flyctl apps create vida-staging
-          printf "JWT_SECRET=%s\nPEPPOL_MODE=sandbox\n" "${JWT_SECRET}" | flyctl secrets set --app vida-staging --stage
+          printf "JWT_SECRET=%s\nPEPPOL_MODE=sandbox\n" "$JWT_SECRET" | flyctl secrets set --app vida-staging --stage
           flyctl deploy --app vida-staging --image "docker.io/${IMAGE}@${DIGEST}" --yes
           host=$(flyctl status --app vida-staging --json | jq -r '.hostname')
           echo "Staging URL: https://${host}" | tee -a "$GITHUB_STEP_SUMMARY"
