@@ -28,15 +28,54 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const runId = context.payload.workflow_run.id;
-            const headBranch = context.payload.workflow_run.head_branch;
-            if (headBranch !== "main") {
-              core.info(`Skipping deploy for branch ${headBranch}`);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            async function resolveRunId() {
+              if (context.eventName === "workflow_run") {
+                const run = context.payload.workflow_run;
+                if (!run) {
+                  core.setFailed("workflow_run payload missing");
+                  return null;
+                }
+                if (run.head_branch !== "main") {
+                  core.info(`Skipping deploy for branch ${run.head_branch}`);
+                  return null;
+                }
+                if (run.conclusion !== "success") {
+                  core.info(`Skipping deploy for run ${run.id} with conclusion ${run.conclusion}`);
+                  return null;
+                }
+                return run.id;
+              }
+
+              core.info("Manual dispatch: locating latest successful CI run on main");
+              const runsResponse = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: "ci.yml",
+                branch: "main",
+                per_page: 20
+              });
+              const candidate = runsResponse.data.workflow_runs.find(
+                (run) => run.status === "completed" && run.conclusion === "success" && run.head_branch === "main"
+              );
+              if (!candidate) {
+                core.setFailed("Could not find a successful CI run on main");
+                return null;
+              }
+              core.info(`Using CI workflow run ${candidate.id} from ${candidate.head_commit?.id ?? "unknown commit"}`);
+              return candidate.id;
+            }
+
+            const runId = await resolveRunId();
+            if (!runId) {
               return;
             }
+
             const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               run_id: runId
             });
             const dockerJob = jobs.find((job) => job.name?.includes("Build Docker image"));
@@ -45,8 +84,8 @@ jobs:
               return;
             }
             const { data } = await github.rest.actions.downloadJobLogsForWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               job_id: dockerJob.id
             });
             let buffer = Buffer.from(data);
