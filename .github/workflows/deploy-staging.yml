@@ -15,31 +15,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - id: grab
         uses: actions/github-script@v7
         with:
           script: |
-            const {owner,repo}=context.repo
-            async function runId(){
+            const {owner,repo}=context.repo;
+            async function pickRun(){
               if(context.eventName==="workflow_run"){
-                const r=context.payload.workflow_run
-                if(!r||r.head_branch!=="main"||r.conclusion!=="success")return null
-                return r.id
+                const r=context.payload.workflow_run;
+                if(!r||r.head_branch!=="main"||r.conclusion!=="success") return null;
+                return r.id;
               }
-              const rs=await github.rest.actions.listWorkflowRuns({owner,repo,workflow_id:"ci.yml",branch:"main",per_page:5})
-              const h=rs.data.workflow_runs.find(r=>r.status==="completed"&&r.conclusion==="success")
-              return h?.id
+              const rs=await github.rest.actions.listWorkflowRuns({owner,repo,workflow_id:"ci.yml",branch:"main",per_page:10});
+              const ok=rs.data.workflow_runs.find(r=>r.status==="completed"&&r.conclusion==="success");
+              return ok?.id||null;
             }
-            const id=await runId(); if(!id){core.setFailed("No successful CI run");return}
-            const jobs=await github.paginate(github.rest.actions.listJobsForWorkflowRun,{owner,repo,run_id:id})
-            const j=jobs.find(x=>(x.name||"").includes("Build Docker image"))
-            if(!j){core.setFailed("Docker job missing");return}
-            const {data}=await github.rest.actions.downloadJobLogsForWorkflowRun({owner,repo,job_id:j.id})
-            let b=Buffer.from(data);try{b=require("zlib").gunzipSync(b)}catch{}
-            const m=b.toString("utf8").match(/containerimage\.digest":\s*"([^"]+)"/)
-            if(!m){core.setFailed("Digest not found");return}
-            core.setOutput("digest",m[1])
+            const runId=await pickRun(); if(!runId){ core.setFailed("No successful CI run on main"); return; }
+            const jobs=await github.paginate(github.rest.actions.listJobsForWorkflowRun,{owner,repo,run_id:runId});
+            const dj=jobs.find(j=>(j.name||"").includes("Build Docker image"));
+            if(!dj){ core.setFailed("Docker job not found"); return; }
+            const {data}=await github.rest.actions.downloadJobLogsForWorkflowRun({owner,repo,job_id:dj.id});
+            let buf=Buffer.from(data); try{ buf=require("zlib").gunzipSync(buf); }catch{}
+            const m=buf.toString("utf8").match(/containerimage\.digest":\s*"([^"]+)"/);
+            if(!m){ core.setFailed("Digest not found in logs"); return; }
+            core.setOutput("digest",m[1]);
+
       - uses: superfly/flyctl-actions/setup-flyctl@v1
+
       - id: deploy
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -47,11 +50,17 @@ jobs:
           DIGEST: ${{ steps.grab.outputs.digest }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          set -e
-          export FLY_ACCESS_TOKEN="$FLY_API_TOKEN"
-          flyctl auth whoami >/dev/null 2>&1 || { echo "Bad Fly token"; exit 1; }
+          set -euo pipefail
+          if [ -z "${DIGEST}" ]; then echo "Missing digest"; exit 1; fi
+          if [ -z "${FLY_API_TOKEN}" ]; then echo "Missing FLY_API_TOKEN"; exit 1; fi
+          if [ -z "${JWT_SECRET}" ]; then echo "Missing JWT_SECRET"; exit 1; fi
+          export FLY_ACCESS_TOKEN="${FLY_API_TOKEN}"
+          if ! flyctl auth whoami >/dev/null 2>&1; then
+            echo "FLY_API_TOKEN failed authentication" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
           flyctl apps show vida-staging >/dev/null 2>&1 || flyctl apps create vida-staging
-          printf "JWT_SECRET=%s\nPEPPOL_MODE=sandbox\n" "$JWT_SECRET" | flyctl secrets set --app vida-staging --stage
+          printf "JWT_SECRET=%s\nPEPPOL_MODE=sandbox\n" "${JWT_SECRET}" | flyctl secrets set --app vida-staging --stage
           flyctl deploy --app vida-staging --image "docker.io/${IMAGE}@${DIGEST}" --yes
           host=$(flyctl status --app vida-staging --json | jq -r '.hostname')
           echo "Staging URL: https://${host}" | tee -a "$GITHUB_STEP_SUMMARY"
