@@ -1,0 +1,57 @@
+{
+  "orderNumber": "INV-2025-0001",
+  "currency": "EUR",
+  "issueDate": "2025-02-01",
+  "buyer": {
+    "name": "Acme GmbH",
+    "endpoint": {
+      "id": "9915:acme",
+      "scheme": "9915"
+    },
+    "address": {
+      "streetName": "Alexanderplatz 1",
+      "cityName": "Berlin",
+      "postalZone": "10178",
+      "countryCode": "DE"
+    },
+    "contact": {
+      "name": "Christina Berg",
+      "electronicMail": "accounting@acme.example"
+    }
+  },
+  "supplier": {
+    "name": "Vida Demo BV",
+    "registrationName": "Vida Demo BV",
+    "vatId": "BE0123456789",
+    "endpoint": {
+      "id": "0088:vida",
+      "scheme": "0088"
+    },
+    "address": {
+      "streetName": "Rue Exemple 1",
+      "cityName": "Brussels",
+      "postalZone": "1000",
+      "countryCode": "BE"
+    },
+    "contact": {
+      "name": "Vida Ops",
+      "electronicMail": "ops@vida.example"
+    }
+  },
+  "lines": [
+    {
+      "description": "Consulting retainer",
+      "quantity": 1,
+      "unitPriceMinor": 50000,
+      "vatRate": 21
+    },
+    {
+      "description": "Implementation hours",
+      "quantity": 10,
+      "unitPriceMinor": 9000,
+      "discountMinor": 1000,
+      "vatRate": 21
+    }
+  ],
+  "defaultVatRate": 21
+}
