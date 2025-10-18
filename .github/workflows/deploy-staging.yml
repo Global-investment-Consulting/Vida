@@ -1,6 +1,7 @@
 name: Deploy staging
 
 on:
+  workflow_dispatch: {}
   workflow_run:
     workflows: ["CI"]
     types:
@@ -8,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 jobs:
