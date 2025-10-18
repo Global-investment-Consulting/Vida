@@ -1,0 +1,131 @@
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import path from "node:path";
+import { tmpdir } from "node:os";
+import request from "supertest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { app } from "../../src/server.js";
+import * as validation from "../../src/validation/ubl.js";
+
+const API_KEY = "test-key";
+const fixedNow = new Date("2025-02-01T10:00:00.000Z");
+
+function buildOrder(overrides: Record<string, unknown> = {}) {
+  return {
+    orderNumber: "INV-2025-0001",
+    currency: "EUR",
+    issueDate: "2025-02-01",
+    buyer: {
+      name: "Acme GmbH",
+      address: {
+        countryCode: "DE"
+      }
+    },
+    supplier: {
+      name: "Supplier BV",
+      address: {
+        countryCode: "BE"
+      },
+      endpoint: {
+        id: "9915:vida",
+        scheme: "9915"
+      }
+    },
+    lines: [
+      {
+        description: "Consulting",
+        quantity: 1,
+        unitPriceMinor: 5000,
+        vatRate: 21
+      }
+    ],
+    ...overrides
+  };
+}
+
+describe("POST /api/invoice", () => {
+  let logDir: string;
+
+  beforeEach(async () => {
+    logDir = await mkdtemp(path.join(tmpdir(), "vida-request-log-"));
+    process.env.VIDA_API_KEYS = API_KEY;
+    process.env.VIDA_INVOICE_REQUEST_LOG_DIR = logDir;
+    vi.useFakeTimers();
+    vi.setSystemTime(fixedNow);
+  });
+
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    await rm(logDir, { recursive: true, force: true }).catch(() => undefined);
+    delete process.env.VIDA_API_KEYS;
+    delete process.env.VIDA_INVOICE_REQUEST_LOG_DIR;
+  });
+
+  it("returns UBL XML and logs the request on success", async () => {
+    const response = await request(app)
+      .post("/api/invoice")
+      .set("x-vida-api-key", API_KEY)
+      .send(buildOrder())
+      .expect(200);
+
+    expect(response.headers["content-type"]).toContain("application/xml");
+    expect(response.text).toContain("<Invoice");
+    expect(response.headers["x-request-id"]).toBeDefined();
+
+    const digest = createHash("sha256").update(response.text).digest("hex");
+    const expectedLogPath = path.join(logDir, "2025-02-01.jsonl");
+    const logContent = await readFile(expectedLogPath, "utf8");
+    const [rawEntry] = logContent.trim().split("\n");
+    const entry = JSON.parse(rawEntry) as Record<string, unknown>;
+
+    expect(entry.requestId).toBe(response.headers["x-request-id"]);
+    expect(entry.status).toBe("OK");
+    expect(entry.xmlSha256).toBe(digest);
+    expect(entry.createdAt).toBe("2025-02-01T10:00:00.000Z");
+  });
+
+  it("returns 422 with BIS details and logs INVALID status", async () => {
+    const validateSpy = vi
+      .spyOn(validation, "validateUbl")
+      .mockReturnValue({
+        ok: false,
+        errors: [
+          {
+            path: "buyerParty.identifier",
+            msg: "BuyerParty identifier is required",
+            ruleId: "BIS-III-PEPPOL-01"
+          }
+        ]
+      });
+
+    const response = await request(app)
+      .post("/api/invoice")
+      .set("x-vida-api-key", API_KEY)
+      .set("x-vida-tenant", "tenant-123")
+      .send(buildOrder())
+      .expect(422);
+
+    expect(response.body).toEqual({
+      code: "BIS_RULE_VIOLATION",
+      message: "BuyerParty identifier is required",
+      field: "buyerParty.identifier",
+      ruleId: "BIS-III-PEPPOL-01"
+    });
+
+    const [[xml]] = validateSpy.mock.calls;
+    const expectedDigest = createHash("sha256").update(xml as string).digest("hex");
+    const expectedLogPath = path.join(logDir, "2025-02-01.jsonl");
+    const logContent = await readFile(expectedLogPath, "utf8");
+    const lines = logContent
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const lastEntry = lines.at(-1) ?? {};
+
+    expect(lastEntry.status).toBe("INVALID");
+    expect(lastEntry.tenantId).toBe("tenant-123");
+    expect(lastEntry.xmlSha256).toBe(expectedDigest);
+    expect(lastEntry.createdAt).toBe("2025-02-01T10:00:00.000Z");
+  });
+});
