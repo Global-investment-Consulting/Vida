@@ -1,14 +1,10 @@
 name: Deploy staging
-
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-
-permissions:
-  contents: read
-
+permissions: {contents: read}
 jobs:
   deploy:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
@@ -20,68 +16,23 @@ jobs:
       IMAGE_TAG: staging
     steps:
       - uses: actions/checkout@v4
-
-      - name: Validate configuration
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      - uses: google-github-actions/auth@v2
+        with: {credentials_json: ${{ secrets.GCP_SA_KEY }}}
+      - uses: google-github-actions/setup-gcloud@v2
+        with: {project_id: ${{ env.PROJECT_ID }}}
+      - run: gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+      - name: Build & push image
         run: |
-          set -euo pipefail
-          : "${PROJECT_ID:?Missing vars.GCP_PROJECT_ID}"
-          : "${REGION:?Missing vars.REGION}"
-          : "${SERVICE:?Missing vars.SERVICE}"
-          : "${JWT_SECRET:?Missing secrets.JWT_SECRET}"
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ env.PROJECT_ID }}
-
-      - name: Enable required services
-        run: |
-          gcloud services enable \
-            run.googleapis.com \
-            artifactregistry.googleapis.com \
-            cloudbuild.googleapis.com
-
-      - name: Build and push image
-        env:
-          IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
-        run: |
-          set -euo pipefail
-          gcloud builds submit --tag "${IMAGE_URI}"
-
+          IMAGE_URI=europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
+          gcloud builds submit --tag "$IMAGE_URI"
       - name: Deploy to Cloud Run
-        env:
-          IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        env: {JWT_SECRET: ${{ secrets.JWT_SECRET }}}
         run: |
-          set -euo pipefail
-          gcloud run deploy "${SERVICE}" \
-            --image "${IMAGE_URI}" \
-            --region "${REGION}" \
-            --allow-unauthenticated \
-            --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox" \
-            --timeout 600s
-
-      - name: Verify deployment
-        env:
-          REGION: ${{ env.REGION }}
-          SERVICE: ${{ env.SERVICE }}
+          IMAGE_URI=europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
+          gcloud run deploy $SERVICE --image "$IMAGE_URI" --region "$REGION" \
+            --allow-unauthenticated --set-env-vars "JWT_SECRET=$JWT_SECRET,PEPPOL_MODE=sandbox" --timeout 600s
+      - name: Verify
         run: |
-          set -euo pipefail
-          SERVICE_URL=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')
-          echo "Service URL: ${SERVICE_URL}" | tee -a "$GITHUB_STEP_SUMMARY"
-          if ! curl -fsSL "${SERVICE_URL}/healthz" >/dev/null \
-            && ! curl -fsSL "${SERVICE_URL}/healthz/" >/dev/null \
-            && ! curl -fsSL "${SERVICE_URL}/health" >/dev/null \
-            && ! curl -fsSL "${SERVICE_URL}/_health" >/dev/null \
-            && ! curl -fsSL "${SERVICE_URL}/_health/" >/dev/null; then
-            echo "Health check failed" >&2
-            exit 1
-          fi
-          echo "Health check passed" | tee -a "$GITHUB_STEP_SUMMARY"
+          URL=$(gcloud run services describe $SERVICE --region $REGION --format='value(status.url)')
+          for p in /health /_health /healthz /healthz/; do curl -fsSL "$URL$p" && echo "$p OK" && exit 0; done
+          echo "Health check failed"; exit 1
