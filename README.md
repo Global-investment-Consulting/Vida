@@ -35,3 +35,7 @@ docker compose up --build
 ```
 
 The container exposes the API on port `8080` and mounts `./data` for history logs.
+
+## Cloud Run
+- Staging deploys run via `.github/workflows/deploy-staging.yml`, which builds with Cloud Build, pushes to Artifact Registry (`europe-west1-docker.pkg.dev/$GCP_PROJECT_ID/vida/vida:staging`), and deploys the `vida-staging` service.
+- The health probe responds with `ok` at both `/healthz` and `/healthz/`.

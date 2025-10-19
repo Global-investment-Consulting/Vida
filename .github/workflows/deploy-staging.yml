@@ -1,66 +1,87 @@
 name: Deploy staging
+
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+
 permissions:
   contents: read
-  actions: read
-  id-token: write
 
 jobs:
   deploy:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.REGION }}
+      SERVICE: ${{ vars.SERVICE }}
+      IMAGE_TAG: staging
     steps:
       - uses: actions/checkout@v4
 
-      - id: grab
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const {owner,repo}=context.repo;
-            async function pickRun(){
-              if(context.eventName==="workflow_run"){
-                const r=context.payload.workflow_run;
-                if(!r||r.head_branch!=="main"||r.conclusion!=="success") return null;
-                return r.id;
-              }
-              const rs=await github.rest.actions.listWorkflowRuns({owner,repo,workflow_id:"ci.yml",branch:"main",per_page:10});
-              const ok=rs.data.workflow_runs.find(r=>r.status==="completed"&&r.conclusion==="success"&&r.head_branch==="main");
-              return ok?.id??null;
-            }
-            const runId=await pickRun(); if(!runId){ core.setFailed("No successful CI run on main"); return; }
-            const jobs=await github.paginate(github.rest.actions.listJobsForWorkflowRun,{owner,repo,run_id:runId});
-            const dj=jobs.find(j=>(j.name||"").includes("Build Docker image"));
-            if(!dj){ core.setFailed("Docker job not found"); return; }
-            const {data}=await github.rest.actions.downloadJobLogsForWorkflowRun({owner,repo,job_id:dj.id});
-            let buf=Buffer.from(data); try{ buf=require("zlib").gunzipSync(buf); }catch{}
-            const m=buf.toString("utf8").match(/containerimage\.digest":\s*"([^"]+)"/);
-            if(!m){ core.setFailed("Digest not found in logs"); return; }
-            core.setOutput("digest",m[1]);
-
-      - uses: superfly/flyctl-actions/setup-flyctl@v1
-
-      - id: deploy
+      - name: Validate configuration
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-          IMAGE: ${{ vars.DOCKERHUB_IMAGE || format('{0}/vida', secrets.DOCKERHUB_USERNAME) }}
-          DIGEST: ${{ steps.grab.outputs.digest }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           set -euo pipefail
-          [ -n "${DIGEST}" ] || { echo "Missing digest"; exit 1; }
-          [ -n "${FLY_API_TOKEN}" ] || { echo "Missing FLY_API_TOKEN"; exit 1; }
-          [ -n "${JWT_SECRET}" ] || { echo "Missing JWT_SECRET"; exit 1; }
-          export FLY_ACCESS_TOKEN="${FLY_API_TOKEN}"
-          if ! flyctl auth whoami >/dev/null 2>&1; then
-            echo "FLY_API_TOKEN failed authentication" | tee -a "$GITHUB_STEP_SUMMARY"; exit 1; fi
-          flyctl apps show vida-staging >/dev/null 2>&1 || flyctl apps create vida-staging
-          printf "JWT_SECRET=%s\nPEPPOL_MODE=sandbox\n" "$JWT_SECRET" | flyctl secrets set --app vida-staging --stage
-          flyctl deploy --app vida-staging --image "docker.io/${IMAGE}@${DIGEST}" --yes
-          host=$(flyctl status --app vida-staging --json | jq -r '.hostname')
-          echo "Staging URL: https://${host}" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "Image digest: ${DIGEST}" | tee -a "$GITHUB_STEP_SUMMARY"
-          curl -fsSL "https://${host}/healthz" >/dev/null
+          : "${PROJECT_ID:?Missing vars.GCP_PROJECT_ID}"
+          : "${REGION:?Missing vars.REGION}"
+          : "${SERVICE:?Missing vars.SERVICE}"
+          : "${JWT_SECRET:?Missing secrets.JWT_SECRET}"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Enable required services
+        run: |
+          gcloud services enable \
+            run.googleapis.com \
+            artifactregistry.googleapis.com \
+            cloudbuild.googleapis.com
+
+      - name: Build and push image
+        env:
+          IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
+        run: |
+          set -euo pipefail
+          gcloud builds submit --tag "${IMAGE_URI}"
+
+      - name: Deploy to Cloud Run
+        env:
+          IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          set -euo pipefail
+          gcloud run deploy "${SERVICE}" \
+            --image "${IMAGE_URI}" \
+            --region "${REGION}" \
+            --allow-unauthenticated \
+            --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox" \
+            --timeout 600s
+
+      - name: Verify deployment
+        env:
+          REGION: ${{ env.REGION }}
+          SERVICE: ${{ env.SERVICE }}
+        run: |
+          set -euo pipefail
+          SERVICE_URL=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')
+          echo "Service URL: ${SERVICE_URL}" | tee -a "$GITHUB_STEP_SUMMARY"
+          if ! curl -fsSL "${SERVICE_URL}/healthz" >/dev/null \
+            && ! curl -fsSL "${SERVICE_URL}/healthz/" >/dev/null \
+            && ! curl -fsSL "${SERVICE_URL}/health" >/dev/null \
+            && ! curl -fsSL "${SERVICE_URL}/_health" >/dev/null \
+            && ! curl -fsSL "${SERVICE_URL}/_health/" >/dev/null; then
+            echo "Health check failed" >&2
+            exit 1
+          fi
+          echo "Health check passed" | tee -a "$GITHUB_STEP_SUMMARY"

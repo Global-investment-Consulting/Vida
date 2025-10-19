@@ -109,8 +109,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get("/healthz", (_req, res) => {
-  res.type("text/plain").send("ok");
+app.get(["/health", "/_health", "/healthz", "/healthz/"], (_req, res) => {
+  res.status(200).type("text/plain").send("ok");
 });
 
 app.get("/", (_req, res) => {
