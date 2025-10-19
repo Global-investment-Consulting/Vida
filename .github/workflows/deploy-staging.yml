@@ -1,11 +1,14 @@
 name: Deploy staging
+
 on:
   workflow_dispatch: {}
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+
 permissions:
   contents: read
+
 jobs:
   deploy:
     # Manual run OR successful CI on main
@@ -13,9 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-      REGION: ${{ vars.REGION }}
-      SERVICE: ${{ vars.SERVICE }}
-      IMAGE_TAG: staging
+      REGION:     ${{ vars.REGION }}
+      SERVICE:    ${{ vars.SERVICE }}
+      IMAGE_TAG:  staging
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,12 +33,15 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Enable required services
+      # Softened enable step: do not fail the job if SA can't enable APIs
+      - name: Enable required services (skip if no permission)
         run: |
-          gcloud services enable \
-            run.googleapis.com \
-            artifactregistry.googleapis.com \
-            cloudbuild.googleapis.com
+          set -euo pipefail
+          for s in run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com; do
+            gcloud services enable "$s" \
+            && echo "Enabled $s" \
+            || echo "Skipping enable for $s (insufficient perms)"
+          done
 
       - name: Build & push image (Cloud Build -> Artifact Registry)
         env:
@@ -45,7 +52,7 @@ jobs:
 
       - name: Deploy to Cloud Run
         env:
-          IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
+          IMAGE_URI:  europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           set -euo pipefail
@@ -58,7 +65,7 @@ jobs:
 
       - name: Verify deployment
         env:
-          REGION: ${{ env.REGION }}
+          REGION:  ${{ env.REGION }}
           SERVICE: ${{ env.SERVICE }}
         run: |
           set -euo pipefail
@@ -69,7 +76,7 @@ jobs:
             && ! curl -fsSL "${URL}/health"  >/dev/null \
             && ! curl -fsSL "${URL}/_health" >/dev/null \
             && ! curl -fsSL "${URL}/_health/" >/dev/null; then
-            echo "Health check failed" >&2
+            echo "Health check failed" | tee -a "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
           echo "Health check passed" | tee -a "$GITHUB_STEP_SUMMARY"
