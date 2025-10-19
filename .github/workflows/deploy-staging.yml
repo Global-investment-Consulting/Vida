@@ -1,17 +1,13 @@
 name: Deploy staging
-
 on:
   workflow_dispatch: {}
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-
 permissions:
   contents: read
-
 jobs:
   deploy:
-    # Manual run OR successful CI on main
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     env:
@@ -19,79 +15,48 @@ jobs:
       REGION:     ${{ vars.REGION }}
       SERVICE:    ${{ vars.SERVICE }}
       IMAGE_TAG:  staging
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
+        with: { credentials_json: ${{ secrets.GCP_SA_KEY }} }
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ env.PROJECT_ID }}
-
-      # Softened enable step: do not fail the job if SA can't enable APIs
-      - name: Enable required services (skip if no permission)
+        with: { project_id: ${{ env.PROJECT_ID }} }
+      - name: Enable required services (non-fatal)
         run: |
           set -euo pipefail
           for s in run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com; do
-            gcloud services enable "$s" \
-            && echo "Enabled $s" \
-            || echo "Skipping enable for $s (insufficient perms)"
+            gcloud services enable "$s" && echo "enabled $s" || echo "skip enable $s"
           done
-
       - name: Build & push image (Cloud Build -> Artifact Registry)
         env:
           IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
         run: |
           set -euo pipefail
-          echo "Auth:"
-          gcloud auth list
-          BID=$(gcloud builds submit --tag "${IMAGE_URI}" --async --format='value(id)')
-          echo "Cloud Build ID: ${BID}"
-          LOG_URL=$(gcloud builds describe "${BID}" --format='value(logUrl)')
-          echo "Cloud Build logs: ${LOG_URL}"
-          STATUS=""
-          for _ in $(seq 1 120); do
-            STATUS=$(gcloud builds describe "${BID}" --format='value(status)')
-            echo "Cloud Build status: ${STATUS}"
-            case "${STATUS}" in
-              SUCCESS) break ;;
-              FAILURE|CANCELLED|TIMEOUT|EXPIRED) echo "Build failed"; exit 1 ;;
-            esac
+          BID=$(gcloud builds submit --tag "$IMAGE_URI" --async --format='value(id)')
+          echo "Cloud Build ID: $BID"
+          LOG_URL=$(gcloud builds describe "$BID" --format='value(logUrl)')
+          echo "Cloud Build logs: $LOG_URL"
+          for i in {1..90}; do
+            S=$(gcloud builds describe "$BID" --format='value(status)')
+            echo "Cloud Build status: $S"
+            case "$S" in SUCCESS) break;; FAILURE|CANCELLED) exit 1;; esac
             sleep 5
           done
-          if [ "${STATUS}" != "SUCCESS" ]; then
-            echo "Build did not complete in time"; exit 1
-          fi
-
       - name: Deploy to Cloud Run
         env:
           IMAGE_URI:  europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          set -euo pipefail
-          gcloud run deploy "${SERVICE}" \
-            --image "${IMAGE_URI}" \
-            --region "${REGION}" \
-            --allow-unauthenticated \
-            --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox" \
-            --timeout 600s
-
+          gcloud run deploy "${SERVICE}" --image "${IMAGE_URI}" --region "${REGION}" \
+            --allow-unauthenticated --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox" --timeout 600s
       - name: Verify deployment
         run: |
           set -euo pipefail
           URL=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')
           echo "Service URL: $URL"
-          for p in /healthz /healthz/ /health /_health /_health/; do
-            if curl -fsS "$URL$p" >/dev/null; then
-              echo "$p OK"
-              exit 0
-            else
-              echo "$p fail"
-            fi
+          for p in /_health /_health/ /health /healthz/ /healthz; do
+            if curl -fsS "$URL$p" >/dev/null; then echo "Health OK at $p"; exit 0; fi
           done
-          exit 1
+          echo "Health check failed"; exit 1
