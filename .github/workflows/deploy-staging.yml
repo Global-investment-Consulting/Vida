@@ -48,7 +48,11 @@ jobs:
           IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
         run: |
           set -euo pipefail
-          gcloud builds submit --tag "${IMAGE_URI}"
+          echo "Auth:"
+          gcloud auth list
+          BID=$(gcloud builds submit --tag "${IMAGE_URI}" --format='value(id)')
+          echo "Cloud Build ID: ${BID}"
+          gcloud builds describe "${BID}" --format='value(logUrl)'
 
       - name: Deploy to Cloud Run
         env:
@@ -64,19 +68,16 @@ jobs:
             --timeout 600s
 
       - name: Verify deployment
-        env:
-          REGION:  ${{ env.REGION }}
-          SERVICE: ${{ env.SERVICE }}
         run: |
           set -euo pipefail
-          URL="$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')"
-          echo "Service URL: ${URL}" | tee -a "$GITHUB_STEP_SUMMARY"
-          if ! curl -fsSL "${URL}/healthz" >/dev/null \
-            && ! curl -fsSL "${URL}/healthz/" >/dev/null \
-            && ! curl -fsSL "${URL}/health"  >/dev/null \
-            && ! curl -fsSL "${URL}/_health" >/dev/null \
-            && ! curl -fsSL "${URL}/_health/" >/dev/null; then
-            echo "Health check failed" | tee -a "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          echo "Health check passed" | tee -a "$GITHUB_STEP_SUMMARY"
+          URL=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')
+          echo "Service URL: $URL"
+          for p in /healthz /healthz/ /health /_health /_health/; do
+            if curl -fsS "$URL$p" >/dev/null; then
+              echo "$p OK"
+              exit 0
+            else
+              echo "$p fail"
+            fi
+          done
+          exit 1
