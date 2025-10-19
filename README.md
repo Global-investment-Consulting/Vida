@@ -36,6 +36,11 @@ docker compose up --build
 
 The container exposes the API on port `8080` and mounts `./data` for history logs.
 
+<<<<<<< HEAD
+## Cloud Run
+- Staging deploys run via `.github/workflows/deploy-staging.yml`, which builds with Cloud Build, pushes to Artifact Registry (`europe-west1-docker.pkg.dev/$GCP_PROJECT_ID/vida/vida:staging`), and deploys the `vida-staging` service.
+- The health probe responds with `ok` at `/health`, `/_health`, `/healthz`, and `/healthz/`.
+=======
 ## API
 Generate an invoice directly through `/api/invoice` (see [openapi.js](openapi.js) for the payload schema):
 
@@ -116,3 +121,4 @@ Snippet of the XML you should receive:
 - Auth: pass either the staging JWT or API key via `Authorization: Bearer …`. Missing/invalid tokens return `401/403`.
 - BIS validation errors map to `message` (human readable), `field` (dot-path), and optional `ruleId` returned by the validator.
 - Common pitfalls: omit buyer endpoint IDs, send currency codes outside ISO 4217, or forget to align `vatRate` with `buyer` country — the validator will reject those.
+>>>>>>> origin/main

@@ -1,161 +1,75 @@
 name: Deploy staging
-
 on:
   workflow_dispatch: {}
   workflow_run:
     workflows: ["CI"]
-    types:
-      - completed
-
+    types: [completed]
 permissions:
   contents: read
-  actions: read
-  id-token: write
-
 jobs:
   deploy:
+    # Manual run OR successful CI on main
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
-    outputs:
-      digest: ${{ steps.grab.outputs.digest }}
-      url: ${{ steps.deploy.outputs.url }}
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.REGION }}
+      SERVICE: ${{ vars.SERVICE }}
+      IMAGE_TAG: staging
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Grab Docker job logs & extract digest
-        id: grab
-        uses: actions/github-script@v7
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-            async function resolveRunId() {
-              if (context.eventName === "workflow_run") {
-                const run = context.payload.workflow_run;
-                if (!run) {
-                  core.setFailed("workflow_run payload missing");
-                  return null;
-                }
-                if (run.head_branch !== "main") {
-                  core.info(`Skipping deploy for branch ${run.head_branch}`);
-                  return null;
-                }
-                if (run.conclusion !== "success") {
-                  core.info(`Skipping deploy for run ${run.id} with conclusion ${run.conclusion}`);
-                  return null;
-                }
-                return run.id;
-              }
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
 
-              core.info("Manual dispatch: locating latest successful CI run on main");
-              const runsResponse = await github.rest.actions.listWorkflowRuns({
-                owner,
-                repo,
-                workflow_id: "ci.yml",
-                branch: "main",
-                per_page: 20
-              });
-              const candidate = runsResponse.data.workflow_runs.find(
-                (run) => run.status === "completed" && run.conclusion === "success" && run.head_branch === "main"
-              );
-              if (!candidate) {
-                core.setFailed("Could not find a successful CI run on main");
-                return null;
-              }
-              core.info(`Using CI workflow run ${candidate.id} from ${candidate.head_commit?.id ?? "unknown commit"}`);
-              return candidate.id;
-            }
+      - name: Enable required services
+        run: |
+          gcloud services enable \
+            run.googleapis.com \
+            artifactregistry.googleapis.com \
+            cloudbuild.googleapis.com
 
-            const runId = await resolveRunId();
-            if (!runId) {
-              return;
-            }
-
-            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
-              owner,
-              repo,
-              run_id: runId
-            });
-            const dockerJob = jobs.find((job) => job.name?.includes("Build Docker image"));
-            if (!dockerJob) {
-              core.setFailed("Docker job not found");
-              return;
-            }
-            const { data } = await github.rest.actions.downloadJobLogsForWorkflowRun({
-              owner,
-              repo,
-              job_id: dockerJob.id
-            });
-            let buffer = Buffer.from(data);
-            try {
-              const { gunzipSync } = require("zlib");
-              buffer = gunzipSync(buffer);
-            } catch (error) {
-              core.info(`Failed to gunzip logs (continuing with raw buffer): ${error.message}`);
-            }
-            const text = buffer.toString("utf8");
-            const match = text.match(/containerimage\.digest":\s*"([^"]+)"/);
-            if (!match) {
-              core.setFailed("Digest not found in logs");
-              return;
-            }
-            const digest = match[1];
-            core.setOutput("digest", digest);
-
-      - name: Show digest
-        if: ${{ steps.grab.outputs.digest != '' }}
-        run: echo "DIGEST=${{ steps.grab.outputs.digest }}"
-
-      - name: Install flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@v1
-
-      - name: Deploy pinned image
-        id: deploy
+      - name: Build & push image (Cloud Build -> Artifact Registry)
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-          IMAGE: ${{ vars.DOCKERHUB_IMAGE || format('{0}/vida', secrets.DOCKERHUB_USERNAME) }}
-          DIGEST: ${{ steps.grab.outputs.digest }}
+          IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
+        run: |
+          set -euo pipefail
+          gcloud builds submit --tag "${IMAGE_URI}"
+
+      - name: Deploy to Cloud Run
+        env:
+          IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          set -eo pipefail
-          if [ -z "${FLY_API_TOKEN}" ]; then
-            echo "FLY_API_TOKEN is required" >&2
-            exit 1
-          fi
-          export FLY_ACCESS_TOKEN="${FLY_API_TOKEN}"
-          if [ -z "${IMAGE}" ]; then
-            echo "vars.DOCKERHUB_IMAGE (or DOCKERHUB_USERNAME) is required" >&2
-            exit 1
-          fi
-          if [ -z "${DIGEST}" ]; then
-            echo "Image digest not found" >&2
-            exit 1
-          fi
-          if ! flyctl auth whoami >/dev/null 2>&1; then
-            echo "FLY_API_TOKEN failed authentication; update the secret with a valid Fly.io token" >&2
-            exit 1
-          fi
+          set -euo pipefail
+          gcloud run deploy "${SERVICE}" \
+            --image "${IMAGE_URI}" \
+            --region "${REGION}" \
+            --allow-unauthenticated \
+            --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox" \
+            --timeout 600s
 
-          if [ -z "${JWT_SECRET}" ]; then
-            echo "JWT_SECRET secret is required" >&2
+      - name: Verify deployment
+        env:
+          REGION: ${{ env.REGION }}
+          SERVICE: ${{ env.SERVICE }}
+        run: |
+          set -euo pipefail
+          URL="$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')"
+          echo "Service URL: ${URL}" | tee -a "$GITHUB_STEP_SUMMARY"
+          if ! curl -fsSL "${URL}/healthz" >/dev/null \
+            && ! curl -fsSL "${URL}/healthz/" >/dev/null \
+            && ! curl -fsSL "${URL}/health"  >/dev/null \
+            && ! curl -fsSL "${URL}/_health" >/dev/null \
+            && ! curl -fsSL "${URL}/_health/" >/dev/null; then
+            echo "Health check failed" >&2
             exit 1
           fi
-          if ! flyctl apps show vida-staging >/dev/null 2>&1; then
-            flyctl apps create vida-staging
-          fi
-
-          flyctl secrets set --app vida-staging --stage \
-            JWT_SECRET="${JWT_SECRET}" \
-            PEPPOL_MODE=sandbox
-          flyctl deploy --app vida-staging --image "docker.io/${IMAGE}@${DIGEST}" --yes
-          host=$(flyctl status --app vida-staging --json | jq -r '.hostname')
-          if [ -z "${host}" ] || [ "${host}" = "null" ]; then
-            echo "Unable to determine staging hostname" >&2
-            exit 1
-          fi
-          echo "Staging URL: https://${host}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Image digest: ${DIGEST}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          curl -fsSL "https://${host}/healthz" >/dev/null
-          echo "url=https://${host}" >> "${GITHUB_OUTPUT}"
+          echo "Health check passed" | tee -a "$GITHUB_STEP_SUMMARY"
