@@ -50,9 +50,23 @@ jobs:
           set -euo pipefail
           echo "Auth:"
           gcloud auth list
-          BID=$(gcloud builds submit --tag "${IMAGE_URI}" --format='value(id)')
+          BID=$(gcloud builds submit --tag "${IMAGE_URI}" --async --format='value(id)')
           echo "Cloud Build ID: ${BID}"
-          gcloud builds describe "${BID}" --format='value(logUrl)'
+          LOG_URL=$(gcloud builds describe "${BID}" --format='value(logUrl)')
+          echo "Cloud Build logs: ${LOG_URL}"
+          STATUS=""
+          for _ in $(seq 1 120); do
+            STATUS=$(gcloud builds describe "${BID}" --format='value(status)')
+            echo "Cloud Build status: ${STATUS}"
+            case "${STATUS}" in
+              SUCCESS) break ;;
+              FAILURE|CANCELLED|TIMEOUT|EXPIRED) echo "Build failed"; exit 1 ;;
+            esac
+            sleep 5
+          done
+          if [ "${STATUS}" != "SUCCESS" ]; then
+            echo "Build did not complete in time"; exit 1
+          fi
 
       - name: Deploy to Cloud Run
         env:
