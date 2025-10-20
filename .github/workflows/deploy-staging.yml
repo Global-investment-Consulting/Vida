@@ -25,6 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sanity check secret parses (no output)
+        run: node -e "JSON.parse(process.env.GCP_SA_KEY); process.stdout.write('ok\n')"
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
