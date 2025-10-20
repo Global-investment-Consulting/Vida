@@ -324,7 +324,7 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
   }
 });
 
-const HOST = "0.0.0.0";
+const HOST = process.env.HOST ?? "0.0.0.0";
 
 export function startServer(port = Number(process.env.PORT ?? 3001)) {
   const server = app.listen(port, HOST, () => {

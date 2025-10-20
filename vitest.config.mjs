@@ -7,6 +7,11 @@ export default defineConfig({
     reporters: "default",
     restoreMocks: true,
     isolate: true,
-    pool: "vmThreads"
+    pool: "vmThreads",
+    env: {
+      PORT: "3001",
+      NODE_ENV: "test",
+      HOST: "127.0.0.1"
+    }
   }
 });
