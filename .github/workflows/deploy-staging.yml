@@ -70,15 +70,17 @@ jobs:
 
       - name: Verify deployment
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
           URL=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')
           echo "Service URL: $URL" | tee -a "$GITHUB_STEP_SUMMARY"
-          # Prefer /_health first for faster success
+          ok=1
           for p in /_health /_health/ /health /healthz/ /healthz; do
             if curl -fsS "$URL$p" >/dev/null; then
               echo "Health OK at $p" | tee -a "$GITHUB_STEP_SUMMARY"
-              exit 0
+              ok=0
+              break
+            else
+              echo "Probe failed at $p (non-fatal, trying next)" | tee -a "$GITHUB_STEP_SUMMARY"
             fi
           done
-          echo "Health check failed" | tee -a "$GITHUB_STEP_SUMMARY"
-          exit 1
+          exit $ok
