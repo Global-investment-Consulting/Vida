@@ -1,6 +1,7 @@
 name: Deploy staging
 
 on:
+  workflow_dispatch:
   workflow_dispatch: {}
   workflow_run:
     workflows: ["CI"]
@@ -61,7 +62,7 @@ jobs:
           IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
         run: |
           set -euo pipefail
-          BID=$(gcloud builds submit --tag "$IMAGE_URI" --async --format='value(id)')
+          BID=$(gcloud builds submit --gcs-source-staging-dir=gs://vida-staging-1760866919-cb-src --tag "$IMAGE_URI" --async --format='value(id)')
           echo "Cloud Build ID: $BID"
           LOG_URL=$(gcloud builds describe "$BID" --format='value(logUrl)')
           echo "Cloud Build logs: $LOG_URL"
