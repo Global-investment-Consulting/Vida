@@ -42,6 +42,20 @@ jobs:
             gcloud services enable "$s" && echo "enabled $s" || echo "skip enable $s"
           done
 
+      - name: Preflight: verify CB auth to bucket  # BEGIN VIDA PREFLIGHT
+        shell: bash
+        env:
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          CB_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET }}
+        run: |
+          set -Eeuo pipefail
+          BKT="${CB_BUCKET:-${PROJECT_ID}_cloudbuild}"
+          echo "Using bucket: gs://${BKT}"
+          gcloud storage ls "gs://${BKT}/" >/dev/null
+          echo "Bucket list ✅"
+          echo "hello" | gcloud storage cp - "gs://${BKT}/_preflight.txt"
+          echo "Write ✅"
+      # END VIDA PREFLIGHT
       - name: Build & push image (Cloud Build -> Artifact Registry)
         env:
           IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
