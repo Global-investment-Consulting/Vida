@@ -13,6 +13,7 @@ import { parseOrder, type OrderT } from "./schemas/order.js";
 import { validateUbl } from "./validation/ubl.js";
 import { listHistory, recordHistory } from "./history/logger.js";
 import { recordInvoiceRequest } from "./history/invoiceRequestLog.js";
+import { getAdapter } from "./apadapters/index.js";
 import { getInvoiceStatus, setInvoiceStatus } from "./history/invoiceStatus.js";
 import { sendWithRetry } from "./services/apDelivery.js";
 import { PORT, isApSendOnCreateEnabled, isUblValidationEnabled } from "./config.js"; // migrated
@@ -466,10 +467,31 @@ app.get("/invoice/:invoiceId/status", requireApiKey, async (req: Request, res: R
         : undefined;
 
   try {
-    const record = await getInvoiceStatus(tenant, invoiceIdParam);
+    let record = await getInvoiceStatus(tenant, invoiceIdParam);
     if (!record) {
       res.status(404).json({ error: "status not found" });
       return;
+    }
+    if (record.providerId && (record.status === "queued" || record.status === "sent")) {
+      try {
+        const adapter = getAdapter();
+        const nextStatus = await adapter.getStatus(record.providerId);
+        if (nextStatus && nextStatus !== record.status) {
+          record = await setInvoiceStatus({
+            tenant: record.tenant === "__default__" ? undefined : record.tenant,
+            invoiceId: record.invoiceId,
+            providerId: record.providerId,
+            status: nextStatus,
+            attempts: record.attempts,
+            lastError: record.lastError
+          });
+        }
+      } catch (statusError) {
+        console.error(
+          `[invoice/${invoiceIdParam}/status] failed to refresh provider status tenant=${tenant ?? "unknown"} providerId=${record.providerId}`,
+          statusError
+        );
+      }
     }
     res.json({
       status: record.status,
