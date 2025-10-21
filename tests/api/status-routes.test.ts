@@ -1,3 +1,4 @@
+import { createHmac, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
@@ -11,9 +12,25 @@ import {
   setInvoiceStatus
 } from "src/history/invoiceStatus.js";
 import { renderMetrics, resetMetrics } from "src/metrics.js";
+import { resetReplayGuard } from "src/services/replayGuard.js";
 
 const API_KEY = "status-test-key";
+const AP_SECRET = "test-ap-secret";
 let statusDir: string;
+
+function signWebhookPayload(
+  payload: Record<string, unknown>,
+  overrides?: { eventId?: string; timestamp?: string }
+): { body: string; signature: string; eventId: string; timestamp: string } {
+  const body = JSON.stringify(payload);
+  const signature = createHmac("sha256", AP_SECRET).update(body).digest("hex");
+  return {
+    body,
+    signature,
+    eventId: overrides?.eventId ?? randomUUID(),
+    timestamp: overrides?.timestamp ?? new Date().toISOString()
+  };
+}
 
 describe("AP status routes", () => {
   beforeEach(async () => {
@@ -21,18 +38,22 @@ describe("AP status routes", () => {
     process.env.VIDA_INVOICE_STATUS_DIR = statusDir;
     process.env.VIDA_API_KEYS = API_KEY;
     process.env.VIDA_AP_ADAPTER = "mock";
+    process.env.AP_WEBHOOK_SECRET = AP_SECRET;
     resetInvoiceStatusCache();
     resetMetrics();
     __resetMockAdapter();
+    resetReplayGuard();
   });
 
   afterEach(async () => {
     delete process.env.VIDA_INVOICE_STATUS_DIR;
     delete process.env.VIDA_API_KEYS;
     delete process.env.VIDA_AP_ADAPTER;
+    delete process.env.AP_WEBHOOK_SECRET;
     resetInvoiceStatusCache();
     resetMetrics();
     __resetMockAdapter();
+    resetReplayGuard();
     if (statusDir) {
       await rm(statusDir, { recursive: true, force: true }).catch(() => undefined);
     }
@@ -73,16 +94,25 @@ describe("AP status routes", () => {
       attempts: 1
     });
 
-    await request(app)
-      .post("/ap/status-webhook")
-      .set("x-api-key", API_KEY)
-      .send({
+    const signed = signWebhookPayload(
+      {
         tenant: "tenant-a",
         invoiceId: "INV-002",
         providerId: "mock-INV-002",
         status: "delivered",
         attempts: 3
-      })
+      },
+      { eventId: "evt-status-1" }
+    );
+
+    await request(app)
+      .post("/ap/status-webhook")
+      .set("x-api-key", API_KEY)
+      .set("Content-Type", "application/json")
+      .set("X-Event-ID", signed.eventId)
+      .set("X-Event-Timestamp", signed.timestamp)
+      .set("X-AP-Signature", signed.signature)
+      .send(signed.body)
       .expect(200);
 
     const updated = await getInvoiceStatus("tenant-a", "INV-002");

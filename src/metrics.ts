@@ -50,6 +50,24 @@ const gauges: Gauge[] = [
   }
 ];
 
+type Histogram = {
+  name: string;
+  help: string;
+  buckets: number[];
+  counts: number[];
+  sum: number;
+  count: number;
+};
+
+const apWebhookLatencyHistogram: Histogram = {
+  name: "ap_webhook_latency_ms",
+  help: "Webhook processing latency in milliseconds",
+  buckets: [50, 100, 250, 500, 1000, 2500, 5000, 10000],
+  counts: new Array(8).fill(0),
+  sum: 0,
+  count: 0
+};
+
 export function incrementInvoicesCreated(amount = 1): void {
   invoicesCreatedCounter.value += amount;
 }
@@ -74,6 +92,19 @@ export function incrementApWebhookFail(amount = 1): void {
   apWebhookFailCounter.value += amount;
 }
 
+export function observeApWebhookLatency(durationMs: number): void {
+  if (!Number.isFinite(durationMs) || durationMs < 0) {
+    return;
+  }
+  apWebhookLatencyHistogram.count += 1;
+  apWebhookLatencyHistogram.sum += durationMs;
+  for (let index = 0; index < apWebhookLatencyHistogram.buckets.length; index += 1) {
+    if (durationMs <= apWebhookLatencyHistogram.buckets[index]) {
+      apWebhookLatencyHistogram.counts[index] += 1;
+    }
+  }
+}
+
 export function renderMetrics(): string {
   const lines: string[] = [];
   for (const counter of counters.values()) {
@@ -81,6 +112,18 @@ export function renderMetrics(): string {
     lines.push(`# TYPE ${counter.name} counter`);
     lines.push(`${counter.name} ${counter.value}`);
   }
+  lines.push(`# HELP ${apWebhookLatencyHistogram.name} ${apWebhookLatencyHistogram.help}`);
+  lines.push(`# TYPE ${apWebhookLatencyHistogram.name} histogram`);
+  let cumulative = 0;
+  for (let index = 0; index < apWebhookLatencyHistogram.buckets.length; index += 1) {
+    cumulative += apWebhookLatencyHistogram.counts[index];
+    lines.push(
+      `${apWebhookLatencyHistogram.name}_bucket{le="${apWebhookLatencyHistogram.buckets[index]}"} ${cumulative}`
+    );
+  }
+  lines.push(`${apWebhookLatencyHistogram.name}_bucket{le="+Inf"} ${apWebhookLatencyHistogram.count}`);
+  lines.push(`${apWebhookLatencyHistogram.name}_sum ${apWebhookLatencyHistogram.sum}`);
+  lines.push(`${apWebhookLatencyHistogram.name}_count ${apWebhookLatencyHistogram.count}`);
   for (const gauge of gauges) {
     lines.push(`# HELP ${gauge.name} ${gauge.help}`);
     lines.push(`# TYPE ${gauge.name} gauge`);
@@ -93,4 +136,7 @@ export function resetMetrics(): void {
   for (const counter of counters.values()) {
     counter.value = 0;
   }
+  apWebhookLatencyHistogram.counts.fill(0);
+  apWebhookLatencyHistogram.count = 0;
+  apWebhookLatencyHistogram.sum = 0;
 }

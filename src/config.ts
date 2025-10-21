@@ -56,3 +56,11 @@ export const resolveApAdapterName = (): string =>
   (process.env.VIDA_AP_ADAPTER ?? "mock").trim().toLowerCase();
 export const isApSendOnCreateEnabled = (): boolean =>
   normalizeBoolean(process.env.VIDA_AP_SEND_ON_CREATE, false);
+export const resolveApWebhookSecret = (): string | undefined => {
+  const secret = process.env.AP_WEBHOOK_SECRET;
+  if (!secret) {
+    return undefined;
+  }
+  const trimmed = secret.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};

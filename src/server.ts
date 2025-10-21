@@ -1,6 +1,6 @@
 import cors from "cors";
 import express, { type Request, type Response } from "express";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -16,7 +16,13 @@ import { recordInvoiceRequest } from "./history/invoiceRequestLog.js";
 import { getAdapter } from "./apadapters/index.js";
 import { getInvoiceStatus, setInvoiceStatus } from "./history/invoiceStatus.js";
 import { sendWithRetry } from "./services/apDelivery.js";
-import { PORT, isApSendOnCreateEnabled, isUblValidationEnabled } from "./config.js"; // migrated
+import { hasEvent, rememberEvent } from "./services/replayGuard.js";
+import {
+  PORT,
+  isApSendOnCreateEnabled,
+  isUblValidationEnabled,
+  resolveApWebhookSecret
+} from "./config.js"; // migrated
 import { requireApiKey } from "./mw_auth.js"; // migrated
 import { createApiKeyRateLimiter } from "./middleware/rateLimiter.js";
 import { getCachedInvoice, storeCachedInvoice } from "./services/idempotencyCache.js";
@@ -24,6 +30,7 @@ import {
   incrementApWebhookFail,
   incrementApWebhookOk,
   incrementInvoicesCreated,
+  observeApWebhookLatency,
   renderMetrics
 } from "./metrics.js";
 import type { ApDeliveryStatus } from "./apadapters/types.js";
@@ -98,7 +105,16 @@ const docsIndexPath = path.join(docsPublicDir, "index.html");
 
 export const app = express();
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+const jsonBodyParser = express.json({ limit: "1mb" });
+const webhookRawParser = express.raw({ type: "*/*", limit: "1mb" });
+
+app.use((req, res, next) => {
+  if (req.path === "/ap/status-webhook") {
+    webhookRawParser(req, res, next);
+    return;
+  }
+  jsonBodyParser(req, res, next);
+});
 app.use(
   "/docs",
   express.static(docsPublicDir, { fallthrough: true, index: "index.html", redirect: false })
@@ -390,32 +406,146 @@ app.post(
 );
 
 const VALID_AP_STATUSES = new Set(["queued", "sent", "delivered", "error"]);
+const WEBHOOK_MAX_AGE_MS = 5 * 60 * 1000;
+
+function parseEventTimestamp(header: string | undefined): number | null {
+  if (!header) {
+    return null;
+  }
+  const trimmed = header.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (/^\d+$/.test(trimmed)) {
+    const numeric = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(numeric)) {
+      return null;
+    }
+    if (trimmed.length <= 10) {
+      return numeric * 1000;
+    }
+    return numeric;
+  }
+  const parsed = Date.parse(trimmed);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function verifySignature(rawBody: Buffer, secret: string, signatureHeader: string): boolean {
+  const expected = createHmac("sha256", secret).update(rawBody).digest();
+  const candidates: Buffer[] = [];
+  const trimmed = signatureHeader.trim();
+  if (/^[0-9a-fA-F]+$/.test(trimmed) && trimmed.length % 2 === 0) {
+    try {
+      candidates.push(Buffer.from(trimmed, "hex"));
+    } catch {
+      // ignore invalid hex
+    }
+  }
+  try {
+    candidates.push(Buffer.from(trimmed, "base64"));
+  } catch {
+    // ignore invalid base64
+  }
+
+  for (const candidate of candidates) {
+    if (candidate.length === expected.length && timingSafeEqual(candidate, expected)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 app.post("/ap/status-webhook", requireApiKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
   const requestId = randomUUID();
+  const rawBody =
+    Buffer.isBuffer(req.body) && req.body.length > 0
+      ? req.body
+      : typeof req.body === "string"
+        ? Buffer.from(req.body, "utf8")
+        : Buffer.from("");
+  const secret = resolveApWebhookSecret();
+
+  if (!secret) {
+    console.error(`[ap/webhook] requestId=${requestId} status=ERROR missing_secret`);
+    res.status(500).json({ error: "webhook_secret_unset" });
+    return;
+  }
+
+  const signatureHeader = req.header("x-ap-signature");
+  if (!signatureHeader || !verifySignature(rawBody, secret, signatureHeader)) {
+    incrementApWebhookFail();
+    console.warn(`[ap/webhook] requestId=${requestId} status=INVALID signature`);
+    res.status(401).json({ error: "invalid_signature" });
+    return;
+  }
+
+  const eventId = req.header("x-event-id")?.trim();
+  if (!eventId) {
+    incrementApWebhookFail();
+    res.status(400).json({ error: "missing_event_id" });
+    return;
+  }
+
+  const eventTimestampMs = parseEventTimestamp(req.header("x-event-timestamp"));
+  if (eventTimestampMs === null) {
+    incrementApWebhookFail();
+    res.status(400).json({ error: "invalid_event_timestamp" });
+    return;
+  }
+
+  const now = Date.now();
+  if (Math.abs(now - eventTimestampMs) > WEBHOOK_MAX_AGE_MS) {
+    incrementApWebhookFail();
+    res.status(401).json({ error: "stale_event" });
+    return;
+  }
+
+  if (hasEvent(eventId, now)) {
+    incrementApWebhookOk();
+    observeApWebhookLatency(Date.now() - startedAt);
+    res.json({ ok: true, duplicate: true });
+    return;
+  }
+
+  let payload: unknown;
+  if (rawBody.length === 0) {
+    payload = {};
+  } else {
+    try {
+      payload = JSON.parse(rawBody.toString("utf8"));
+    } catch (error) {
+      incrementApWebhookFail();
+      console.error(`[ap/webhook] requestId=${requestId} status=INVALID json`, error);
+      res.status(400).json({ error: "invalid_json" });
+      return;
+    }
+  }
+
+  const body = payload as Record<string, unknown>;
   const tenant =
-    typeof req.body?.tenant === "string" && req.body.tenant.trim().length > 0
-      ? req.body.tenant.trim()
+    typeof body?.tenant === "string" && body.tenant.trim().length > 0
+      ? body.tenant.trim()
       : undefined;
   const invoiceId =
-    typeof req.body?.invoiceId === "string" && req.body.invoiceId.trim().length > 0
-      ? req.body.invoiceId.trim()
+    typeof body?.invoiceId === "string" && body.invoiceId.trim().length > 0
+      ? body.invoiceId.trim()
       : undefined;
   const providerId =
-    typeof req.body?.providerId === "string" && req.body.providerId.trim().length > 0
-      ? req.body.providerId.trim()
+    typeof body?.providerId === "string" && body.providerId.trim().length > 0
+      ? body.providerId.trim()
       : undefined;
   const status =
-    typeof req.body?.status === "string" && req.body.status.trim().length > 0
-      ? req.body.status.trim().toLowerCase()
+    typeof body?.status === "string" && body.status.trim().length > 0
+      ? body.status.trim().toLowerCase()
       : undefined;
   const attempts =
-    typeof req.body?.attempts === "number" && Number.isFinite(req.body.attempts)
-      ? Math.max(0, Math.floor(req.body.attempts))
+    typeof body?.attempts === "number" && Number.isFinite(body.attempts)
+      ? Math.max(0, Math.floor(body.attempts))
       : undefined;
   const lastError =
-    typeof req.body?.error === "string" && req.body.error.trim().length > 0
-      ? req.body.error.trim()
+    typeof body?.error === "string" && body.error.trim().length > 0
+      ? body.error.trim()
       : undefined;
 
   if (!invoiceId || !providerId || !status || !VALID_AP_STATUSES.has(status)) {
@@ -423,7 +553,7 @@ app.post("/ap/status-webhook", requireApiKey, async (req: Request, res: Response
     console.error(
       `[ap/webhook] requestId=${requestId} tenant=${tenant ?? "unknown"} invoiceId=${invoiceId ?? "missing"} status=INVALID payload`
     );
-    res.status(400).json({ error: "Invalid webhook payload" });
+    res.status(400).json({ error: "invalid_payload" });
     return;
   }
 
@@ -436,7 +566,9 @@ app.post("/ap/status-webhook", requireApiKey, async (req: Request, res: Response
       attempts,
       lastError
     });
+    rememberEvent(eventId, now);
     incrementApWebhookOk();
+    observeApWebhookLatency(Date.now() - startedAt);
     console.info(
       `[ap/webhook] requestId=${requestId} tenant=${tenant ?? "unknown"} invoiceId=${invoiceId} providerId=${providerId} status=${status}`
     );
@@ -447,7 +579,7 @@ app.post("/ap/status-webhook", requireApiKey, async (req: Request, res: Response
       `[ap/webhook] requestId=${requestId} tenant=${tenant ?? "unknown"} invoiceId=${invoiceId} status=ERROR`,
       error
     );
-    res.status(500).json({ error: "Failed to update status" });
+    res.status(500).json({ error: "failed_to_update_status" });
   }
 });
 

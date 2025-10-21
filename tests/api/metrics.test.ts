@@ -18,6 +18,8 @@ describe("GET /metrics", () => {
     expect(response.text).toContain("ap_send_fail_total");
     expect(response.text).toContain("ap_webhook_ok_total");
     expect(response.text).toContain("ap_webhook_fail_total");
+    expect(response.text).toContain("ap_webhook_latency_ms_bucket");
+    expect(response.text).toContain("ap_webhook_latency_ms_count");
     expect(response.text).toContain("ap_queue_current");
   });
 });
