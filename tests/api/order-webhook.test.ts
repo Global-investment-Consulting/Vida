@@ -6,10 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { app } from "src/server.js";
 import * as historyLogger from "src/history/logger.js";
 import { listHistory } from "src/history/logger.js";
+import { listInvoiceStatuses, resetInvoiceStatusCache } from "src/history/invoiceStatus.js";
 import * as validation from "src/validation/ubl.js";
 import { resetRateLimitBuckets } from "src/middleware/rateLimiter.js";
 import { resetIdempotencyCache } from "src/services/idempotencyCache.js";
-import { resetMetrics } from "src/metrics.js";
+import { renderMetrics, resetMetrics } from "src/metrics.js";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
 const wooFixturePath = path.resolve(__dirname, "../connectors/fixtures/woocommerce-order.json");
@@ -30,23 +31,26 @@ const supplier = {
 };
 
 const createdFiles: string[] = [];
-const apFiles: string[] = [];
 const fixedDate = new Date("2025-01-22T12:00:00.000Z");
 const invoiceFilePath = (invoiceId: string) =>
   path.resolve(process.cwd(), "output", `${invoiceId}.xml`);
 let historyDir: string;
+let statusDir: string;
 let recordHistorySpy: ReturnType<typeof vi.spyOn>;
 let validateUblSpy: ReturnType<typeof vi.spyOn> | undefined;
 
 beforeEach(async () => {
   historyDir = await mkdtemp(path.join(tmpdir(), "vida-history-"));
+  statusDir = await mkdtemp(path.join(tmpdir(), "vida-status-"));
   process.env.VIDA_HISTORY_DIR = historyDir;
+  process.env.VIDA_INVOICE_STATUS_DIR = statusDir;
   process.env.VIDA_API_KEYS = API_KEY;
   recordHistorySpy = vi.spyOn(historyLogger, "recordHistory");
   validateUblSpy = undefined;
   resetIdempotencyCache();
   resetRateLimitBuckets();
   resetMetrics();
+  resetInvoiceStatusCache();
   vi.useFakeTimers();
   vi.setSystemTime(fixedDate);
 });
@@ -61,6 +65,9 @@ afterEach(async () => {
   if (historyDir) {
     await rm(historyDir, { recursive: true, force: true }).catch(() => undefined);
   }
+  if (statusDir) {
+    await rm(statusDir, { recursive: true, force: true }).catch(() => undefined);
+  }
   recordHistorySpy.mockRestore();
   if (validateUblSpy) {
     validateUblSpy.mockRestore();
@@ -68,17 +75,14 @@ afterEach(async () => {
   }
   delete process.env.VIDA_HISTORY_DIR;
   delete process.env.VIDA_API_KEYS;
-  delete process.env.VIDA_PEPPOL_SEND;
-  delete process.env.VIDA_PEPPOL_OUTBOX_DIR;
+  delete process.env.VIDA_INVOICE_STATUS_DIR;
+  delete process.env.VIDA_AP_SEND_ON_CREATE;
+  delete process.env.VIDA_AP_ADAPTER;
   delete process.env.VIDA_VALIDATE_UBL;
-  while (apFiles.length > 0) {
-    const file = apFiles.pop();
-    if (!file) continue;
-    await rm(file, { force: true }).catch(() => undefined);
-  }
   resetIdempotencyCache();
   resetRateLimitBuckets();
   resetMetrics();
+  resetInvoiceStatusCache();
 });
 
 describe("POST /webhook/order-created", () => {
@@ -144,13 +148,12 @@ describe("POST /webhook/order-created", () => {
     expect(history[0].invoiceId).toBe(response.body.invoiceId);
   });
 
-  it("sends the invoice to the PEPPOL stub when enabled", async () => {
+  it("sends the invoice via the AP adapter when enabled", async () => {
     const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
-    const outboxDir = await mkdtemp(path.join(tmpdir(), "vida-ap-"));
-    process.env.VIDA_PEPPOL_SEND = "true";
-    process.env.VIDA_PEPPOL_OUTBOX_DIR = outboxDir;
+    process.env.VIDA_AP_SEND_ON_CREATE = "true";
+    process.env.VIDA_AP_ADAPTER = "mock";
 
-    await request(app)
+    const response = await request(app)
       .post("/webhook/order-created")
       .set("x-api-key", API_KEY)
       .send({
@@ -161,17 +164,26 @@ describe("POST /webhook/order-created", () => {
       })
       .expect(200);
 
-    const expectedOutboxFile = path.join(outboxDir, "#1001.xml");
-    apFiles.push(expectedOutboxFile);
-    const stats = await stat(expectedOutboxFile);
-    expect(stats.isFile()).toBe(true);
+    const invoiceIdResponse = response.body.invoiceId as string;
+    const statuses = await listInvoiceStatuses();
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0]).toMatchObject({
+      status: "queued",
+      providerId: `mock-${invoiceIdResponse}`,
+      attempts: 1
+    });
+
+    const metricsOutput = renderMetrics();
+    expect(metricsOutput).toContain("ap_send_attempts_total 1");
+    expect(metricsOutput).toContain("ap_send_success_total 1");
+    expect(metricsOutput).toMatch(/ap_queue_current 1/);
 
     expect(recordHistorySpy).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "ok",
-        peppolStatus: "SENT",
-        peppolId: "#1001",
-        invoiceId: "invoice_2025-01-22T12-00-00-000Z"
+        peppolStatus: "queued",
+        peppolId: `mock-${invoiceIdResponse}`,
+        invoiceId: invoiceIdResponse
       })
     );
   });

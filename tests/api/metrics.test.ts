@@ -13,8 +13,11 @@ describe("GET /metrics", () => {
 
     expect(response.headers["content-type"]).toContain("text/plain");
     expect(response.text).toContain("invoices_created_total");
+    expect(response.text).toContain("ap_send_attempts_total");
     expect(response.text).toContain("ap_send_success_total");
     expect(response.text).toContain("ap_send_fail_total");
+    expect(response.text).toContain("ap_webhook_ok_total");
+    expect(response.text).toContain("ap_webhook_fail_total");
+    expect(response.text).toContain("ap_queue_current");
   });
 });
-

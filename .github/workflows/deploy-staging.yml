@@ -28,6 +28,8 @@ jobs:
       SERVICE:    ${{ vars.SERVICE != '' && vars.SERVICE || 'vida-staging' }}
       CLOUD_BUILD_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET != '' && vars.CLOUD_BUILD_BUCKET || 'vida-staging-1760866919-cb-src' }}
       IMAGE_TAG:  staging
+      VIDA_AP_ADAPTER: mock
+      VIDA_AP_SEND_ON_CREATE: 'true'
     steps:
       - uses: actions/checkout@v4
 

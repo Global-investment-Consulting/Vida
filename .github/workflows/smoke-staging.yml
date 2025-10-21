@@ -130,6 +130,75 @@ jobs:
             exit 1
           fi
 
+      - name: Check invoice status
+        run: |
+          set -Eeuo pipefail
+          ID="$(jq -r '.invoiceId' response.json)"
+          if [[ -z "$ID" || "$ID" == "null" ]]; then
+            echo "Missing invoiceId for status polling" >&2
+            exit 1
+          fi
+
+          request_status() {
+            local label="$1"
+            local headers
+            headers="$(mktemp)"
+            local body
+            body="$(mktemp)"
+            if curl -sS -D "$headers" -o "$body" \
+              "$STAGING_URL/invoice/$ID/status" \
+              -H "x-api-key: $STAGING_SMOKE_API_KEY"; then
+              local http
+              http="$(head -n1 "$headers" | awk '{print $2}')"
+              printf '/invoice/%s/status (%s) exit=0 status=%s\n' "$ID" "$label" "${http:-n/a}" >> curl_status.log
+            else
+              local ec=$?
+              local http
+              http="$(head -n1 "$headers" | awk '{print $2}')"
+              printf '/invoice/%s/status (%s) exit=%s status=%s\n' "$ID" "$label" "$ec" "${http:-n/a}" >> curl_status.log
+              exit "$ec"
+            fi
+            cp "$body" status.json
+            jq -r '.status // empty' status.json
+          }
+
+          initial_status="$(request_status initial)"
+          if [[ -z "$initial_status" ]]; then
+            echo "Missing status in response" >&2
+            exit 1
+          fi
+          if [[ "$initial_status" != "queued" && "$initial_status" != "delivered" ]]; then
+            echo "Unexpected initial status: $initial_status" >&2
+            exit 1
+          fi
+
+          final_status="$initial_status"
+          if [[ "$initial_status" == "queued" ]]; then
+            for attempt in {1..30}; do
+              sleep 1
+              current_status="$(request_status "poll-$attempt")"
+              if [[ -z "$current_status" ]]; then
+                echo "Status response missing during poll" >&2
+                exit 1
+              fi
+              final_status="$current_status"
+              if [[ "$current_status" == "delivered" ]]; then
+                break
+              fi
+            done
+          fi
+
+          echo "$initial_status" > status_initial.txt
+          echo "$final_status" > status_final.txt
+          jq -r '.providerId // empty' status.json > provider_id.txt
+          echo "Initial status: $initial_status"
+          echo "Final status: $final_status"
+          jq '.' status.json
+          if [[ "$final_status" != "delivered" ]]; then
+            echo "Invoice status did not reach 'delivered' within timeout" >&2
+            exit 1
+          fi
+
       - name: Fetch UBL
         run: |
           set -Eeuo pipefail
