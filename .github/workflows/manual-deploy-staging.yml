@@ -22,6 +22,7 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
+          # Must be a JSON service account key with required roles
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
@@ -33,29 +34,29 @@ jobs:
           REGION: ${{ vars.REGION }}
           SERVICE: ${{ vars.SERVICE }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
-          CLOUD_BUILD_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET }}
+          SRC_BUCKET: vida-staging-1760866919-cb-src
         run: |
           set -euo pipefail
           IMAGE_URI="europe-west1-docker.pkg.dev/${PROJECT_ID}/vida/vida:${IMAGE_TAG}"
 
-          # Sanitize custom bucket into a pure bucket dir, or skip if unset
-          GCS_FLAG=""
-          if [ -n "${CLOUD_BUILD_BUCKET:-}" ]; then
-            BUCKET="${CLOUD_BUILD_BUCKET#gs://}"
-            BUCKET="${BUCKET%%/*}"
-            if [ -n "$BUCKET" ]; then
-              # trailing slash forces directory semantics on the bucket
-              GCS_FLAG="--gcs-source-staging-dir=gs://${BUCKET}/"
-            fi
-          fi
+          # 1) Create a reproducible source tarball from the repo
+          cd "$GITHUB_WORKSPACE"
+          git rev-parse HEAD
+          tar -czf /tmp/src.tgz --exclude .git .
 
-          REG_FLAG="--region=${REGION}"
+          # 2) Upload to our custom EU bucket (avoid the restricted _cloudbuild bucket)
+          DEST="gs://${SRC_BUCKET}/builds/${GITHUB_RUN_ID}/src.tgz"
+          echo "Uploading source tarball to: ${DEST}"
+          gcloud storage cp /tmp/src.tgz "${DEST}"
 
-          echo "Building to: ${IMAGE_URI}"
-          echo "Using GCS flag: ${GCS_FLAG:-<none>}"
-          echo "Using Cloud Build region: ${REGION}"
+          # 3) Submit the build from that exact GCS object, in the correct region
+          echo "Submitting build in region ${REGION} from ${DEST}"
+          BID="$(gcloud builds submit \
+            --region="${REGION}" \
+            --gcs-source="${DEST}" \
+            --tag "${IMAGE_URI}" \
+            --async --format='value(id)')"
 
-          BID="$(gcloud builds submit ${REG_FLAG} ${GCS_FLAG} --tag "${IMAGE_URI}" --async --format='value(id)')"
           echo "Cloud Build ID: ${BID}"
           echo "Cloud Build logs: $(gcloud builds describe "${BID}" --region="${REGION}" --format='value(logUrl)')"
 
