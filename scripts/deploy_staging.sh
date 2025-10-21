@@ -28,10 +28,6 @@ read_inputs() {
   : "${SERVICE:?SERVICE is required}"
   : "${IMAGE_URI:?IMAGE_URI is required}"
   : "${JWT_SECRET:?JWT_SECRET is required}"
-  : "${VIDA_API_KEYS:?VIDA_API_KEYS is required}"
-
-  LOG_LEVEL="${LOG_LEVEL:-info}"
-  NODE_ENV="${NODE_ENV:-production}"
 
   # Fall back to the known staging bucket if not provided.
   CLOUD_BUILD_BUCKET="${CLOUD_BUILD_BUCKET:-vida-staging-1760866919-cb-src}"
@@ -169,7 +165,7 @@ deploy_cloud_run() {
     --image "$IMAGE_URI" \
     --region "$REGION" \
     --allow-unauthenticated \
-    --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox,VIDA_API_KEYS=${VIDA_API_KEYS},LOG_LEVEL=${LOG_LEVEL},NODE_ENV=${NODE_ENV}" \
+    --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox" \
     --timeout=600s
 
   SERVICE_URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
