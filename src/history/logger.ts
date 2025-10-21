@@ -10,6 +10,7 @@ export type HistoryRecord = {
   source?: string;
   orderNumber?: string;
   originalOrderId?: string | number;
+  tenantId?: string;
   status: HistoryStatus;
   invoiceId?: string;
   invoicePath?: string;

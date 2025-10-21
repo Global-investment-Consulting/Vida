@@ -12,10 +12,18 @@ import { orderToInvoiceXml } from "./peppol/convert.js";
 import { sendInvoice } from "./peppol/apClient.js";
 import { parseOrder, type OrderT } from "./schemas/order.js";
 import { validateUbl } from "./validation/ubl.js";
-import { recordHistory } from "./history/logger.js";
+import { listHistory, recordHistory } from "./history/logger.js";
 import { recordInvoiceRequest } from "./history/invoiceRequestLog.js";
 import { PORT, isPeppolSendEnabled, isUblValidationEnabled } from "./config.js"; // migrated
 import { requireApiKey } from "./mw_auth.js"; // migrated
+import { createApiKeyRateLimiter } from "./middleware/rateLimiter.js";
+import { getCachedInvoice, storeCachedInvoice } from "./services/idempotencyCache.js";
+import {
+  incrementApSendFail,
+  incrementApSendSuccess,
+  incrementInvoicesCreated,
+  renderMetrics
+} from "./metrics.js";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
 
@@ -69,13 +77,51 @@ function buildOrderFromSource(
   return parseOrder(payload);
 }
 
+const OUTPUT_DIR = path.resolve(process.cwd(), "output");
+const invoiceIndex = new Map<string, string>();
+const RATE_LIMIT_PER_MINUTE = 60;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const webhookRateLimiter = createApiKeyRateLimiter({
+  limit: RATE_LIMIT_PER_MINUTE,
+  windowMs: RATE_LIMIT_WINDOW_MS
+});
+const docsPublicDir = path.resolve(process.cwd(), "public", "docs");
+const docsAssetsDir = path.resolve(process.cwd(), "docs");
+
 export const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+app.use(
+  "/docs",
+  express.static(docsPublicDir, { fallthrough: true, index: "index.html" })
+);
+app.use("/docs", express.static(docsAssetsDir));
+app.get("/docs", (_req, res, next) => {
+  const indexPath = path.join(docsPublicDir, "index.html");
+  res.sendFile(indexPath, (error) => {
+    if (error) {
+      next(error);
+    }
+  });
+});
 
-const OUTPUT_DIR = path.resolve(process.cwd(), "output");
-const invoiceIndex = new Map<string, string>();
-const idempotencyCache = new Map<string, { invoiceId: string; invoicePath: string }>();
+app.get("/docs/openapi.yaml", (_req, res, next) => {
+  const specPath = path.join(docsAssetsDir, "openapi.yaml");
+  res.sendFile(specPath, (error) => {
+    if (error) {
+      next(error);
+    }
+  });
+});
+
+app.get("/docs/postman_collection.json", (_req, res, next) => {
+  const collectionPath = path.join(docsAssetsDir, "postman_collection.json");
+  res.sendFile(collectionPath, (error) => {
+    if (error) {
+      next(error);
+    }
+  });
+});
 
 app.get(["/health", "/_health", "/healthz", "/healthz/"], (_req, res) => {
   res.status(200).type("text/plain").send("ok");
@@ -181,140 +227,156 @@ app.post("/api/invoice", requireApiKey, async (req: Request, res: Response) => {
   }
 });
 
-app.post("/webhook/order-created", requireApiKey, async (req: Request, res: Response) => {
-  const startedAt = Date.now();
-  const requestId = randomUUID();
-  const rawSource = req.body?.source;
-  const sourceLabel = typeof rawSource === "string" ? rawSource.toLowerCase() : undefined;
+app.post(
+  "/webhook/order-created",
+  requireApiKey,
+  webhookRateLimiter,
+  async (req: Request, res: Response) => {
+    const startedAt = Date.now();
+    const requestId = randomUUID();
+    const tenantHeader = req.header("x-vida-tenant") ?? undefined;
+    const tenantFromBody =
+      typeof req.body?.tenantId === "string" && req.body.tenantId.trim().length > 0
+        ? req.body.tenantId.trim()
+        : undefined;
+    const tenantId = tenantHeader?.trim() || tenantFromBody;
+    const rawSource = req.body?.source;
+    const sourceLabel = typeof rawSource === "string" ? rawSource.toLowerCase() : undefined;
+    const apiKey = typeof res.locals.apiKey === "string" ? res.locals.apiKey : undefined;
+    const headerIdempotencyKey = req.header("idempotency-key") ?? req.header("x-idempotency-key");
+    const idempotencyKey = headerIdempotencyKey?.trim() ? headerIdempotencyKey.trim() : undefined;
 
-  const headerIdempotencyKey = req.header("idempotency-key") ?? req.header("x-idempotency-key");
-  const idempotencyKey = headerIdempotencyKey?.trim() ? headerIdempotencyKey.trim() : undefined;
+    let order: OrderT | undefined;
+    let invoiceId: string | undefined;
+    let invoicePath: string | undefined;
+    let errorMessage: string | undefined;
+    let responseSent = false;
+    let peppolStatus: string | undefined;
+    let peppolId: string | undefined;
+    let validationErrors: { path: string; msg: string }[] | undefined;
+    let skipHistoryLog = false;
 
-  let order: OrderT | undefined;
-  let invoiceId: string | undefined;
-  let invoicePath: string | undefined;
-  let errorMessage: string | undefined;
-  let responseSent = false;
-  let peppolStatus: string | undefined;
-  let peppolId: string | undefined;
-  let validationErrors: { path: string; msg: string }[] | undefined;
-  let skipHistoryLog = false;
+    try {
+      if (apiKey && idempotencyKey) {
+        const cached = getCachedInvoice(apiKey, idempotencyKey);
+        if (cached) {
+          invoiceId = cached.invoiceId;
+          invoicePath = cached.invoicePath;
+          invoiceIndex.set(invoiceId, invoicePath);
+          res.setHeader("X-Idempotency-Cache", "HIT");
+          res.json({ invoiceId });
+          responseSent = true;
+          skipHistoryLog = true;
+          return;
+        }
+      }
 
-  try {
-    if (idempotencyKey) {
-      const cached = idempotencyCache.get(idempotencyKey);
-      if (cached) {
-        invoiceId = cached.invoiceId;
-        invoicePath = cached.invoicePath;
-        res.json({ invoiceId });
+      const { source, payload, supplier, defaultVatRate, currencyMinorUnit } = req.body ?? {};
+
+      order = buildOrderFromSource(source, payload, supplier, {
+        defaultVatRate,
+        currencyMinorUnit
+      });
+
+      const xml = await orderToInvoiceXml(order);
+
+      if (isUblValidationEnabled()) {
+        const validation = validateUbl(xml);
+        if (!validation.ok) {
+          validationErrors = validation.errors;
+          throw new HttpError("UBL validation failed", 422);
+        }
+      }
+
+      await mkdir(OUTPUT_DIR, { recursive: true });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      invoiceId = `invoice_${timestamp}`;
+      invoicePath = path.join(OUTPUT_DIR, `${invoiceId}.xml`);
+
+      await writeFile(invoicePath, xml, "utf8");
+      invoiceIndex.set(invoiceId, invoicePath);
+      incrementInvoicesCreated();
+      console.info(`[webhook] Generated invoice at ${invoicePath}`);
+
+      if (isPeppolSendEnabled()) {
+        const supplierName = order.supplier.name ?? "unknown";
+        const receiverName = order.buyer.name ?? "unknown";
+        const docId = order.orderNumber ?? requestId;
+        try {
+          const result = await sendInvoice(xml, {
+            sender: supplierName,
+            receiver: receiverName,
+            docId
+          });
+          incrementApSendSuccess();
+          peppolStatus = result.status;
+          peppolId = result.id;
+        } catch (apError) {
+          incrementApSendFail();
+          const message = apError instanceof Error ? apError.message : "PEPPOL send failed";
+          throw new HttpError(`PEPPOL send failed: ${message}`, 502);
+        }
+      }
+
+      if (apiKey && idempotencyKey && invoiceId && invoicePath) {
+        storeCachedInvoice(apiKey, idempotencyKey, { invoiceId, invoicePath });
+        res.setHeader("X-Idempotency-Cache", "MISS");
+      }
+
+      res.json({ invoiceId });
+      responseSent = true;
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : "Failed to generate invoice";
+
+      if (error instanceof ZodError) {
+        res.status(400).json({ error: "Invalid order payload", details: error.issues });
         responseSent = true;
-        skipHistoryLog = true;
+      } else if (error instanceof HttpError) {
+        const payload: Record<string, unknown> = { error: error.message };
+        if (error.status === 422 && validationErrors?.length) {
+          payload.details = validationErrors;
+        }
+        res.status(error.status).json(payload);
+        responseSent = true;
+      } else if (error instanceof Error) {
+        res.status(400).json({ error: error.message });
+        responseSent = true;
+      } else {
+        res.status(500).json({ error: "Failed to generate invoice" });
+        responseSent = true;
+      }
+    } finally {
+      if (skipHistoryLog) {
         return;
       }
-    }
-
-    const { source, payload, supplier, defaultVatRate, currencyMinorUnit } = req.body ?? {};
-
-    order = buildOrderFromSource(source, payload, supplier, {
-      defaultVatRate,
-      currencyMinorUnit
-    });
-
-    const xml = await orderToInvoiceXml(order);
-
-    const shouldValidate = isUblValidationEnabled();
-    if (shouldValidate) {
-      const validation = validateUbl(xml);
-      if (!validation.ok) {
-        validationErrors = validation.errors;
-        throw new HttpError("UBL validation failed", 422);
-      }
-    }
-
-    await mkdir(OUTPUT_DIR, { recursive: true });
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    invoiceId = `invoice_${timestamp}`;
-    invoicePath = path.join(OUTPUT_DIR, `${invoiceId}.xml`);
-
-    await writeFile(invoicePath, xml, "utf8");
-    invoiceIndex.set(invoiceId, invoicePath);
-    if (idempotencyKey) {
-      idempotencyCache.set(idempotencyKey, { invoiceId, invoicePath });
-    }
-    console.info(`[webhook] Generated invoice at ${invoicePath}`);
-
-    const peppolEnabled = isPeppolSendEnabled();
-
-    if (peppolEnabled) {
-      const supplierName = order.supplier.name ?? "unknown";
-      const receiverName = order.buyer.name ?? "unknown";
-      const docId = order.orderNumber ?? requestId;
+      const meta = order?.meta as Record<string, unknown> | undefined;
+      const originalOrderId =
+        typeof meta?.originalOrderId === "string" || typeof meta?.originalOrderId === "number"
+          ? (meta.originalOrderId as string | number)
+          : undefined;
       try {
-        const result = await sendInvoice(xml, {
-          sender: supplierName,
-          receiver: receiverName,
-          docId
+        await recordHistory({
+          requestId,
+          timestamp: new Date().toISOString(),
+          source: sourceLabel,
+          orderNumber: order?.orderNumber,
+          originalOrderId,
+          tenantId,
+          status: responseSent && !errorMessage ? "ok" : "error",
+          invoiceId,
+          invoicePath,
+          durationMs: Date.now() - startedAt,
+          error: responseSent && !errorMessage ? undefined : errorMessage,
+          peppolStatus,
+          peppolId,
+          validationErrors
         });
-        peppolStatus = result.status;
-        peppolId = result.id;
-      } catch (apError) {
-        const message = apError instanceof Error ? apError.message : "PEPPOL send failed";
-        throw new HttpError(`PEPPOL send failed: ${message}`, 502);
+      } catch (historyError) {
+        console.error("[history] failed to record event", historyError);
       }
-    }
-
-    res.json({ invoiceId });
-    responseSent = true;
-  } catch (error) {
-    errorMessage = error instanceof Error ? error.message : "Failed to generate invoice";
-
-    if (error instanceof ZodError) {
-      res.status(400).json({ error: "Invalid order payload", details: error.issues });
-      responseSent = true;
-    } else if (error instanceof HttpError) {
-      const payload: Record<string, unknown> = { error: error.message };
-      if (error.status === 422 && validationErrors?.length) {
-        payload.details = validationErrors;
-      }
-      res.status(error.status).json(payload);
-      responseSent = true;
-    } else if (error instanceof Error) {
-      res.status(400).json({ error: error.message });
-      responseSent = true;
-    } else {
-      res.status(500).json({ error: "Failed to generate invoice" });
-      responseSent = true;
-    }
-  } finally {
-    if (skipHistoryLog) {
-      return;
-    }
-    const meta = order?.meta as Record<string, unknown> | undefined;
-    const originalOrderId =
-      typeof meta?.originalOrderId === "string" || typeof meta?.originalOrderId === "number"
-        ? (meta.originalOrderId as string | number)
-        : undefined;
-    try {
-      await recordHistory({
-        requestId,
-        timestamp: new Date().toISOString(),
-        source: sourceLabel,
-        orderNumber: order?.orderNumber,
-        originalOrderId,
-        status: responseSent && !errorMessage ? "ok" : "error",
-        invoiceId,
-        invoicePath,
-        durationMs: Date.now() - startedAt,
-        error: responseSent && !errorMessage ? undefined : errorMessage,
-        peppolStatus,
-        peppolId,
-        validationErrors
-      });
-    } catch (historyError) {
-      console.error("[history] failed to record event", historyError);
     }
   }
-});
+);
 
 app.get("/invoice/:invoiceId", requireApiKey, async (req: Request, res: Response) => {
   const invoiceIdParam = req.params.invoiceId?.trim();
@@ -339,6 +401,28 @@ app.get("/invoice/:invoiceId", requireApiKey, async (req: Request, res: Response
     console.error(`[invoice/${invoiceIdParam}] failed to load invoice`, error);
     res.status(500).json({ error: "failed to load invoice" });
   }
+});
+
+app.get("/history", requireApiKey, async (req: Request, res: Response) => {
+  const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+  const parsedLimit = typeof rawLimit === "string" ? Number.parseInt(rawLimit, 10) : undefined;
+  const limit = Number.isNaN(parsedLimit) || (parsedLimit ?? 0) <= 0 ? 20 : Math.min(parsedLimit ?? 20, 200);
+  const rawTenant = Array.isArray(req.query.tenant) ? req.query.tenant[0] : req.query.tenant;
+  const tenant = typeof rawTenant === "string" && rawTenant.trim().length > 0 ? rawTenant.trim() : undefined;
+
+  try {
+    const records = await listHistory(limit);
+    const filtered = tenant ? records.filter((record) => record.tenantId === tenant) : records;
+    res.json({ history: filtered });
+  } catch (error) {
+    console.error("[history] failed to list", error);
+    res.status(500).json({ error: "failed to load history" });
+  }
+});
+
+app.get("/metrics", (_req, res: Response) => {
+  res.type("text/plain; version=0.0.4");
+  res.send(renderMetrics());
 });
 
 const HOST = "0.0.0.0";

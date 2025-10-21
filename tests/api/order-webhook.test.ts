@@ -7,6 +7,9 @@ import { app } from "src/server.js";
 import * as historyLogger from "src/history/logger.js";
 import { listHistory } from "src/history/logger.js";
 import * as validation from "src/validation/ubl.js";
+import { resetRateLimitBuckets } from "src/middleware/rateLimiter.js";
+import { resetIdempotencyCache } from "src/services/idempotencyCache.js";
+import { resetMetrics } from "src/metrics.js";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
 const wooFixturePath = path.resolve(__dirname, "../connectors/fixtures/woocommerce-order.json");
@@ -41,6 +44,9 @@ beforeEach(async () => {
   process.env.VIDA_API_KEYS = API_KEY;
   recordHistorySpy = vi.spyOn(historyLogger, "recordHistory");
   validateUblSpy = undefined;
+  resetIdempotencyCache();
+  resetRateLimitBuckets();
+  resetMetrics();
   vi.useFakeTimers();
   vi.setSystemTime(fixedDate);
 });
@@ -70,6 +76,9 @@ afterEach(async () => {
     if (!file) continue;
     await rm(file, { force: true }).catch(() => undefined);
   }
+  resetIdempotencyCache();
+  resetRateLimitBuckets();
+  resetMetrics();
 });
 
 describe("POST /webhook/order-created", () => {
@@ -276,5 +285,98 @@ describe("POST /webhook/order-created", () => {
         validationErrors: [{ path: "/", msg: "Invalid UBL" }]
       })
     );
+  });
+
+  it("returns cached invoice ids for duplicate idempotency keys", async () => {
+    const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
+    const idemKey = "cache-me";
+
+    const firstResponse = await request(app)
+      .post("/webhook/order-created")
+      .set("x-api-key", API_KEY)
+      .set("Idempotency-Key", idemKey)
+      .send({
+        source: "shopify",
+        payload,
+        supplier,
+        defaultVatRate: 21
+      })
+      .expect(200);
+
+    const firstInvoiceId = firstResponse.body.invoiceId as string;
+    expect(firstResponse.headers["x-idempotency-cache"]).toBe("MISS");
+    const firstPath = invoiceFilePath(firstInvoiceId);
+    createdFiles.push(firstPath);
+    const statInfo = await stat(firstPath);
+    expect(statInfo.isFile()).toBe(true);
+
+    const secondResponse = await request(app)
+      .post("/webhook/order-created")
+      .set("x-api-key", API_KEY)
+      .set("Idempotency-Key", idemKey)
+      .send({
+        source: "shopify",
+        payload,
+        supplier,
+        defaultVatRate: 21
+      })
+      .expect(200);
+
+    expect(secondResponse.body.invoiceId).toBe(firstInvoiceId);
+    expect(secondResponse.headers["x-idempotency-cache"]).toBe("HIT");
+
+    const history = await listHistory();
+    expect(history).toHaveLength(1);
+    expect(history[0]?.invoiceId).toBe(firstInvoiceId);
+  });
+
+  it("applies rate limiting per API key", async () => {
+    const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
+
+    for (let index = 0; index < 60; index += 1) {
+      const response = await request(app)
+        .post("/webhook/order-created")
+        .set("x-api-key", API_KEY)
+        .send({
+          source: "shopify",
+          payload,
+          supplier,
+          defaultVatRate: 21
+        })
+        .expect(200);
+      const invoiceId = response.body.invoiceId as string;
+      createdFiles.push(invoiceFilePath(invoiceId));
+      vi.advanceTimersByTime(10);
+    }
+
+    const throttled = await request(app)
+      .post("/webhook/order-created")
+      .set("x-api-key", API_KEY)
+      .send({
+        source: "shopify",
+        payload,
+        supplier,
+        defaultVatRate: 21
+      })
+      .expect(429);
+
+    expect(throttled.body.error).toMatch(/rate limit/i);
+    expect(throttled.headers["x-ratelimit-remaining"]).toBe("0");
+
+    vi.advanceTimersByTime(60_000);
+
+    const resetResponse = await request(app)
+      .post("/webhook/order-created")
+      .set("x-api-key", API_KEY)
+      .send({
+        source: "shopify",
+        payload,
+        supplier,
+        defaultVatRate: 21
+      })
+      .expect(200);
+
+    const resetInvoiceId = resetResponse.body.invoiceId as string;
+    createdFiles.push(invoiceFilePath(resetInvoiceId));
   });
 });

@@ -7,6 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { app } from "src/server.js";
 import * as validation from "src/validation/ubl.js";
 import { listHistory } from "src/history/logger.js";
+import { resetIdempotencyCache } from "src/services/idempotencyCache.js";
+import { resetRateLimitBuckets } from "src/middleware/rateLimiter.js";
+import { resetMetrics } from "src/metrics.js";
 
 const API_KEY = "test-key";
 const fixedNow = new Date("2025-02-01T10:00:00.000Z");
@@ -70,6 +73,9 @@ describe("order webhook to invoice retrieval", () => {
     historyDir = await mkdtemp(path.join(tmpdir(), "vida-history-"));
     process.env.VIDA_HISTORY_DIR = historyDir;
     process.env.VIDA_API_KEYS = API_KEY;
+    resetIdempotencyCache();
+    resetRateLimitBuckets();
+    resetMetrics();
     vi.useFakeTimers();
     vi.setSystemTime(fixedNow);
   });
@@ -84,6 +90,9 @@ describe("order webhook to invoice retrieval", () => {
     await rm(historyDir, { recursive: true, force: true }).catch(() => undefined);
     delete process.env.VIDA_HISTORY_DIR;
     delete process.env.VIDA_API_KEYS;
+    resetIdempotencyCache();
+    resetRateLimitBuckets();
+    resetMetrics();
   });
 
   it("creates an invoice via webhook and serves it via GET", async () => {

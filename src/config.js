@@ -1,20 +1,50 @@
-// src/config.js
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import path from "node:path";
+import dotenv from "dotenv";
 
-const envBool = (v, def = false) => {
-  if (v === undefined) return def;
-  const s = String(v).toLowerCase();
-  return s === '1' || s === 'true' || s === 'yes';
+dotenv.config();
+
+const normalizeBoolean = (value, defaultValue = false) => {
+  if (value === undefined) {
+    return defaultValue;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
 };
 
-export const USE_DB = envBool(process.env.USE_DB, false); // default to file store
-export const VAT_RATE = Number(process.env.VAT_RATE ?? 0.21);
-export const PORT = Number(process.env.PORT ?? 3001);
+const normalizeNumber = (value, defaultValue) => {
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isNaN(parsed) ? defaultValue : parsed;
+};
 
-// Windows-safe absolute path for the file DB: <repo>/data/db.json
-const here = dirname(fileURLToPath(import.meta.url));
-export const DB_FILE = join(here, '..', 'data', 'db.json');
+const normalizeCsv = (value) =>
+  String(value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 
-// Access token the tests use for XML/PDF endpoints
-export const TEST_ACCESS_TOKEN = process.env.TEST_ACCESS_TOKEN ?? 'key_test_12345';
+const resolveDir = (value, fallback) => (value ? path.resolve(value) : fallback);
+
+export const VIDA_API_KEYS = normalizeCsv(process.env.VIDA_API_KEYS);
+export const PORT = normalizeNumber(process.env.PORT, 3001);
+export const NODE_ENV = process.env.NODE_ENV ?? "development";
+export const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
+
+export const getVidaApiKeys = () => normalizeCsv(process.env.VIDA_API_KEYS);
+export const isUblValidationEnabled = () => normalizeBoolean(process.env.VIDA_VALIDATE_UBL);
+export const isPeppolSendEnabled = () => normalizeBoolean(process.env.VIDA_PEPPOL_SEND);
+export const resolvePeppolApMode = () => (process.env.VIDA_PEPPOL_AP ?? "stub").toLowerCase();
+export const resolvePeppolOutboxDir = () =>
+  resolveDir(
+    process.env.VIDA_PEPPOL_OUTBOX_DIR,
+    path.resolve(process.cwd(), "data", "ap-outbox")
+  );
+export const resolveHistoryDir = () =>
+  resolveDir(process.env.VIDA_HISTORY_DIR, path.resolve(process.cwd(), "data", "history"));
+export const resolveInvoiceRequestLogDir = () =>
+  resolveDir(
+    process.env.VIDA_INVOICE_REQUEST_LOG_DIR,
+    path.resolve(process.cwd(), "data", "invoice-requests")
+  );

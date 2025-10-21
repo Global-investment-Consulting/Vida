@@ -78,7 +78,7 @@ const OrderLine = z.object({
   unitPriceMinor: Minor,
   discountMinor: Minor.default(0),
   vatRate: VatRate.optional(),
-  vatCategory: z.enum(["S", "Z", "E", "AE", "O", "L", "AA"]).optional(),
+  vatCategory: z.enum(["S", "Z", "E", "AE"]).optional(),
   vatExemptionReason: z.string().trim().optional(),
   itemName: z.string().trim().optional(),
   buyerAccountingReference: z.string().trim().optional()

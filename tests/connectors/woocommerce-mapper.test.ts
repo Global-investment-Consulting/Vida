@@ -45,7 +45,7 @@ describe("wooToOrder", () => {
     expect(secondLine.quantity).toBe(12);
     expect(secondLine.discountMinor).toBe(6000);
     expect(secondLine.vatRate).toBe(6);
-    expect(secondLine.vatCategory).toBe("AA");
+    expect(secondLine.vatCategory).toBe("S");
 
     expect(mapped.meta?.source).toBe("woocommerce");
     expect(mapped.meta?.originalOrderId).toBe(8921);
@@ -116,5 +116,6 @@ describe("wooToOrder", () => {
     expect(mapped.lines[0].unitPriceMinor).toBe(3333);
     expect(mapped.lines[0].discountMinor).toBe(1000);
     expect(mapped.lines[0].vatRate).toBe(21);
+    expect(mapped.lines[0].vatCategory).toBe("S");
   });
 });
