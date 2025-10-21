@@ -103,8 +103,7 @@ function resolveVatRate(taxes: WooTaxLine[] | undefined, fallback?: number): num
 function resolveVatCategory(vatRate?: number): OrderLineT["vatCategory"] | undefined {
   if (vatRate === undefined) return undefined;
   if (vatRate === 0) return "Z";
-  if (vatRate === 6) return "AA";
-  if (vatRate === 12) return "AE";
+  if (vatRate === 6 || vatRate === 12 || vatRate === 21) return "S";
   return "S";
 }
 

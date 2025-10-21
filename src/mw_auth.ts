@@ -33,5 +33,6 @@ export function requireApiKey(req: Request, res: Response, next: NextFunction): 
     return;
   }
 
+  res.locals.apiKey = token;
   next();
 }

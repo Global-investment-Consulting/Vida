@@ -46,21 +46,26 @@ function formatPercent(rate: number): string {
   return rate.toFixed(2);
 }
 
+const REVERSE_CHARGE_HINTS = ["reverse charge", "self-billing", "article 194"];
+
 function deriveVatCategory(rate: number, provided?: string, exemptionReason?: string): string {
   if (provided) {
     return provided;
   }
 
   if (rate === 0) {
-    return exemptionReason ? "E" : "Z";
+    if (exemptionReason) {
+      const lower = exemptionReason.toLowerCase();
+      if (REVERSE_CHARGE_HINTS.some((hint) => lower.includes(hint))) {
+        return "AE";
+      }
+      return "E";
+    }
+    return "Z";
   }
 
-  if (rate === 6) {
-    return "AA";
-  }
-
-  if (rate === 12) {
-    return "AE";
+  if (rate === 6 || rate === 12 || rate === 21) {
+    return "S";
   }
 
   return "S";
@@ -116,7 +121,17 @@ function summarizeTax(lines: ComputedLine[]): TaxSummary[] {
     }
   }
 
-  return Array.from(summaries.values());
+  return Array.from(summaries.values()).sort((a, b) => {
+    if (a.rate !== b.rate) {
+      return a.rate - b.rate;
+    }
+    if (a.category !== b.category) {
+      return a.category.localeCompare(b.category);
+    }
+    const reasonA = a.exemptionReason ?? "";
+    const reasonB = b.exemptionReason ?? "";
+    return reasonA.localeCompare(reasonB);
+  });
 }
 
 function appendParty(invoice: XMLBuilder, parentTag: "cac:AccountingSupplierParty" | "cac:AccountingCustomerParty", order: Order) {

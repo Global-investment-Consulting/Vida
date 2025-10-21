@@ -35,13 +35,13 @@ export default defineConfig({
           return null;
         }
 
-        if (fs.existsSync(candidatePath)) {
-          return null;
-        }
-
         const tsCandidate = candidatePath.replace(/\.js$/, ".ts");
         if (fs.existsSync(tsCandidate)) {
           return tsCandidate;
+        }
+
+        if (fs.existsSync(candidatePath)) {
+          return null;
         }
 
         return null;

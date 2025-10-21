@@ -42,7 +42,7 @@ describe("shopifyToOrder", () => {
     expect(firstLine.vatCategory).toBe("S");
 
     expect(secondLine.vatRate).toBe(6);
-    expect(secondLine.vatCategory).toBe("AA");
+    expect(secondLine.vatCategory).toBe("S");
     expect(secondLine.discountMinor).toBe(2000);
 
     expect(mapped.meta?.source).toBe("shopify");
@@ -116,6 +116,6 @@ describe("shopifyToOrder", () => {
     expect(mapped.lines[0].unitPriceMinor).toBe(2000);
     expect(mapped.lines[0].discountMinor).toBe(100);
     expect(mapped.lines[0].vatRate).toBe(6);
-    expect(mapped.lines[0].vatCategory).toBe("AA");
+    expect(mapped.lines[0].vatCategory).toBe("S");
   });
 });
