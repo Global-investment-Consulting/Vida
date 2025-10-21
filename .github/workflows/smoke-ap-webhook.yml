@@ -1,6 +1,8 @@
 name: Staging AP Webhook Smoke
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+    inputs: {}
 
 jobs:
   smoke:
