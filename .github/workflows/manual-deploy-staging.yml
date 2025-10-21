@@ -38,25 +38,29 @@ jobs:
           set -euo pipefail
           IMAGE_URI="europe-west1-docker.pkg.dev/${PROJECT_ID}/vida/vida:${IMAGE_TAG}"
 
-          # Only pass a BUCKET (no folders) to --gcs-source-staging-dir
+          # Sanitize custom bucket into a pure bucket dir, or skip if unset
           GCS_FLAG=""
           if [ -n "${CLOUD_BUILD_BUCKET:-}" ]; then
             BUCKET="${CLOUD_BUILD_BUCKET#gs://}"
             BUCKET="${BUCKET%%/*}"
             if [ -n "$BUCKET" ]; then
-              GCS_FLAG="--gcs-source-staging-dir=gs://${BUCKET}"
+              # trailing slash forces directory semantics on the bucket
+              GCS_FLAG="--gcs-source-staging-dir=gs://${BUCKET}/"
             fi
           fi
 
+          REG_FLAG="--region=${REGION}"
+
           echo "Building to: ${IMAGE_URI}"
           echo "Using GCS flag: ${GCS_FLAG:-<none>}"
+          echo "Using Cloud Build region: ${REGION}"
 
-          BID="$(gcloud builds submit ${GCS_FLAG} --tag "${IMAGE_URI}" --async --format='value(id)')"
+          BID="$(gcloud builds submit ${REG_FLAG} ${GCS_FLAG} --tag "${IMAGE_URI}" --async --format='value(id)')"
           echo "Cloud Build ID: ${BID}"
-          echo "Cloud Build logs: $(gcloud builds describe "${BID}" --format='value(logUrl)')"
+          echo "Cloud Build logs: $(gcloud builds describe "${BID}" --region="${REGION}" --format='value(logUrl)')"
 
           for _ in $(seq 1 120); do
-            S="$(gcloud builds describe "${BID}" --format='value(status)')"
+            S="$(gcloud builds describe "${BID}" --region="${REGION}" --format='value(status)')"
             echo "Cloud Build status: ${S}"
             case "$S" in SUCCESS) break ;; FAILURE|CANCELLED) exit 1 ;; esac
             sleep 5
@@ -75,7 +79,8 @@ jobs:
 
       - name: Verify deployment
         run: |
-          URL="$(gcloud run services describe "${{ vars.SERVICE }}" --project "${{ vars.GCP_PROJECT_ID }}" --region "${{ vars.REGION }}" --format='value(status.url)'))"
+          set -euo pipefail
+          URL="$(gcloud run services describe "${{ vars.SERVICE }}" --project "${{ vars.GCP_PROJECT_ID }}" --region "${{ vars.REGION }}" --format='value(status.url)')"
           echo "Service URL: $URL"
           for p in /_health /health /healthz/; do
             printf "%-9s -> %s\n" "$p" "$(curl -fs -o /dev/null -w '%{http_code}' "$URL$p" || true)"
