@@ -2,7 +2,10 @@ name: Staging AP Webhook Smoke
 
 on:
   workflow_dispatch:
-    inputs: {}
+    inputs:
+      reason:
+        description: Optional context for smoke run
+        required: false
 
 jobs:
   smoke:
