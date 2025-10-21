@@ -12,6 +12,7 @@
     "noEmit": false,
     "outDir": "dist",
     "allowImportingTsExtensions": false,
+    "moduleSuffixes": [".ts", ".tsx", ".d.ts", ""],
     "baseUrl": ".",
     "paths": {
       "src/*": ["src/*"]
