@@ -77,7 +77,11 @@ function buildOrderFromSource(
   return parseOrder(payload);
 }
 
-const OUTPUT_DIR = path.resolve(process.cwd(), "output");
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const maybeDistRoot = path.resolve(moduleDir, "..");
+const ROOT_DIR = path.basename(maybeDistRoot) === "dist" ? path.resolve(maybeDistRoot, "..") : maybeDistRoot;
+
+const OUTPUT_DIR = path.join(ROOT_DIR, "output");
 const invoiceIndex = new Map<string, string>();
 const RATE_LIMIT_PER_MINUTE = 60;
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -85,20 +89,24 @@ const webhookRateLimiter = createApiKeyRateLimiter({
   limit: RATE_LIMIT_PER_MINUTE,
   windowMs: RATE_LIMIT_WINDOW_MS
 });
-const docsPublicDir = path.resolve(process.cwd(), "public", "docs");
-const docsAssetsDir = path.resolve(process.cwd(), "docs");
+const docsPublicDir = path.join(ROOT_DIR, "public", "docs");
+const docsAssetsDir = path.join(ROOT_DIR, "docs");
+const docsIndexPath = path.join(docsPublicDir, "index.html");
 
 export const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use(
   "/docs",
-  express.static(docsPublicDir, { fallthrough: true, index: "index.html" })
+  express.static(docsPublicDir, { fallthrough: true, index: "index.html", redirect: false })
 );
-app.use("/docs", express.static(docsAssetsDir));
-app.get("/docs", (_req, res, next) => {
-  const indexPath = path.join(docsPublicDir, "index.html");
-  res.sendFile(indexPath, (error) => {
+app.use(
+  "/docs",
+  express.static(docsAssetsDir, { redirect: false })
+);
+
+app.get(["/docs", "/docs/"], (_req, res, next) => {
+  res.sendFile(docsIndexPath, (error) => {
     if (error) {
       next(error);
     }
