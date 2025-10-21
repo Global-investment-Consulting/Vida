@@ -2,6 +2,11 @@ name: Deploy staging
 
 on:
   workflow_dispatch:
+    inputs:
+      reason:
+        description: Optional context for manual staging deployment
+        required: false
+        type: string
   workflow_run:
     workflows: ["CI"]
     types: [completed]
