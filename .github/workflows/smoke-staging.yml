@@ -149,6 +149,12 @@ jobs:
           fi
           head -n 40 "$tmp_body" | tee ubl_head.txt
 
+      - name: Curl summary
+        if: always()
+        run: |
+          echo "=== curl status log ==="
+          cat curl_status.log
+
       - name: Curl diagnostics on failure
         if: failure()
         run: |
