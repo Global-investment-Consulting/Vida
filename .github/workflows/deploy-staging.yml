@@ -61,4 +61,7 @@ jobs:
           CLOUD_BUILD_BUCKET: ${{ env.CLOUD_BUILD_BUCKET }}
           IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          VIDA_API_KEYS: ${{ secrets.VIDA_STAGING_API_KEYS }}
+          LOG_LEVEL: info
+          NODE_ENV: production
         run: ./scripts/deploy_staging.sh
