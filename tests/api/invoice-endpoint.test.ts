@@ -4,11 +4,30 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { app } from "../../src/server.js";
-import * as validation from "../../src/validation/ubl.js";
+import { app } from "src/server.js";
+import * as validation from "src/validation/ubl.js";
+import { listHistory } from "src/history/logger.js";
 
 const API_KEY = "test-key";
 const fixedNow = new Date("2025-02-01T10:00:00.000Z");
+const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
+const supplier = {
+  name: "Supplier BV",
+  registrationName: "Supplier BV",
+  vatId: "BE0123456789",
+  address: {
+    streetName: "Rue Exemple 1",
+    cityName: "Brussels",
+    postalZone: "1000",
+    countryCode: "BE"
+  },
+  contact: {
+    electronicMail: "invoices@supplier.example"
+  }
+};
+
+const invoicePathFor = (invoiceId: string) =>
+  path.resolve(process.cwd(), "output", `${invoiceId}.xml`);
 
 function buildOrder(overrides: Record<string, unknown> = {}) {
   return {
@@ -43,6 +62,82 @@ function buildOrder(overrides: Record<string, unknown> = {}) {
   };
 }
 
+describe("order webhook to invoice retrieval", () => {
+  let historyDir: string;
+  const createdFiles: string[] = [];
+
+  beforeEach(async () => {
+    historyDir = await mkdtemp(path.join(tmpdir(), "vida-history-"));
+    process.env.VIDA_HISTORY_DIR = historyDir;
+    process.env.VIDA_API_KEYS = API_KEY;
+    vi.useFakeTimers();
+    vi.setSystemTime(fixedNow);
+  });
+
+  afterEach(async () => {
+    vi.useRealTimers();
+    while (createdFiles.length > 0) {
+      const file = createdFiles.pop();
+      if (!file) continue;
+      await rm(file, { force: true }).catch(() => undefined);
+    }
+    await rm(historyDir, { recursive: true, force: true }).catch(() => undefined);
+    delete process.env.VIDA_HISTORY_DIR;
+    delete process.env.VIDA_API_KEYS;
+  });
+
+  it("creates an invoice via webhook and serves it via GET", async () => {
+    const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
+    const idempotencyKey = "req-123";
+
+    const postResponse = await request(app)
+      .post("/webhook/order-created")
+      .set("x-api-key", API_KEY)
+      .set("Idempotency-Key", idempotencyKey)
+      .send({
+        source: "shopify",
+        payload,
+        supplier,
+        defaultVatRate: 21
+      })
+      .expect(200);
+
+    const invoiceId = postResponse.body.invoiceId as string;
+    expect(invoiceId).toBe("invoice_2025-02-01T10-00-00-000Z");
+
+    const invoicePath = invoicePathFor(invoiceId);
+    createdFiles.push(invoicePath);
+
+    const getResponse = await request(app)
+      .get(`/invoice/${invoiceId}`)
+      .set("x-api-key", API_KEY)
+      .expect(200);
+
+    expect(getResponse.headers["content-type"]).toContain("application/xml");
+    expect(getResponse.text).toContain("<Invoice");
+    expect(getResponse.text).toContain("<cbc:CustomizationID>");
+    expect(getResponse.text).toContain("<cbc:ProfileID>");
+
+    const history = await listHistory();
+    expect(history[0]?.invoiceId).toBe(invoiceId);
+    expect(history[0]?.status).toBe("ok");
+
+    const replayResponse = await request(app)
+      .post("/webhook/order-created")
+      .set("x-api-key", API_KEY)
+      .set("Idempotency-Key", idempotencyKey)
+      .send({
+        source: "shopify",
+        payload,
+        supplier,
+        defaultVatRate: 21
+      })
+      .expect(200);
+
+    expect(replayResponse.body.invoiceId).toBe(invoiceId);
+  });
+});
+
 describe("POST /api/invoice", () => {
   let logDir: string;
 
@@ -65,7 +160,7 @@ describe("POST /api/invoice", () => {
   it("returns UBL XML and logs the request on success", async () => {
     const response = await request(app)
       .post("/api/invoice")
-      .set("x-vida-api-key", API_KEY)
+      .set("x-api-key", API_KEY)
       .send(buildOrder())
       .expect(200);
 
@@ -101,7 +196,7 @@ describe("POST /api/invoice", () => {
 
     const response = await request(app)
       .post("/api/invoice")
-      .set("x-vida-api-key", API_KEY)
+      .set("x-api-key", API_KEY)
       .set("x-vida-tenant", "tenant-123")
       .send(buildOrder())
       .expect(422);

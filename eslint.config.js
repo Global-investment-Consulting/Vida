@@ -19,12 +19,12 @@ const tsRecommended = tseslint.configs.recommended.map((config) => ({
   languageOptions: {
     sourceType: "module",
     globals: globals.node,
-    parser: tseslint.parser,
-    parserOptions: {
-      ...(config.languageOptions?.parserOptions ?? {}),
-      project: "./tsconfig.json",
-      tsconfigRootDir: process.cwd()
-    }
+      parser: tseslint.parser,
+      parserOptions: {
+        ...(config.languageOptions?.parserOptions ?? {}),
+        project: "./tsconfig.eslint.json",
+        tsconfigRootDir: process.cwd()
+      }
   }
 }));
 
@@ -37,7 +37,19 @@ const jsRecommended = {
   }
 };
 
+const tsRules = {
+  files: filesTs,
+  rules: {
+    "no-console": ["error", { allow: ["info", "warn", "error"] }],
+    "@typescript-eslint/consistent-type-imports": "error",
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }]
+  }
+};
+
 export default tseslint.config(
   jsRecommended,
-  ...tsRecommended
+  ...tsRecommended,
+  tsRules
 );

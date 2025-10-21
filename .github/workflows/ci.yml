@@ -14,21 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Lint (Node 20)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'     # <-- use npm cache; do NOT use pnpm
-      - run: npm ci
-      - run: npm run lint
-
-  test:
-    name: Test (Node 20)
-    needs: lint
+  ci:
+    name: Build & Test (Node 20)
     runs-on: ubuntu-latest
     env:
       CI: 'true'
@@ -37,9 +24,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'     # <-- use npm cache; avoids “pnpm not found”
+          cache: 'npm'
       - run: npm ci
-      - run: npm run test -- --pool=forks
+      - run: npm run lint -- --max-warnings=0
+      - run: npm run build
+      - run: npm test
 
   docker:
     name: Build Docker image (main)

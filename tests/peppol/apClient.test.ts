@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { sendInvoice } from "../../src/peppol/apClient.js";
+import { sendInvoice } from "src/peppol/apClient.js";
 
 let outboxDir: string;
 

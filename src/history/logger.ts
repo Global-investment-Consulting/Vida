@@ -1,7 +1,6 @@
 import { appendFile, mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-
-const HISTORY_ENV = "VIDA_HISTORY_DIR";
+import { resolveHistoryDir } from "../config.js"; // migrated
 
 export type HistoryStatus = "ok" | "error";
 
@@ -12,6 +11,7 @@ export type HistoryRecord = {
   orderNumber?: string;
   originalOrderId?: string | number;
   status: HistoryStatus;
+  invoiceId?: string;
   invoicePath?: string;
   durationMs: number;
   error?: string;
@@ -19,14 +19,6 @@ export type HistoryRecord = {
   peppolId?: string;
   validationErrors?: { path: string; msg: string }[];
 };
-
-function resolveHistoryDir(): string {
-  const custom = process.env[HISTORY_ENV];
-  if (custom) {
-    return path.resolve(custom);
-  }
-  return path.resolve(process.cwd(), "data", "history");
-}
 
 export async function recordHistory(event: HistoryRecord): Promise<string> {
   const dir = resolveHistoryDir();

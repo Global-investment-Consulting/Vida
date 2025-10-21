@@ -3,10 +3,10 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { app } from "../../src/server.js";
-import * as historyLogger from "../../src/history/logger.js";
-import { listHistory } from "../../src/history/logger.js";
-import * as validation from "../../src/validation/ubl.js";
+import { app } from "src/server.js";
+import * as historyLogger from "src/history/logger.js";
+import { listHistory } from "src/history/logger.js";
+import * as validation from "src/validation/ubl.js";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
 const wooFixturePath = path.resolve(__dirname, "../connectors/fixtures/woocommerce-order.json");
@@ -29,6 +29,8 @@ const supplier = {
 const createdFiles: string[] = [];
 const apFiles: string[] = [];
 const fixedDate = new Date("2025-01-22T12:00:00.000Z");
+const invoiceFilePath = (invoiceId: string) =>
+  path.resolve(process.cwd(), "output", `${invoiceId}.xml`);
 let historyDir: string;
 let recordHistorySpy: ReturnType<typeof vi.spyOn>;
 let validateUblSpy: ReturnType<typeof vi.spyOn> | undefined;
@@ -76,7 +78,7 @@ describe("POST /webhook/order-created", () => {
 
     const response = await request(app)
       .post("/webhook/order-created")
-      .set("x-vida-api-key", API_KEY)
+      .set("x-api-key", API_KEY)
       .send({
         source: "shopify",
         payload,
@@ -85,22 +87,14 @@ describe("POST /webhook/order-created", () => {
       })
       .expect(200);
 
-    const expectedPath = path.resolve(
-      process.cwd(),
-      "output",
-      "invoice_2025-01-22T12-00-00-000Z.xml"
-    );
-
     expect(response.body).toEqual({
-      path: expectedPath,
-      xmlLength: expect.any(Number)
+      invoiceId: "invoice_2025-01-22T12-00-00-000Z"
     });
 
-    const generatedPath = response.body.path as string;
+    const generatedPath = invoiceFilePath(response.body.invoiceId);
     createdFiles.push(generatedPath);
     const stats = await stat(generatedPath);
     expect(stats.isFile()).toBe(true);
-    expect(response.body.xmlLength).toBeGreaterThan(0);
     const xml = await readFile(generatedPath, "utf8");
     expect(xml.startsWith("<?xml")).toBe(true);
     expect(xml.includes("<Invoice")).toBe(true);
@@ -108,7 +102,8 @@ describe("POST /webhook/order-created", () => {
     const history = await listHistory();
     expect(history).toHaveLength(1);
     expect(history[0].status).toBe("ok");
-    expect(history[0].invoicePath).toBe(expectedPath);
+    expect(history[0].invoiceId).toBe(response.body.invoiceId);
+    expect(history[0].invoicePath).toBe(invoiceFilePath(response.body.invoiceId));
     expect(history[0].source).toBe("shopify");
   });
 
@@ -117,7 +112,7 @@ describe("POST /webhook/order-created", () => {
 
     const response = await request(app)
       .post("/webhook/order-created")
-      .set("x-vida-api-key", API_KEY)
+      .set("x-api-key", API_KEY)
       .send({
         source: "woocommerce",
         payload,
@@ -126,16 +121,9 @@ describe("POST /webhook/order-created", () => {
       })
       .expect(200);
 
-    const expectedPath = path.resolve(
-      process.cwd(),
-      "output",
-      "invoice_2025-01-22T12-00-00-000Z.xml"
-    );
+    expect(response.body.invoiceId).toBe("invoice_2025-01-22T12-00-00-000Z");
 
-    expect(response.body.path).toBe(expectedPath);
-    expect(response.body.xmlLength).toBeGreaterThan(0);
-
-    const generatedPath = response.body.path as string;
+    const generatedPath = invoiceFilePath(response.body.invoiceId);
     createdFiles.push(generatedPath);
     const xml = await readFile(generatedPath, "utf8");
     expect(xml.includes("<cac:InvoiceLine>")).toBe(true);
@@ -144,6 +132,7 @@ describe("POST /webhook/order-created", () => {
     expect(history).toHaveLength(1);
     expect(history[0].status).toBe("ok");
     expect(history[0].source).toBe("woocommerce");
+    expect(history[0].invoiceId).toBe(response.body.invoiceId);
   });
 
   it("sends the invoice to the PEPPOL stub when enabled", async () => {
@@ -152,9 +141,9 @@ describe("POST /webhook/order-created", () => {
     process.env.VIDA_PEPPOL_SEND = "true";
     process.env.VIDA_PEPPOL_OUTBOX_DIR = outboxDir;
 
-    const response = await request(app)
+    await request(app)
       .post("/webhook/order-created")
-      .set("x-vida-api-key", API_KEY)
+      .set("x-api-key", API_KEY)
       .send({
         source: "shopify",
         payload,
@@ -169,15 +158,19 @@ describe("POST /webhook/order-created", () => {
     expect(stats.isFile()).toBe(true);
 
     expect(recordHistorySpy).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "ok", peppolStatus: "SENT", peppolId: "#1001" })
+      expect.objectContaining({
+        status: "ok",
+        peppolStatus: "SENT",
+        peppolId: "#1001",
+        invoiceId: "invoice_2025-01-22T12-00-00-000Z"
+      })
     );
-    expect(response.body.path).toContain("invoice_2025-01-22T12-00-00-000Z.xml");
   });
 
   it("rejects invalid payloads", async () => {
     await request(app)
       .post("/webhook/order-created")
-      .set("x-vida-api-key", API_KEY)
+      .set("x-api-key", API_KEY)
       .send({ source: "shopify" })
       .expect(400);
 
@@ -191,7 +184,7 @@ describe("POST /webhook/order-created", () => {
 
     const response = await request(app)
       .post("/webhook/order-created")
-      .set("x-vida-api-key", API_KEY)
+      .set("x-api-key", API_KEY)
       .send({
         source: "shopify",
         payload
@@ -219,18 +212,18 @@ describe("POST /webhook/order-created", () => {
     expect(recordHistorySpy).not.toHaveBeenCalled();
   });
 
-  it("returns 403 when API key is invalid", async () => {
+  it("returns 401 when API key is invalid", async () => {
     const payload = JSON.parse(await readFile(shopifyFixturePath, "utf8"));
 
     await request(app)
       .post("/webhook/order-created")
-      .set("x-vida-api-key", "wrong-key")
+      .set("x-api-key", "wrong-key")
       .send({
         source: "shopify",
         payload,
         supplier
       })
-      .expect(403);
+      .expect(401);
 
     expect(recordHistorySpy).not.toHaveBeenCalled();
   });
@@ -242,7 +235,7 @@ describe("POST /webhook/order-created", () => {
 
     await request(app)
       .post("/webhook/order-created")
-      .set("x-vida-api-key", API_KEY)
+      .set("x-api-key", API_KEY)
       .send({
         source: "shopify",
         payload,
@@ -266,7 +259,7 @@ describe("POST /webhook/order-created", () => {
 
     const response = await request(app)
       .post("/webhook/order-created")
-      .set("x-vida-api-key", API_KEY)
+      .set("x-api-key", API_KEY)
       .send({
         source: "shopify",
         payload,
