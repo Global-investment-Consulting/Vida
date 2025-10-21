@@ -1,5 +1,6 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { resolveInvoiceRequestLogDir } from "../config.js"; // migrated
 
 export type InvoiceRequestStatus = "OK" | "INVALID";
 
@@ -11,19 +12,9 @@ export type InvoiceRequestRecord = {
   createdAt: string;
 };
 
-const LOG_DIR_ENV = "VIDA_INVOICE_REQUEST_LOG_DIR";
-
-function resolveLogDir(): string {
-  const customDir = process.env[LOG_DIR_ENV];
-  if (customDir) {
-    return path.resolve(customDir);
-  }
-  return path.resolve(process.cwd(), "data", "invoice-requests");
-}
-
 function resolveLogFile(createdAtIso: string): string {
   const day = createdAtIso.slice(0, 10);
-  return path.join(resolveLogDir(), `${day}.jsonl`);
+  return path.join(resolveInvoiceRequestLogDir(), `${day}.jsonl`);
 }
 
 export async function recordInvoiceRequest(entry: InvoiceRequestRecord): Promise<string> {

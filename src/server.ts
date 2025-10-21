@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Request, type Response } from "express";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,8 @@ import { parseOrder, type OrderT } from "./schemas/order.js";
 import { validateUbl } from "./validation/ubl.js";
 import { recordHistory } from "./history/logger.js";
 import { recordInvoiceRequest } from "./history/invoiceRequestLog.js";
+import { PORT, isPeppolSendEnabled, isUblValidationEnabled } from "./config.js"; // migrated
+import { requireApiKey } from "./mw_auth.js"; // migrated
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
 
@@ -71,44 +73,9 @@ export const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-function resolveApiKeys(): string[] {
-  const raw = process.env.VIDA_API_KEYS ?? "";
-  return raw
-    .split(",")
-    .map((key) => key.trim())
-    .filter(Boolean);
-}
-
-function extractApiKey(req: Request): string | null {
-  const header = req.header("x-vida-api-key") ?? req.header("authorization");
-  if (!header) return null;
-  const trimmed = header.trim();
-  if (trimmed.toLowerCase().startsWith("bearer ")) {
-    return trimmed.slice(7).trim();
-  }
-  return trimmed;
-}
-
-app.use((req, res, next) => {
-  const apiKeys = resolveApiKeys();
-  if (apiKeys.length === 0 || req.method === "GET") {
-    next();
-    return;
-  }
-
-  const providedKey = extractApiKey(req);
-  if (!providedKey) {
-    res.status(401).json({ error: "missing API key" });
-    return;
-  }
-
-  if (!apiKeys.includes(providedKey)) {
-    res.status(403).json({ error: "invalid API key" });
-    return;
-  }
-
-  next();
-});
+const OUTPUT_DIR = path.resolve(process.cwd(), "output");
+const invoiceIndex = new Map<string, string>();
+const idempotencyCache = new Map<string, { invoiceId: string; invoicePath: string }>();
 
 app.get(["/health", "/_health", "/healthz", "/healthz/"], (_req, res) => {
   res.status(200).type("text/plain").send("ok");
@@ -124,7 +91,7 @@ type ValidationErrorShape = {
   ruleId?: string;
 };
 
-app.post("/api/invoice", async (req: Request, res: Response) => {
+app.post("/api/invoice", requireApiKey, async (req: Request, res: Response) => {
   const rawRequestId = req.header("x-request-id") ?? randomUUID();
   const requestId = rawRequestId.trim() || randomUUID();
   const tenantHeader = req.header("x-vida-tenant") ?? undefined;
@@ -214,21 +181,38 @@ app.post("/api/invoice", async (req: Request, res: Response) => {
   }
 });
 
-app.post("/webhook/order-created", async (req: Request, res: Response) => {
+app.post("/webhook/order-created", requireApiKey, async (req: Request, res: Response) => {
   const startedAt = Date.now();
   const requestId = randomUUID();
   const rawSource = req.body?.source;
   const sourceLabel = typeof rawSource === "string" ? rawSource.toLowerCase() : undefined;
 
+  const headerIdempotencyKey = req.header("idempotency-key") ?? req.header("x-idempotency-key");
+  const idempotencyKey = headerIdempotencyKey?.trim() ? headerIdempotencyKey.trim() : undefined;
+
   let order: OrderT | undefined;
+  let invoiceId: string | undefined;
   let invoicePath: string | undefined;
   let errorMessage: string | undefined;
   let responseSent = false;
   let peppolStatus: string | undefined;
   let peppolId: string | undefined;
   let validationErrors: { path: string; msg: string }[] | undefined;
+  let skipHistoryLog = false;
 
   try {
+    if (idempotencyKey) {
+      const cached = idempotencyCache.get(idempotencyKey);
+      if (cached) {
+        invoiceId = cached.invoiceId;
+        invoicePath = cached.invoicePath;
+        res.json({ invoiceId });
+        responseSent = true;
+        skipHistoryLog = true;
+        return;
+      }
+    }
+
     const { source, payload, supplier, defaultVatRate, currencyMinorUnit } = req.body ?? {};
 
     order = buildOrderFromSource(source, payload, supplier, {
@@ -238,7 +222,7 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
 
     const xml = await orderToInvoiceXml(order);
 
-    const shouldValidate = (process.env.VIDA_VALIDATE_UBL ?? "").toLowerCase() === "true";
+    const shouldValidate = isUblValidationEnabled();
     if (shouldValidate) {
       const validation = validateUbl(xml);
       if (!validation.ok) {
@@ -247,17 +231,21 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
       }
     }
 
-    const outputDir = path.resolve(process.cwd(), "output");
-    await mkdir(outputDir, { recursive: true });
+    await mkdir(OUTPUT_DIR, { recursive: true });
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    invoicePath = path.join(outputDir, `invoice_${timestamp}.xml`);
+    invoiceId = `invoice_${timestamp}`;
+    invoicePath = path.join(OUTPUT_DIR, `${invoiceId}.xml`);
 
     await writeFile(invoicePath, xml, "utf8");
-    console.log(`[webhook] Generated invoice at ${invoicePath}`);
+    invoiceIndex.set(invoiceId, invoicePath);
+    if (idempotencyKey) {
+      idempotencyCache.set(idempotencyKey, { invoiceId, invoicePath });
+    }
+    console.info(`[webhook] Generated invoice at ${invoicePath}`);
 
-    const shouldSendPeppol = (process.env.VIDA_PEPPOL_SEND ?? "").toLowerCase() === "true";
+    const peppolEnabled = isPeppolSendEnabled();
 
-    if (shouldSendPeppol) {
+    if (peppolEnabled) {
       const supplierName = order.supplier.name ?? "unknown";
       const receiverName = order.buyer.name ?? "unknown";
       const docId = order.orderNumber ?? requestId;
@@ -275,7 +263,7 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
       }
     }
 
-    res.json({ path: invoicePath, xmlLength: xml.length });
+    res.json({ invoiceId });
     responseSent = true;
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : "Failed to generate invoice";
@@ -298,6 +286,9 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
       responseSent = true;
     }
   } finally {
+    if (skipHistoryLog) {
+      return;
+    }
     const meta = order?.meta as Record<string, unknown> | undefined;
     const originalOrderId =
       typeof meta?.originalOrderId === "string" || typeof meta?.originalOrderId === "number"
@@ -311,6 +302,7 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
         orderNumber: order?.orderNumber,
         originalOrderId,
         status: responseSent && !errorMessage ? "ok" : "error",
+        invoiceId,
         invoicePath,
         durationMs: Date.now() - startedAt,
         error: responseSent && !errorMessage ? undefined : errorMessage,
@@ -324,11 +316,36 @@ app.post("/webhook/order-created", async (req: Request, res: Response) => {
   }
 });
 
+app.get("/invoice/:invoiceId", requireApiKey, async (req: Request, res: Response) => {
+  const invoiceIdParam = req.params.invoiceId?.trim();
+  if (!invoiceIdParam) {
+    res.status(400).json({ error: "invalid invoice id" });
+    return;
+  }
+
+  const knownPath = invoiceIndex.get(invoiceIdParam);
+  const candidatePath = knownPath ?? path.join(OUTPUT_DIR, `${invoiceIdParam}.xml`);
+
+  try {
+    const xml = await readFile(candidatePath, "utf8");
+    invoiceIndex.set(invoiceIdParam, candidatePath);
+    res.type("application/xml; charset=utf-8").send(xml);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === "ENOENT") {
+      res.status(404).json({ error: "invoice not found" });
+      return;
+    }
+    console.error(`[invoice/${invoiceIdParam}] failed to load invoice`, error);
+    res.status(500).json({ error: "failed to load invoice" });
+  }
+});
+
 const HOST = "0.0.0.0";
 
-export function startServer(port = Number(process.env.PORT ?? 3001)) {
+export function startServer(port = PORT) {
   const server = app.listen(port, HOST, () => {
-    console.log(`Server listening on ${HOST}:${port}`);
+    console.info(`Server listening on ${HOST}:${port}`);
   });
 
   const stop = () => {

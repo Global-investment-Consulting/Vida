@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { resolvePeppolApMode, resolvePeppolOutboxDir } from "../config.js"; // migrated
 
 export type SendInvoiceMeta = {
   sender: string;
@@ -13,25 +14,10 @@ export type SendInvoiceResult = {
   raw: Record<string, unknown>;
 };
 
-const DEFAULT_MODE = "stub";
-const DEFAULT_OUTBOX = path.resolve(process.cwd(), "data", "ap-outbox");
-
-function resolveMode(): string {
-  return (process.env.VIDA_PEPPOL_AP ?? DEFAULT_MODE).toLowerCase();
-}
-
-function resolveOutboxDir(): string {
-  const override = process.env.VIDA_PEPPOL_OUTBOX_DIR;
-  if (override) {
-    return path.resolve(override);
-  }
-  return DEFAULT_OUTBOX;
-}
-
 export async function sendInvoice(xml: string, meta: SendInvoiceMeta): Promise<SendInvoiceResult> {
-  const mode = resolveMode();
+  const mode = resolvePeppolApMode();
   if (mode === "stub") {
-    const outboxDir = resolveOutboxDir();
+    const outboxDir = resolvePeppolOutboxDir();
     await mkdir(outboxDir, { recursive: true });
     const filename = `${meta.docId}.xml`;
     const filePath = path.join(outboxDir, filename);

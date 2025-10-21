@@ -6,12 +6,12 @@ async function main() {
   const records = await listHistory(limit > 0 ? limit : 20);
 
   if (records.length === 0) {
-    console.log("No history entries found.");
+    console.info("No history entries found.");
     return;
   }
 
-  console.table(
-    records.map((record) => ({
+  records.forEach((record) => {
+    const summary = {
       timestamp: record.timestamp,
       requestId: record.requestId,
       source: record.source ?? "unknown",
@@ -20,8 +20,9 @@ async function main() {
       invoicePath: record.invoicePath ?? "-",
       durationMs: record.durationMs,
       error: record.error ?? ""
-    }))
-  );
+    };
+    console.info(JSON.stringify(summary));
+  });
 }
 
 main().catch((error) => {

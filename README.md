@@ -12,9 +12,13 @@ npm start
 | Variable | Purpose |
 | --- | --- |
 | `VIDA_API_KEYS` | Comma-separated API keys allowed to access POST endpoints (e.g. `/webhook/order-created`). |
+| `PORT` | Port the HTTP server listens on (defaults to `3001`). |
+| `LOG_LEVEL` | Text log level for future structured logging (`info` by default). |
 | `VIDA_HISTORY_DIR` | Override directory for JSONL history logs (defaults to `./data/history`). |
+| `VIDA_VALIDATE_UBL` | When `true`, validates generated UBL before returning or queuing it. |
 | `VIDA_PEPPOL_SEND` | When `true`, enables Access Point delivery (stub integration scaffold). |
 | `VIDA_PEPPOL_AP` | Access Point mode (defaults to `stub`). |
+| `VIDA_PEPPOL_OUTBOX_DIR` | Override directory for stub AP outbox files (defaults to `./data/ap-outbox`). |
 
 ## Useful Commands
 - `npm run history:list` – print the most recent webhook history entries.
@@ -36,17 +40,16 @@ docker compose up --build
 
 The container exposes the API on port `8080` and mounts `./data` for history logs.
 
-<<<<<<< HEAD
 ## Cloud Run
 - Staging deploys run via `.github/workflows/deploy-staging.yml`, which builds with Cloud Build, pushes to Artifact Registry (`europe-west1-docker.pkg.dev/$GCP_PROJECT_ID/vida/vida:staging`), and deploys the `vida-staging` service.
 - The health probe responds with `ok` at `/health`, `/_health`, `/healthz`, and `/healthz/`.
-=======
+
 ## API
 Generate an invoice directly through `/api/invoice` (see [openapi.js](openapi.js) for the payload schema):
 
 ```bash
 curl -sS http://localhost:3001/api/invoice \
-  -H "x-vida-api-key: <api-key>" \
+  -H "x-api-key: <api-key>" \
   -H "Content-Type: application/json" \
   --data @order.json > invoice.xml
 ```
@@ -87,7 +90,7 @@ Example request payload:
 ```bash
 # create a BIS 3.0-valid UBL from an order
 curl -sS https://vida-staging.fly.dev/api/invoice \
-  -H "Authorization: Bearer $VIDA_TOKEN" \
+  -H "x-api-key: $VIDA_KEY" \
   -H "Content-Type: application/json" \
   --data @examples/order.sample.json > invoice.xml
 
@@ -118,7 +121,9 @@ Snippet of the XML you should receive:
 }
 ```
 
-- Auth: pass either the staging JWT or API key via `Authorization: Bearer …`. Missing/invalid tokens return `401/403`.
+- Auth: provide a configured API key via `x-api-key: <value>` (or `Authorization: Bearer <value>` for backwards compatibility). Missing or invalid values return `401`.
 - BIS validation errors map to `message` (human readable), `field` (dot-path), and optional `ruleId` returned by the validator.
 - Common pitfalls: omit buyer endpoint IDs, send currency codes outside ISO 4217, or forget to align `vatRate` with `buyer` country — the validator will reject those.
->>>>>>> origin/main
+
+## Authentication
+All mutating endpoints (`POST /api/invoice`, `POST /webhook/order-created`, etc.) require a valid API key. Configure keys via `VIDA_API_KEYS` (comma-separated) and supply one of them in the `x-api-key` header for every request. For legacy clients, `Authorization: Bearer <key>` is still accepted, but new integrations should move to `x-api-key` exclusively.

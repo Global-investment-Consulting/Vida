@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { listHistory, recordHistory } from "../../src/history/logger.js";
+import { listHistory, recordHistory } from "src/history/logger.js";
 
 let historyDir: string;
 
