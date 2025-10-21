@@ -1,4 +1,4 @@
-name: Deploy Staging (refresh 2025-10-21T08:11:01Z)
+name: Deploy staging
 
 on:
   workflow_dispatch:
@@ -23,9 +23,10 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     env:
-      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-      REGION:     ${{ vars.REGION }}
-      SERVICE:    ${{ vars.SERVICE }}
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID != '' && vars.GCP_PROJECT_ID || 'vida-staging-1760866919' }}
+      REGION:     ${{ vars.REGION != '' && vars.REGION || 'europe-west1' }}
+      SERVICE:    ${{ vars.SERVICE != '' && vars.SERVICE || 'vida-staging' }}
+      CLOUD_BUILD_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET != '' && vars.CLOUD_BUILD_BUCKET || 'vida-staging-1760866919-cb-src' }}
       IMAGE_TAG:  staging
     steps:
       - uses: actions/checkout@v4
@@ -40,66 +41,24 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Enable required services (non-fatal)
+      - name: Enable required services (idempotent)
+        shell: bash
         run: |
-          set -euo pipefail
-          for s in run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com; do
-            gcloud services enable "$s" && echo "enabled $s" || echo "skip enable $s"
+          set -Eeuo pipefail
+          for svc in run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com; do
+            gcloud services enable "$svc" && echo "Enabled $svc" || echo "Skipping enable for $svc"
           done
 
-      - name: Preflight: verify CB auth to bucket  # BEGIN VIDA PREFLIGHT
+      - name: Ensure Artifact Registry auth
+        run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+
+      - name: Deploy via Cloud Build and Cloud Run
         shell: bash
         env:
-          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          CB_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET }}
-        run: |
-          set -Eeuo pipefail
-          BKT="${CB_BUCKET:-${PROJECT_ID}_cloudbuild}"
-          echo "Using bucket: gs://${BKT}"
-          gcloud storage ls "gs://${BKT}/" >/dev/null
-          echo "Bucket list ✅"
-          echo "hello" | gcloud storage cp - "gs://${BKT}/_preflight.txt"
-          echo "Write ✅"
-      # END VIDA PREFLIGHT
-      - name: Build & push image (Cloud Build -> Artifact Registry)
-        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+          REGION: ${{ env.REGION }}
+          SERVICE: ${{ env.SERVICE }}
+          CLOUD_BUILD_BUCKET: ${{ env.CLOUD_BUILD_BUCKET }}
           IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
-        run: |
-          set -euo pipefail
-          BID=$(gcloud builds submit --gcs-source-staging-dir=gs://vida-staging-1760866919-cb-src --tag "$IMAGE_URI" --async --format='value(id)')
-          echo "Cloud Build ID: $BID"
-          LOG_URL=$(gcloud builds describe "$BID" --format='value(logUrl)')
-          echo "Cloud Build logs: $LOG_URL"
-          for i in {1..90}; do
-            S=$(gcloud builds describe "$BID" --format='value(status)')
-            echo "Cloud Build status: $S"
-            case "$S" in SUCCESS) break;; FAILURE|CANCELLED) exit 1;; esac
-            sleep 5
-          done
-
-      - name: Deploy to Cloud Run
-        env:
-          IMAGE_URI:  europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: |
-          gcloud run deploy "${SERVICE}" --image "${IMAGE_URI}" --region "${REGION}" \
-            --allow-unauthenticated \
-            --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox" \
-            --timeout 600s
-
-      - name: Verify deployment
-        run: |
-          set -Eeuo pipefail
-          URL=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')
-          echo "Service URL: $URL" | tee -a "$GITHUB_STEP_SUMMARY"
-          ok=1
-          for p in /_health /_health/ /health /healthz/ /healthz; do
-            if curl -fsS "$URL$p" >/dev/null; then
-              echo "Health OK at $p" | tee -a "$GITHUB_STEP_SUMMARY"
-              ok=0
-              break
-            else
-              echo "Probe failed at $p (non-fatal, trying next)" | tee -a "$GITHUB_STEP_SUMMARY"
-            fi
-          done
-          exit $ok
+        run: ./scripts/deploy_staging.sh
