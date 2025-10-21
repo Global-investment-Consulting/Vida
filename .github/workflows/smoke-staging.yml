@@ -1,0 +1,131 @@
+name: Staging Smoke Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  staging-smoke-test:
+    name: Staging Smoke Test
+    runs-on: ubuntu-latest
+    env:
+      STAGING_URL: https://vida-staging-mtsykhir3q-ew.a.run.app
+      STAGING_SMOKE_API_KEY: ${{ secrets.STAGING_SMOKE_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Prepare smoke payload
+        run: |
+          set -Eeuo pipefail
+          TS="$(date +%s)"
+          cat <<JSON > order.json
+          {
+            "orderNumber": "SMK-${TS}",
+            "buyer": {
+              "name": "Smoke Test BV",
+              "vat": "BE0123456789"
+            },
+            "lines": [
+              {
+                "sku": "SMOKE-1",
+                "description": "Test line",
+                "qty": 1,
+                "unitPrice": 100.00,
+                "vatRate": 21
+              }
+            ],
+            "shipping": {
+              "description": "Standard",
+              "amount": 10.00,
+              "vatRate": 21
+            },
+            "currency": "EUR"
+          }
+          JSON
+          cat order.json
+          : > curl_status.log
+
+      - name: Health
+        run: |
+          set -Eeuo pipefail
+          check() {
+            local path="$1"
+            local header_file
+            header_file="$(mktemp)"
+            local body_file
+            body_file="$(mktemp)"
+            if curl -sS -D "$header_file" -o "$body_file" "$STAGING_URL$path"; then
+              local status
+              status="$(head -n1 "$header_file" | awk '{print $2}')"
+              head -n1 "$header_file"
+              printf '%s exit=%s status=%s\n' "$path" "0" "${status:-n/a}" >> curl_status.log
+              if [[ "${status}" != "200" ]]; then
+                echo "Unexpected status $status for $path" >&2
+                exit 1
+              fi
+            else
+              local ec=$?
+              head -n1 "$header_file" || true
+              local status
+              status="$(head -n1 "$header_file" | awk '{print $2}')"
+              printf '%s exit=%s status=%s\n' "$path" "$ec" "${status:-n/a}" >> curl_status.log
+              exit "$ec"
+            fi
+          }
+
+          check "/_health"
+          check "/healthz/"
+
+      - name: Create invoice
+        run: |
+          set -Eeuo pipefail
+          headers="$(mktemp)"
+          ts="$(date +%s)"
+          curl -sS -D "$headers" -o response.json \
+            -X POST "$STAGING_URL/webhook/order-created" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $STAGING_SMOKE_API_KEY" \
+            -H "Idempotency-Key: smoke-$ts" \
+            --data-binary @order.json
+          ec=$?
+          status="$(head -n1 "$headers" | awk '{print $2}')"
+          printf '%s exit=%s status=%s\n' '/webhook/order-created' "$ec" "${status:-n/a}" >> curl_status.log
+          cat response.json
+          if [[ "$ec" -ne 0 || "${status}" != "200" ]]; then
+            echo "Invoice creation failed (exit=$ec, status=${status:-n/a})" >&2
+            exit 1
+          fi
+          if [[ "$(jq -r '.invoiceId // empty' response.json)" == "" || "$(jq -r '.invoiceId' response.json)" == "null" ]]; then
+            echo "Missing invoiceId in response" >&2
+            exit 1
+          fi
+
+      - name: Fetch UBL
+        run: |
+          set -Eeuo pipefail
+          ID="$(jq -r '.invoiceId' response.json)"
+          echo "Fetching UBL for invoice ${ID}"
+          headers="$(mktemp)"
+          tmp_body="$(mktemp)"
+          curl -sS -D "$headers" "$STAGING_URL/invoice/$ID" -o "$tmp_body"
+          ec=$?
+          status="$(head -n1 "$headers" | awk '{print $2}')"
+          printf '%s exit=%s status=%s\n' "/invoice/${ID}" "$ec" "${status:-n/a}" >> curl_status.log
+          if [[ "$ec" -ne 0 || "${status}" != "200" ]]; then
+            echo "Failed to fetch invoice XML (exit=$ec, status=${status:-n/a})" >&2
+            exit 1
+          fi
+          head -n 40 "$tmp_body" | tee ubl_head.txt
+
+      - name: Curl diagnostics on failure
+        if: failure()
+        run: |
+          echo "=== curl status log ==="
+          cat curl_status.log || echo "curl_status.log missing"
+          echo "=== response.json ==="
+          cat response.json 2>/dev/null || echo "response.json missing"
