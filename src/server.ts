@@ -9,21 +9,23 @@ import { ZodError } from "zod";
 import { shopifyToOrder } from "./connectors/shopify.js";
 import { wooToOrder } from "./connectors/woocommerce.js";
 import { orderToInvoiceXml } from "./peppol/convert.js";
-import { sendInvoice } from "./peppol/apClient.js";
 import { parseOrder, type OrderT } from "./schemas/order.js";
 import { validateUbl } from "./validation/ubl.js";
 import { listHistory, recordHistory } from "./history/logger.js";
 import { recordInvoiceRequest } from "./history/invoiceRequestLog.js";
-import { PORT, isPeppolSendEnabled, isUblValidationEnabled } from "./config.js"; // migrated
+import { getInvoiceStatus, setInvoiceStatus } from "./history/invoiceStatus.js";
+import { sendWithRetry } from "./services/apDelivery.js";
+import { PORT, isApSendOnCreateEnabled, isUblValidationEnabled } from "./config.js"; // migrated
 import { requireApiKey } from "./mw_auth.js"; // migrated
 import { createApiKeyRateLimiter } from "./middleware/rateLimiter.js";
 import { getCachedInvoice, storeCachedInvoice } from "./services/idempotencyCache.js";
 import {
-  incrementApSendFail,
-  incrementApSendSuccess,
+  incrementApWebhookFail,
+  incrementApWebhookOk,
   incrementInvoicesCreated,
   renderMetrics
 } from "./metrics.js";
+import type { ApDeliveryStatus } from "./apadapters/types.js";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
 
@@ -306,23 +308,23 @@ app.post(
       incrementInvoicesCreated();
       console.info(`[webhook] Generated invoice at ${invoicePath}`);
 
-      if (isPeppolSendEnabled()) {
-        const supplierName = order.supplier.name ?? "unknown";
-        const receiverName = order.buyer.name ?? "unknown";
-        const docId = order.orderNumber ?? requestId;
+      if (isApSendOnCreateEnabled()) {
         try {
-          const result = await sendInvoice(xml, {
-            sender: supplierName,
-            receiver: receiverName,
-            docId
+          if (!invoiceId) {
+            throw new Error("Missing invoice id for AP delivery");
+          }
+          await sendWithRetry({
+            tenant: tenantId,
+            invoiceId,
+            ublXml: xml,
+            requestId
           });
-          incrementApSendSuccess();
-          peppolStatus = result.status;
-          peppolId = result.id;
+          const deliveryStatus = await getInvoiceStatus(tenantId, invoiceId);
+          peppolStatus = deliveryStatus?.status;
+          peppolId = deliveryStatus?.providerId;
         } catch (apError) {
-          incrementApSendFail();
-          const message = apError instanceof Error ? apError.message : "PEPPOL send failed";
-          throw new HttpError(`PEPPOL send failed: ${message}`, 502);
+          const message = apError instanceof Error ? apError.message : "AP send failed";
+          throw new HttpError(`AP send failed: ${message}`, 502);
         }
       }
 
@@ -385,6 +387,102 @@ app.post(
     }
   }
 );
+
+const VALID_AP_STATUSES = new Set(["queued", "sent", "delivered", "error"]);
+
+app.post("/ap/status-webhook", requireApiKey, async (req: Request, res: Response) => {
+  const requestId = randomUUID();
+  const tenant =
+    typeof req.body?.tenant === "string" && req.body.tenant.trim().length > 0
+      ? req.body.tenant.trim()
+      : undefined;
+  const invoiceId =
+    typeof req.body?.invoiceId === "string" && req.body.invoiceId.trim().length > 0
+      ? req.body.invoiceId.trim()
+      : undefined;
+  const providerId =
+    typeof req.body?.providerId === "string" && req.body.providerId.trim().length > 0
+      ? req.body.providerId.trim()
+      : undefined;
+  const status =
+    typeof req.body?.status === "string" && req.body.status.trim().length > 0
+      ? req.body.status.trim().toLowerCase()
+      : undefined;
+  const attempts =
+    typeof req.body?.attempts === "number" && Number.isFinite(req.body.attempts)
+      ? Math.max(0, Math.floor(req.body.attempts))
+      : undefined;
+  const lastError =
+    typeof req.body?.error === "string" && req.body.error.trim().length > 0
+      ? req.body.error.trim()
+      : undefined;
+
+  if (!invoiceId || !providerId || !status || !VALID_AP_STATUSES.has(status)) {
+    incrementApWebhookFail();
+    console.error(
+      `[ap/webhook] requestId=${requestId} tenant=${tenant ?? "unknown"} invoiceId=${invoiceId ?? "missing"} status=INVALID payload`
+    );
+    res.status(400).json({ error: "Invalid webhook payload" });
+    return;
+  }
+
+  try {
+    await setInvoiceStatus({
+      tenant,
+      invoiceId,
+      providerId,
+      status: status as ApDeliveryStatus,
+      attempts,
+      lastError
+    });
+    incrementApWebhookOk();
+    console.info(
+      `[ap/webhook] requestId=${requestId} tenant=${tenant ?? "unknown"} invoiceId=${invoiceId} providerId=${providerId} status=${status}`
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    incrementApWebhookFail();
+    console.error(
+      `[ap/webhook] requestId=${requestId} tenant=${tenant ?? "unknown"} invoiceId=${invoiceId} status=ERROR`,
+      error
+    );
+    res.status(500).json({ error: "Failed to update status" });
+  }
+});
+
+app.get("/invoice/:invoiceId/status", requireApiKey, async (req: Request, res: Response) => {
+  const invoiceIdParam = req.params.invoiceId?.trim();
+  if (!invoiceIdParam) {
+    res.status(400).json({ error: "invalid invoice id" });
+    return;
+  }
+  const tenantHeader = req.header("x-vida-tenant");
+  const tenantQuery = typeof req.query?.tenant === "string" ? req.query.tenant : undefined;
+  const tenant =
+    typeof tenantHeader === "string" && tenantHeader.trim().length > 0
+      ? tenantHeader.trim()
+      : tenantQuery && tenantQuery.trim().length > 0
+        ? tenantQuery.trim()
+        : undefined;
+
+  try {
+    const record = await getInvoiceStatus(tenant, invoiceIdParam);
+    if (!record) {
+      res.status(404).json({ error: "status not found" });
+      return;
+    }
+    res.json({
+      status: record.status,
+      providerId: record.providerId ?? null
+    });
+  } catch (error) {
+    console.error(
+      `[invoice/${invoiceIdParam}/status] failed to load status tenant=${tenant ?? "unknown"}`,
+      error
+    );
+    res.status(500).json({ error: "failed to load status" });
+  }
+});
 
 app.get("/invoice/:invoiceId", requireApiKey, async (req: Request, res: Response) => {
   const invoiceIdParam = req.params.invoiceId?.trim();

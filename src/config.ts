@@ -46,3 +46,13 @@ export const resolveInvoiceRequestLogDir = (): string =>
     process.env.VIDA_INVOICE_REQUEST_LOG_DIR,
     path.resolve(process.cwd(), "data", "invoice-requests")
   ); // migrated
+export const resolveInvoiceStatusDir = (): string =>
+  resolveDir(process.env.VIDA_INVOICE_STATUS_DIR, path.resolve(process.cwd(), "data", "invoice-status"));
+export const resolveDlqPath = (): string =>
+  process.env.VIDA_DLQ_PATH
+    ? path.resolve(process.env.VIDA_DLQ_PATH)
+    : path.resolve(process.cwd(), "data", "dlq.jsonl");
+export const resolveApAdapterName = (): string =>
+  (process.env.VIDA_AP_ADAPTER ?? "mock").trim().toLowerCase();
+export const isApSendOnCreateEnabled = (): boolean =>
+  normalizeBoolean(process.env.VIDA_AP_SEND_ON_CREATE, false);
