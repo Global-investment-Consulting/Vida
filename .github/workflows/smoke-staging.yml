@@ -23,28 +23,53 @@ jobs:
         run: |
           set -Eeuo pipefail
           TS="$(date +%s)"
+          ISSUE_DATE="$(date -u +%Y-%m-%d)"
           cat <<JSON > order.json
           {
-            "orderNumber": "SMK-${TS}",
-            "buyer": {
-              "name": "Smoke Test BV",
-              "vat": "BE0123456789"
-            },
-            "lines": [
-              {
-                "sku": "SMOKE-1",
-                "description": "Test line",
-                "qty": 1,
-                "unitPrice": 100.00,
-                "vatRate": 21
-              }
-            ],
-            "shipping": {
-              "description": "Standard",
-              "amount": 10.00,
-              "vatRate": 21
-            },
-            "currency": "EUR"
+            "source": "order",
+            "payload": {
+              "orderNumber": "SMK-${TS}",
+              "currency": "EUR",
+              "issueDate": "${ISSUE_DATE}",
+              "buyer": {
+                "name": "Smoke Test BV",
+                "vatId": "BE0123456789",
+                "address": {
+                  "streetName": "Smoke Street 1",
+                  "cityName": "Brussels",
+                  "postalZone": "1000",
+                  "countryCode": "BE"
+                }
+              },
+              "supplier": {
+                "name": "Vida Demo BV",
+                "vatId": "BE0987654321",
+                "address": {
+                  "streetName": "Avenue Deploy 42",
+                  "cityName": "Brussels",
+                  "postalZone": "1000",
+                  "countryCode": "BE"
+                },
+                "contact": {
+                  "electronicMail": "smoke@vida.example"
+                }
+              },
+              "defaultVatRate": 21,
+              "lines": [
+                {
+                  "description": "Smoke Test Line",
+                  "quantity": 1,
+                  "unitPriceMinor": 10000,
+                  "vatRate": 21
+                },
+                {
+                  "description": "Shipping",
+                  "quantity": 1,
+                  "unitPriceMinor": 1000,
+                  "vatRate": 21
+                }
+              ]
+            }
           }
           JSON
           cat order.json
