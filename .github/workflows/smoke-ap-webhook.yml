@@ -3,9 +3,14 @@ name: Staging AP Webhook Smoke
 on:
   workflow_dispatch:
     inputs:
-      reason:
-        description: Optional context for smoke run
+      providerId:
+        description: Provider identifier to include in payload
         required: false
+        default: mock-integration-test
+      status:
+        description: Delivery status to report
+        required: false
+        default: delivered
 
 jobs:
   smoke:
@@ -14,41 +19,68 @@ jobs:
     env:
       STAGING_URL: https://vida-staging-mtsykhir3q-ew.a.run.app
       AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
+      PROVIDER_ID: ${{ github.event.inputs.providerId || 'mock-integration-test' }}
+      DELIVERY_STATUS: ${{ github.event.inputs.status || 'delivered' }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Build signed payload
+          node-version: "20"
+
+      - name: Send signed webhook
+        id: post_webhook
         run: |
           set -Eeuo pipefail
-          TS=$(date -u +%s)
-          export TS
-          cat <<'JSON' > payload.json
-          { "event":"status","providerId":"mock-integration-test","status":"delivered","eventId":"smoke-$TS","timestamp":$TS }
-          JSON
-          SIG=$(node - <<'NODE'
-          const crypto = require('crypto');
-          const fs = require('fs');
-          const secret = process.env.AP_WEBHOOK_SECRET;
-          const body = fs.readFileSync('payload.json');
-          const signature = crypto.createHmac('sha256', secret).update(body).digest('hex');
-          process.stdout.write(signature);
+          if [[ -z "${AP_WEBHOOK_SECRET:-}" ]]; then
+            echo "AP_WEBHOOK_SECRET is not configured" >&2
+            exit 1
+          fi
+
+          TS="$(date -u +%s)"
+          EVENT_ID="smoke-${TS}"
+          export TS EVENT_ID PROVIDER_ID DELIVERY_STATUS
+          python3 - <<'PY_PAYLOAD'
+import json, os
+payload = {
+    "event": "status",
+    "providerId": os.environ["PROVIDER_ID"],
+    "status": os.environ["DELIVERY_STATUS"],
+    "eventId": os.environ["EVENT_ID"],
+    "timestamp": int(os.environ["TS"])
+}
+with open('payload.json', 'w', encoding='utf-8') as fh:
+    json.dump(payload, fh, separators=(',', ':'))
+PY_PAYLOAD
+
+          SIG="$(node - <<'NODE'
+const crypto = require('crypto');
+const fs = require('fs');
+const secret = process.env.AP_WEBHOOK_SECRET;
+const body = fs.readFileSync('payload.json');
+const signature = crypto.createHmac('sha256', secret).update(body).digest('hex');
+process.stdout.write(signature);
 NODE
-          )
-          echo "SIG=$SIG" >> "$GITHUB_ENV"
-          echo "TS=$TS" >> "$GITHUB_ENV"
-      - name: POST signed webhook
-        run: |
-          set -Eeuo pipefail
-          curl -sS -w "\n%{http_code}\n" -X POST "$STAGING_URL/ap/status-webhook" \
+)"
+
+          HTTP_STATUS="$(curl -sS -w '%{http_code}' -o response.json \
+            -X POST "${STAGING_URL}/ap/status-webhook" \
             -H "Content-Type: application/json" \
-            -H "X-AP-Signature: $SIG" \
-            -H "X-Event-ID: smoke-$TS" \
-            -H "X-Event-Timestamp: $TS" \
-            --data-binary @payload.json | tee resp.txt
-          test "$(tail -n1 resp.txt)" = "200"
-      - name: Check metrics
+            -H "X-AP-Signature: ${SIG}" \
+            -H "X-Event-ID: ${EVENT_ID}" \
+            -H "X-Event-Timestamp: ${TS}" \
+            --data-binary @payload.json)"
+
+          echo "HTTP_STATUS=${HTTP_STATUS}" >> "$GITHUB_ENV"
+          echo "PAYLOAD=$(cat payload.json)" >> "$GITHUB_OUTPUT"
+          echo "HTTP body:"; cat response.json
+
+          if [[ "${HTTP_STATUS}" != "200" ]]; then
+            echo "Unexpected HTTP status: ${HTTP_STATUS}" >&2
+            exit 1
+          fi
+
+      - name: Print metrics head
         run: |
           set -Eeuo pipefail
-          curl -sS "$STAGING_URL/metrics" | grep -E "ap_webhook_ok_total|ap_webhook_fail_total" | sed -n '1,6p'
+          curl -sS "${STAGING_URL}/metrics" | grep -E "ap_webhook_ok_total|ap_webhook_fail_total" | head -n 10
