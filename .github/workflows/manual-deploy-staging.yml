@@ -1,0 +1,90 @@
+name: Manual Deploy Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why are you deploying?"
+        required: false
+        default: "manual"
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION:     ${{ vars.REGION }}
+  SERVICE:    ${{ vars.SERVICE }}
+  IMAGE_TAG:  staging
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          export_environment_variables: true
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: '>= 461.0.0'
+
+      - name: Enable required services (non-fatal)
+        run: |
+          set -e
+          for S in cloudbuild.googleapis.com run.googleapis.com artifactregistry.googleapis.com; do
+            gcloud services enable "$S" --project "$PROJECT_ID" || true
+          done
+
+      - name: Build & push image (Cloud Build -> Artifact Registry)
+        env:
+          # Prefer custom cb source bucket if provided as repo variable
+          CB_SRC_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET }}
+        run: |
+          set -euo pipefail
+          IMAGE_URI="europe-west1-docker.pkg.dev/${PROJECT_ID}/vida/vida:${IMAGE_TAG}"
+
+          # Use custom GCS source bucket if set; else let CB default to <project>_cloudbuild
+          EXTRA_FLAG=""
+          if [ -n "${CB_SRC_BUCKET:-}" ]; then
+            EXTRA_FLAG="--gcs-source-staging-dir=gs://${CB_SRC_BUCKET}"
+          fi
+
+          echo "Building to: $IMAGE_URI"
+          BID=$(gcloud builds submit ${EXTRA_FLAG} --tag "$IMAGE_URI" --async --project "$PROJECT_ID" --format='value(id)')
+          echo "Cloud Build ID: $BID"
+          LOG_URL=$(gcloud builds describe "$BID" --project "$PROJECT_ID" --format='value(logUrl)')
+          echo "Cloud Build logs: $LOG_URL"
+
+          for i in {1..120}; do
+            S=$(gcloud builds describe "$BID" --project "$PROJECT_ID" --format='value(status)')
+            echo "Cloud Build status: $S"
+            case "$S" in
+              SUCCESS) break;;
+              FAILURE|CANCELLED) echo "Build failed"; exit 1;;
+            esac
+            sleep 5
+          done
+
+      - name: Deploy to Cloud Run
+        run: |
+          set -euo pipefail
+          IMAGE_URI="europe-west1-docker.pkg.dev/${PROJECT_ID}/vida/vida:${IMAGE_TAG}"
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --platform managed --image "$IMAGE_URI" --allow-unauthenticated --quiet
+
+      - name: Verify deployment
+        run: |
+          set -euo pipefail
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --format='value(status.url)')
+          echo "Service URL: $URL"
+          for p in /_health /health /healthz/; do
+            code=$(curl -fs -o /dev/null -w '%{http_code}' "$URL$p" || true)
+            printf "%-9s -> %s\n" "$p" "$code"
+          done
