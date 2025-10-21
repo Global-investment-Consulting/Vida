@@ -51,6 +51,7 @@ jobs:
 
       - name: Ensure Artifact Registry auth
         run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+
       - name: Deploy via Cloud Build and Cloud Run
         shell: bash
         env:

@@ -1,0 +1,88 @@
+name: Manual Deploy Staging
+on:
+  workflow_di spatch:
+    inputs:
+      reason:
+        des cription: Why are you running this?
+        r equired: false
+        default: manual
+
+jobs: 
+  deploy:
+    runs-on: ubuntu-latest
+    env :
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ ID }}
+      REGION: ${{ vars.REGION }}
+       SERVICE: ${{ vars.SERVICE }}
+      IMAGE_TAG:  staging
+
+    steps:
+      - uses: actions/ch eckout@v4
+
+      - name: Authenticate to Goog le Cloud
+        uses: google-github-actions/ auth@v2
+        with:
+          # Must be a J SON service account key with required roles
+           credentials_json: ${{ secrets.GCP_SA _KEY }}
+
+      - name: Set up Cloud SDK
+         uses: google-github-actions/setup-gcloud@v 2
+
+      - name: Build & push image (Cloud Bu ild -> Artifact Registry)
+        env:
+           PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+           REGION: ${{ vars.REGION }}
+           SERVICE: ${{ vars.SERVICE }}
+          IMAGE_ TAG: ${{ env.IMAGE_TAG }}
+          SRC_BUCKE T: vida-staging-1760866919-cb-src
+        run : |
+          set -euo pipefail
+          IMA GE_URI="europe-west1-docker.pkg.dev/${PROJECT _ID}/vida/vida:${IMAGE_TAG}"
+
+          # 1)  Create a reproducible source tarball from the  repo
+          cd "$GITHUB_WORKSPACE"
+           git rev-parse HEAD
+          tar -czf /tm p/src.tgz --exclude .git .
+
+          # 2) Up load to our custom EU bucket (avoid the restr icted _cloudbuild bucket)
+          DEST="gs: //${SRC_BUCKET}/builds/${GITHUB_RUN_ID}/src.t gz"
+          echo "Uploading source tarball  to: ${DEST}"
+          gcloud storage cp /tmp /src.tgz "${DEST}"
+
+          # 3) Submit the  build from that exact GCS object, in the cor rect region
+          echo "Submitting build  in region ${REGION} from ${DEST}"
+          B ID="$(gcloud builds submit \
+            --re gion="${REGION}" \
+            --gcs-source=" ${DEST}" \
+            --tag "${IMAGE_URI}" \ 
+            --async --format='value(id)')"
+
+           echo "Cloud Build ID: ${BID}"
+           echo "Cloud Build logs: $(gcloud builds  describe "${BID}" --region="${REGION}" --form at='value(logUrl)')"
+
+          for _ in $(se q 1 120); do
+            S="$(gcloud builds d escribe "${BID}" --region="${REGION}" --forma t='value(status)')"
+            echo "Cloud B uild status: ${S}"
+            case "$S" in S UCCESS) break ;; FAILURE|CANCELLED) exit 1 ;;  esac
+            sleep 5
+          done
+
+       - name: Deploy to Cloud Run
+        run: | 
+          set -euo pipefail
+          IMAGE_ URI="europe-west1-docker.pkg.dev/${{ vars.GCP _PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }} "
+          gcloud run deploy "${{ vars.SERVI CE }}" \
+            --project "${{ vars.GCP_ PROJECT_ID }}" \
+            --region "${{ va rs.REGION }}" \
+            --image "${IMAGE_ URI}" \
+            --platform managed \
+             --quiet
+
+      - name: Verify deploym ent
+        run: |
+          set -euo pipefai l
+          URL="$(gcloud run services descri be "${{ vars.SERVICE }}" --project "${{ vars. GCP_PROJECT_ID }}" --region "${{ vars.REGION  }}" --format='value(status.url)')"
+           echo "Service URL: $URL"
+          for p in / _health /health /healthz/; do
+            pri ntf "%-9s -> %s\n" "$p" "$(curl -fs -o /dev/n ull -w '%{http_code}' "$URL$p" || true)"
+           done 
