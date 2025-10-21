@@ -1,0 +1,50 @@
+name: Staging AP Webhook Smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Staging AP Webhook Smoke
+    runs-on: ubuntu-latest
+    env:
+      STAGING_URL: https://vida-staging-mtsykhir3q-ew.a.run.app
+      AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build signed payload
+        run: |
+          set -Eeuo pipefail
+          TS=$(date -u +%s)
+          export TS
+          cat <<'JSON' > payload.json
+          { "event":"status","providerId":"mock-integration-test","status":"delivered","eventId":"smoke-$TS","timestamp":$TS }
+          JSON
+          SIG=$(node - <<'NODE'
+          const crypto = require('crypto');
+          const fs = require('fs');
+          const secret = process.env.AP_WEBHOOK_SECRET;
+          const body = fs.readFileSync('payload.json');
+          const signature = crypto.createHmac('sha256', secret).update(body).digest('hex');
+          process.stdout.write(signature);
+NODE
+          )
+          echo "SIG=$SIG" >> "$GITHUB_ENV"
+          echo "TS=$TS" >> "$GITHUB_ENV"
+      - name: POST signed webhook
+        run: |
+          set -Eeuo pipefail
+          curl -sS -w "\n%{http_code}\n" -X POST "$STAGING_URL/ap/status-webhook" \
+            -H "Content-Type: application/json" \
+            -H "X-AP-Signature: $SIG" \
+            -H "X-Event-ID: smoke-$TS" \
+            -H "X-Event-Timestamp: $TS" \
+            --data-binary @payload.json | tee resp.txt
+          test "$(tail -n1 resp.txt)" = "200"
+      - name: Check metrics
+        run: |
+          set -Eeuo pipefail
+          curl -sS "$STAGING_URL/metrics" | grep -E "ap_webhook_ok_total|ap_webhook_fail_total" | sed -n '1,6p'
