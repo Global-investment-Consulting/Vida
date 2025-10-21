@@ -137,7 +137,9 @@ jobs:
           echo "Fetching UBL for invoice ${ID}"
           headers="$(mktemp)"
           tmp_body="$(mktemp)"
-          curl -sS -D "$headers" "$STAGING_URL/invoice/$ID" -o "$tmp_body"
+          curl -sS -D "$headers" "$STAGING_URL/invoice/$ID" \
+            -H "x-api-key: $STAGING_SMOKE_API_KEY" \
+            -o "$tmp_body"
           ec=$?
           status="$(head -n1 "$headers" | awk '{print $2}')"
           printf '%s exit=%s status=%s\n' "/invoice/${ID}" "$ec" "${status:-n/a}" >> curl_status.log
