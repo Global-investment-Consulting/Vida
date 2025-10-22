@@ -10,9 +10,6 @@ on:
         description: "Status to set (queued|sent|delivered|error)"
         required: false
         default: "delivered"
-  push:
-    paths:
-      - ".github/workflows/smoke-ap-webhook.yml"
 jobs:
   smoke:
     runs-on: ubuntu-latest
