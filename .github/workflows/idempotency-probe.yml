@@ -1,0 +1,98 @@
+name: Idempotency Probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      STAGING_URL: https://vida-staging-731655778429.europe-west1.run.app
+      STAGING_SMOKE_API_KEY: ${{ secrets.STAGING_SMOKE_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure tools
+        run: |
+          set -Eeuo pipefail
+          which jq >/dev/null || sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Prepare payload
+        run: |
+          set -Eeuo pipefail
+          TS="$(date +%s)"
+          echo "IDEMPOTENCY_KEY=probe-$TS" >> "$GITHUB_ENV"
+          ISSUE_DATE="$(date -u +%Y-%m-%d)"
+          cat <<JSON > order.json
+          {
+            "source": "order",
+            "payload": {
+              "orderNumber": "IDEMP-$TS",
+              "currency": "EUR",
+              "issueDate": "$ISSUE_DATE",
+              "buyer": {
+                "name": "Idempotency Test BV",
+                "vatId": "BE0123456789",
+                "address": {
+                  "streetName": "Avenue Retry 42",
+                  "cityName": "Brussels",
+                  "postalZone": "1000",
+                  "countryCode": "BE"
+                }
+              },
+              "supplier": {
+                "name": "Vida Demo BV",
+                "vatId": "BE0987654321"
+              },
+              "defaultVatRate": 21,
+              "lines": [
+                {
+                  "description": "Subscription",
+                  "quantity": 1,
+                  "unitPriceMinor": 5000,
+                  "vatRate": 21
+                }
+              ]
+            }
+          }
+          JSON
+          cat order.json
+
+      - name: POST once
+        run: |
+          set -Eeuo pipefail
+          STATUS=$(curl -sS -D headers1.txt -o resp1.json -w "%{http_code}" \
+            -X POST "$STAGING_URL/webhook/order-created" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $STAGING_SMOKE_API_KEY" \
+            -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
+            --data-binary @order.json || echo "000")
+          echo "FIRST_STATUS=$STATUS" >> "$GITHUB_ENV"
+          jq '.' resp1.json || true
+
+      - name: POST replay
+        run: |
+          set -Eeuo pipefail
+          STATUS=$(curl -sS -D headers2.txt -o resp2.json -w "%{http_code}" \
+            -X POST "$STAGING_URL/webhook/order-created" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $STAGING_SMOKE_API_KEY" \
+            -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
+            --data-binary @order.json || echo "000")
+          echo "SECOND_STATUS=$STATUS" >> "$GITHUB_ENV"
+          jq '.' resp2.json || true
+
+      - name: Summarize
+        run: |
+          set -Eeuo pipefail
+          FIRST_ID="$(jq -r '.invoiceId // empty' resp1.json)"
+          SECOND_ID="$(jq -r '.invoiceId // empty' resp2.json)"
+          printf 'idempotency_key=%s\n' "$IDEMPOTENCY_KEY"
+          printf 'first_status=%s invoiceId=%s\n' "${FIRST_STATUS:-n/a}" "${FIRST_ID:-n/a}"
+          printf 'second_status=%s invoiceId=%s\n' "${SECOND_STATUS:-n/a}" "${SECOND_ID:-n/a}"
+          SAME=false
+          if [[ -n "$FIRST_ID" && "$FIRST_ID" == "$SECOND_ID" ]]; then
+            SAME=true
+          fi
+          printf 'same_invoice=%s\n' "$SAME"
