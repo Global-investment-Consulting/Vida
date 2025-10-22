@@ -1,87 +1,51 @@
 name: Staging AP Webhook Smoke
-
 on:
   workflow_dispatch:
     inputs:
       providerId:
-        description: Provider identifier to include in payload
+        description: "Provider ID to simulate"
         required: false
-        default: mock-integration-test
+        default: "mock-integration-test"
       status:
-        description: Delivery status to report
+        description: "Status to set (queued|sent|delivered|error)"
         required: false
-        default: delivered
-
+        default: "delivered"
+  push:
+    paths:
+      - ".github/workflows/smoke-ap-webhook.yml"
 jobs:
   smoke:
-    name: Staging AP Webhook Smoke
     runs-on: ubuntu-latest
     env:
       STAGING_URL: https://vida-staging-mtsykhir3q-ew.a.run.app
       AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
-      PROVIDER_ID: ${{ github.event.inputs.providerId || 'mock-integration-test' }}
-      DELIVERY_STATUS: ${{ github.event.inputs.status || 'delivered' }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Send signed webhook
-        id: post_webhook
+        with: { node-version: '20' }
+      - name: Build signed payload
+        id: build
         run: |
-          set -Eeuo pipefail
-          if [[ -z "${AP_WEBHOOK_SECRET:-}" ]]; then
-            echo "AP_WEBHOOK_SECRET is not configured" >&2
-            exit 1
-          fi
-
-          TS="$(date -u +%s)"
-          EVENT_ID="smoke-${TS}"
-          export TS EVENT_ID PROVIDER_ID DELIVERY_STATUS
-          python3 - <<'PY_PAYLOAD'
-import json, os
-payload = {
-    "event": "status",
-    "providerId": os.environ["PROVIDER_ID"],
-    "status": os.environ["DELIVERY_STATUS"],
-    "eventId": os.environ["EVENT_ID"],
-    "timestamp": int(os.environ["TS"])
-}
-with open('payload.json', 'w', encoding='utf-8') as fh:
-    json.dump(payload, fh, separators=(',', ':'))
-PY_PAYLOAD
-
-          SIG="$(node - <<'NODE'
-const crypto = require('crypto');
-const fs = require('fs');
-const secret = process.env.AP_WEBHOOK_SECRET;
-const body = fs.readFileSync('payload.json');
-const signature = crypto.createHmac('sha256', secret).update(body).digest('hex');
-process.stdout.write(signature);
-NODE
-)"
-
-          HTTP_STATUS="$(curl -sS -w '%{http_code}' -o response.json \
-            -X POST "${STAGING_URL}/ap/status-webhook" \
+          TS=$(date -u +%s)
+          PROVIDER_ID="${{ github.event.inputs.providerId || 'mock-integration-test' }}"
+          STATUS="${{ github.event.inputs.status || 'delivered' }}"
+          cat > payload.json <<JSON
+          { "event":"status","providerId":"$PROVIDER_ID","status":"$STATUS","eventId":"smoke-$TS","timestamp":$TS }
+          JSON
+          SIG=$(node -e "const c=require('crypto');const fs=require('fs');const s=process.env.AP_WEBHOOK_SECRET;const b=fs.readFileSync('payload.json');process.stdout.write(c.createHmac('sha256',s).update(b).digest('hex'))")
+          echo "TS=$TS" >> $GITHUB_ENV
+          echo "SIG=$SIG" >> $GITHUB_ENV
+      - name: POST signed webhook
+        run: |
+          set -e
+          CODE=$(curl -sS -o resp.txt -w "%{http_code}" -X POST "$STAGING_URL/ap/status-webhook" \
             -H "Content-Type: application/json" \
-            -H "X-AP-Signature: ${SIG}" \
-            -H "X-Event-ID: ${EVENT_ID}" \
-            -H "X-Event-Timestamp: ${TS}" \
-            --data-binary @payload.json)"
-
-          echo "HTTP_STATUS=${HTTP_STATUS}" >> "$GITHUB_ENV"
-          echo "PAYLOAD=$(cat payload.json)" >> "$GITHUB_OUTPUT"
-          echo "HTTP body:"; cat response.json
-
-          if [[ "${HTTP_STATUS}" != "200" ]]; then
-            echo "Unexpected HTTP status: ${HTTP_STATUS}" >&2
-            exit 1
-          fi
-
-      - name: Print metrics head
+            -H "X-AP-Signature: $SIG" \
+            -H "X-Event-ID: smoke-$TS" \
+            -H "X-Event-Timestamp: $TS" \
+            --data-binary @payload.json)
+          echo "HTTP $CODE"
+          test "$CODE" = "200"
+      - name: Metrics head
         run: |
-          set -Eeuo pipefail
-          curl -sS "${STAGING_URL}/metrics" | grep -E "ap_webhook_ok_total|ap_webhook_fail_total" | head -n 10
-
+          curl -sS "$STAGING_URL/metrics" | grep -E "ap_webhook_ok_total|ap_webhook_fail_total|ap_webhook_latency_ms" | sed -n '1,20p'
