@@ -84,3 +84,4 @@ NODE
         run: |
           set -Eeuo pipefail
           curl -sS "${STAGING_URL}/metrics" | grep -E "ap_webhook_ok_total|ap_webhook_fail_total" | head -n 10
+
