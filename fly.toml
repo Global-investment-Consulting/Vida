@@ -1,8 +1,0 @@
-app = "vida-staging"
-primary_region = "ams"
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = true
-  auto_start_machines = true

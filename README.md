@@ -47,7 +47,9 @@ docker compose up --build
 The container exposes the API on port `8080` and mounts `./data` for history logs.
 
 ## Cloud Run
-- Staging deploys run via `.github/workflows/deploy-staging.yml`, which builds with Cloud Build, pushes to Artifact Registry (`europe-west1-docker.pkg.dev/$GCP_PROJECT_ID/vida/vida:staging`), and deploys the `vida-staging` service.
+- Staging deploys run via `.github/workflows/deploy-staging.yml`, which builds with Cloud Build, pushes to Artifact Registry (`europe-west1-docker.pkg.dev/$GCP_PROJECT_ID/vida/vida:staging`), and deploys the `vida-staging` service to Cloud Run.
+- Canonical staging URL: `https://vida-staging-731655778429.europe-west1.run.app` (used by smokes and the frontend default unless `VITE_API_URL` overrides it).
+- Fly.io deployments have been retired; any legacy `FLY_*` repository secrets are unused and can be removed during the next credentials hygiene pass.
 - The health probe responds with `ok` at `/health`, `/_health`, `/healthz`, and `/healthz/`.
 
 ## Accounts Payable adapters
@@ -69,7 +71,7 @@ curl -sS http://localhost:3001/api/invoice \
 
 ## Quickstart (staging)
 
-Use the [OpenAPI spec](openapi.js) for field details. The sample payload in [`examples/order.sample.json`](examples/order.sample.json) matches the `/api/invoice` schema. Staging runs at **https://vida-staging.fly.dev**.
+Use the [OpenAPI spec](openapi.js) for field details. The sample payload in [`examples/order.sample.json`](examples/order.sample.json) matches the `/api/invoice` schema. Staging runs at **https://vida-staging-731655778429.europe-west1.run.app**.
 
 Example request payload:
 
@@ -102,7 +104,7 @@ Example request payload:
 
 ```bash
 # create a BIS 3.0-valid UBL from an order
-curl -sS https://vida-staging.fly.dev/api/invoice \
+curl -sS https://vida-staging-731655778429.europe-west1.run.app/api/invoice \
   -H "x-api-key: $VIDA_KEY" \
   -H "Content-Type: application/json" \
   --data @examples/order.sample.json > invoice.xml
