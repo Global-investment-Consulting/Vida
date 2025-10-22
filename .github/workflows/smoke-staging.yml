@@ -8,7 +8,7 @@ jobs:
     name: Staging Smoke Test
     runs-on: ubuntu-latest
     env:
-      STAGING_URL: https://vida-staging-mtsykhir3q-ew.a.run.app
+      STAGING_URL: https://vida-staging-731655778429.europe-west1.run.app
       STAGING_SMOKE_API_KEY: ${{ secrets.STAGING_SMOKE_API_KEY }}
     steps:
       - name: Checkout

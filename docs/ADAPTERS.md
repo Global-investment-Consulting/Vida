@@ -35,6 +35,7 @@ All variables default to empty strings, so missing configuration will surface as
 - Staging remains on the `mock` adapter by default. The GitHub Actions workflow (`.github/workflows/deploy-staging.yml`) explicitly sets `VIDA_AP_ADAPTER=mock` and should not be changed unless Billit credentials are fully provisioned for staging.
 - To opt into Billit for another environment (including local development), set `VIDA_AP_ADAPTER=billit` and provide the Billit secrets noted above. Leaving `VIDA_AP_ADAPTER` unset keeps the mock adapter active.
 - When rotating between adapters, restart the process to ensure cached OAuth tokens are cleared (or invoke `resetBillitAuthCache` in tests).
+- The shared Cloud Run staging service lives at `https://vida-staging-731655778429.europe-west1.run.app`; smokes and manual checks should use that URL unless a temporary override is announced.
 
 ## Status webhooks
 
@@ -45,4 +46,3 @@ Billit (or any AP provider) can send asynchronous delivery updates to ViDA via `
 - The webhook handler and polling via `getStatus` work together: webhooks push real-time updates, and polling covers any missed events.
 
 Refer to the API documentation for payload format expectations and the webhook signature process. The adapter tests (`tests/apadapters/billit.test.ts`) demonstrate the mocked request flow end-to-end.
-
