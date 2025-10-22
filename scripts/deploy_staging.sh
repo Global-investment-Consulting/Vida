@@ -32,6 +32,7 @@ read_inputs() {
 
   LOG_LEVEL="${LOG_LEVEL:-info}"
   NODE_ENV="${NODE_ENV:-production}"
+  AP_WEBHOOK_SECRET="${AP_WEBHOOK_SECRET:-}"
   VIDA_AP_ADAPTER="${VIDA_AP_ADAPTER:-mock}"
   VIDA_AP_SEND_ON_CREATE="${VIDA_AP_SEND_ON_CREATE:-true}"
 
@@ -171,7 +172,7 @@ deploy_cloud_run() {
     --image "$IMAGE_URI" \
     --region "$REGION" \
     --allow-unauthenticated \
-    --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox,VIDA_API_KEYS=${VIDA_API_KEYS},LOG_LEVEL=${LOG_LEVEL},NODE_ENV=${NODE_ENV},VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE}" \
+    --set-env-vars "JWT_SECRET=${JWT_SECRET},PEPPOL_MODE=sandbox,VIDA_API_KEYS=${VIDA_API_KEYS},LOG_LEVEL=${LOG_LEVEL},NODE_ENV=${NODE_ENV},VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE},AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET}" \
     --timeout=600s
 
   SERVICE_URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"

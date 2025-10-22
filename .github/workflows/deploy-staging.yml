@@ -69,6 +69,7 @@ jobs:
           IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           VIDA_API_KEYS: ${{ secrets.VIDA_STAGING_API_KEYS }}
+          AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
           LOG_LEVEL: info
           NODE_ENV: production
         run: ./scripts/deploy_staging.sh
