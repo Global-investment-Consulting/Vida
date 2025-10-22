@@ -59,6 +59,11 @@ The container exposes the API on port `8080` and mounts `./data` for history log
 - Provision empty GitHub Actions secrets for both staging and production environments so credentials can be added later: `AP_BASE_URL`, `AP_CLIENT_ID`, `AP_CLIENT_SECRET`, `AP_API_KEY`.
 - Webhook callbacks continue to use `AP_WEBHOOK_SECRET` — see the adapters doc for details on `/ap/status-webhook`.
 
+### Billit sandbox setup (checklist)
+- In GitHub → *Settings → Secrets and variables → Actions*, add repository secrets for `AP_BASE_URL` plus either `AP_API_KEY` or both `AP_CLIENT_ID` / `AP_CLIENT_SECRET` (leave values blank until you receive sandbox credentials).
+- Keep `VIDA_AP_ADAPTER=mock` in staging. For a one-off Billit validation run, dispatch the `Smoke AP Billit` workflow from the Actions tab — it temporarily sets `VIDA_AP_ADAPTER=billit` for that smoke only.
+- Once credentials are in place, rerun the smoke to confirm connectivity before considering a staging deploy override.
+
 ## API
 Generate an invoice directly through `/api/invoice` (see [openapi.js](openapi.js) for the payload schema):
 

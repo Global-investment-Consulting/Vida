@@ -37,6 +37,11 @@ All variables default to empty strings, so missing configuration will surface as
 - When rotating between adapters, restart the process to ensure cached OAuth tokens are cleared (or invoke `resetBillitAuthCache` in tests).
 - The shared Cloud Run staging service lives at `https://vida-staging-731655778429.europe-west1.run.app`; smokes and manual checks should use that URL unless a temporary override is announced.
 
+### Billit sandbox setup (quick checklist)
+- Add repository secrets in **GitHub → Settings → Secrets and variables → Actions** for `AP_BASE_URL` plus either `AP_API_KEY` or both `AP_CLIENT_ID` and `AP_CLIENT_SECRET` once credentials are issued.
+- Leave staging on `VIDA_AP_ADAPTER=mock`; trigger the `Smoke AP Billit` workflow from the Actions tab when you want to exercise the Billit adapter — the workflow injects `VIDA_AP_ADAPTER=billit` only for that smoke.
+- Rerun the smoke after updating credentials to verify authentication before promoting the adapter in any deployment pipeline.
+
 ## Status webhooks
 
 Billit (or any AP provider) can send asynchronous delivery updates to ViDA via `POST /ap/status-webhook`. The existing implementation validates a shared secret (`AP_WEBHOOK_SECRET`) and persists statuses via `src/history/invoiceStatus.ts`. When enabling Billit:
