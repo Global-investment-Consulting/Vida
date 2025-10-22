@@ -7,6 +7,7 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const distSrcDir = path.join(rootDir, "dist", "src");
 const useDistSrc = (process.env.CI === "true" || process.env.VITEST_USE_DIST === "true") && fs.existsSync(distSrcDir);
 const sourceRoot = useDistSrc ? distSrcDir : path.join(rootDir, "src");
+const isPrismaBackend = (process.env.VIDA_STORAGE_BACKEND ?? "").trim().toLowerCase() === "prisma";
 
 export default defineConfig({
   resolve: {
@@ -54,6 +55,13 @@ export default defineConfig({
     reporters: "default",
     restoreMocks: true,
     isolate: true,
-    pool: "vmThreads"
+    pool: "vmThreads",
+    maxConcurrency: isPrismaBackend ? 1 : undefined,
+    poolOptions: {
+      threads: {
+        maxWorkers: isPrismaBackend ? 1 : undefined,
+        minWorkers: isPrismaBackend ? 1 : undefined
+      }
+    }
   }
 });

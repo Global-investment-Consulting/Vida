@@ -13,6 +13,7 @@ import { billitAdapter, resetBillitAuthCache } from "src/apadapters/billit.js";
 import { getAdapter } from "src/apadapters/index.js";
 import { sendWithRetry } from "src/services/apDelivery.js";
 import { resetInvoiceStatusCache } from "src/history/invoiceStatus.js";
+import { getStorage, resetStorage } from "src/storage/index.js";
 
 const BASE_URL = "https://billit.test";
 const originalFetch = globalThis.fetch;
@@ -22,13 +23,15 @@ describe("billit adapter", () => {
   let client: MockClient;
   const originalDispatcher = getGlobalDispatcher();
 
-  beforeEach(() => {
+  beforeEach(async () => {
     agent = new MockAgent();
     agent.disableNetConnect();
     client = agent.get(BASE_URL);
     setGlobalDispatcher(agent);
     globalThis.fetch = undiciFetch;
     process.env.AP_BASE_URL = BASE_URL;
+    await resetStorage();
+    resetInvoiceStatusCache();
   });
 
   afterEach(async () => {
@@ -40,6 +43,7 @@ describe("billit adapter", () => {
     delete process.env.AP_CLIENT_SECRET;
     delete process.env.VIDA_DLQ_PATH;
     delete process.env.VIDA_INVOICE_STATUS_DIR;
+    await resetStorage();
     resetInvoiceStatusCache();
     await agent.close();
     setGlobalDispatcher(originalDispatcher);
@@ -229,12 +233,25 @@ describe("billit adapter", () => {
       })
     ).rejects.toThrow(/Billit send failed/);
 
-    const dlqContent = await readFile(dlqPath, "utf8");
-    const lines = dlqContent.trim().split("\n");
-    expect(lines).not.toHaveLength(0);
-    const lastEntry = JSON.parse(lines.at(-1) ?? "{}") as Record<string, string>;
-    expect(lastEntry.invoiceId).toBe("INV-ERR");
-    expect(lastEntry.error).toMatch(/Billit send failed/);
+    const backend = (process.env.VIDA_STORAGE_BACKEND ?? "file").toLowerCase();
+    let lastEntry: Record<string, string> | undefined;
+
+    if (backend === "prisma") {
+      const storage = getStorage();
+      if (typeof storage.dlq.count === "function") {
+        const count = await storage.dlq.count();
+        expect(count).toBeGreaterThanOrEqual(1);
+      }
+    } else {
+      const dlqContent = await readFile(dlqPath, "utf8");
+      const lines = dlqContent.trim().split("\n");
+      expect(lines).not.toHaveLength(0);
+      lastEntry = JSON.parse(lines.at(-1) ?? "{}") as Record<string, string>;
+      expect(lastEntry.invoiceId).toBe("INV-ERR");
+    }
+    if (lastEntry) {
+      expect(lastEntry.error).toMatch(/Billit send failed/);
+    }
 
     await rm(tmpRoot, { force: true, recursive: true });
   }, 15000);

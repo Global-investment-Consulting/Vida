@@ -17,6 +17,9 @@ jobs:
   ci:
     name: Build & Test (Node 20)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        backend: [file, prisma]
     env:
       CI: true
       TZ: UTC
@@ -29,9 +32,29 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npm run lint
+      - run: npm run lint -- --max-warnings=0
+        if: matrix.backend == 'file'
       - run: npm run build
-      - run: npm run test:ci
+        if: matrix.backend == 'file'
+      - name: Prisma Generate
+        if: matrix.backend == 'prisma'
+        run: npx prisma generate
+      - name: Prisma Migrate Deploy
+        if: matrix.backend == 'prisma'
+        env:
+          DATABASE_URL: file:./ci.db
+        run: npx prisma migrate deploy
+      - name: Run tests (file backend)
+        if: matrix.backend == 'file'
+        env:
+          VIDA_STORAGE_BACKEND: file
+        run: npm run test:ci
+      - name: Run tests (prisma backend)
+        if: matrix.backend == 'prisma'
+        env:
+          VIDA_STORAGE_BACKEND: prisma
+          DATABASE_URL: file:./ci.db
+        run: npm run test:ci
 
   docker:
     name: Build Docker image (main)

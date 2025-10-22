@@ -3,16 +3,19 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { listHistory, recordHistory } from "src/history/logger.js";
+import { resetStorage } from "src/storage/index.js";
 
 let historyDir: string;
 
 beforeEach(async () => {
   historyDir = await mkdtemp(path.join(tmpdir(), "vida-history-unit-"));
   process.env.VIDA_HISTORY_DIR = historyDir;
+  await resetStorage();
 });
 
 afterEach(async () => {
   delete process.env.VIDA_HISTORY_DIR;
+  await resetStorage();
   await rm(historyDir, { recursive: true, force: true }).catch(() => undefined);
 });
 
@@ -36,8 +39,11 @@ describe("history logger", () => {
       error: "timeout"
     });
 
-    const fileContent = await readFile(path.join(historyDir, "2025-01-02.jsonl"), "utf8");
-    expect(fileContent.trim().split("\n")).toHaveLength(1);
+    const backend = (process.env.VIDA_STORAGE_BACKEND ?? "file").toLowerCase();
+    if (backend === "file") {
+      const fileContent = await readFile(path.join(historyDir, "2025-01-02.jsonl"), "utf8");
+      expect(fileContent.trim().split("\n")).toHaveLength(1);
+    }
 
     const records = await listHistory(5);
     expect(records).toHaveLength(2);

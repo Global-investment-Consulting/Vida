@@ -8,6 +8,7 @@ import { app } from "src/server.js";
 import { getInvoiceStatus, resetInvoiceStatusCache } from "src/history/invoiceStatus.js";
 import { resetReplayGuard } from "src/services/replayGuard.js";
 import { renderMetrics, resetMetrics } from "src/metrics.js";
+import { resetStorage } from "src/storage/index.js";
 
 const API_KEY = "webhook-test-key";
 const AP_SECRET = "signing-secret";
@@ -38,6 +39,7 @@ describe("AP webhook signing and replay protection", () => {
     process.env.VIDA_INVOICE_STATUS_DIR = statusDir;
     process.env.VIDA_API_KEYS = API_KEY;
     process.env.AP_WEBHOOK_SECRET = AP_SECRET;
+    await resetStorage();
     resetInvoiceStatusCache();
     resetReplayGuard();
     resetMetrics();
@@ -47,6 +49,7 @@ describe("AP webhook signing and replay protection", () => {
     delete process.env.VIDA_INVOICE_STATUS_DIR;
     delete process.env.VIDA_API_KEYS;
     delete process.env.AP_WEBHOOK_SECRET;
+    await resetStorage();
     resetReplayGuard();
     resetInvoiceStatusCache();
     resetMetrics();

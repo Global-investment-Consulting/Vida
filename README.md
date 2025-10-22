@@ -26,6 +26,12 @@ npm start
 | `AP_API_KEY` | Billit API bearer token used when present. |
 | `AP_CLIENT_ID` / `AP_CLIENT_SECRET` | Billit OAuth client credentials used when no API key is configured. |
 
+## Storage Backends
+- The default storage bundle writes JSONL files under `./data`. No configuration changes are required for local development or staging.
+- Set `VIDA_STORAGE_BACKEND=prisma` to use the Prisma-backed stores. Provide a `DATABASE_URL` (e.g. `file:./dev.db` for SQLite or a Postgres connection URL) before starting the server. For Postgres, run Prisma commands with `PRISMA_SCHEMA_PATH=prisma/schema.postgres.prisma`.
+- Staging keeps `VIDA_STORAGE_BACKEND=file`. Flip the variable only when a managed database and migrations are available.
+- See [`docs/STORAGE.md`](docs/STORAGE.md) for setup instructions, migration commands, and backend switching guidance.
+
 ## Useful Commands
 - `npm run history:list` – print the most recent webhook history entries.
 
