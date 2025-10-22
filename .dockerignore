@@ -5,3 +5,7 @@ output
 data
 .git
 .gitignore
+
+!prisma/
+!public/
+!docs/

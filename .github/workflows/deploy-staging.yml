@@ -83,9 +83,12 @@ jobs:
           SERVICE: ${{ env.SERVICE }}
           AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
           VIDA_STAGING_API_KEYS: ${{ secrets.VIDA_STAGING_API_KEYS }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          VIDA_AP_ADAPTER: ${{ env.VIDA_AP_ADAPTER }}
+          VIDA_AP_SEND_ON_CREATE: ${{ env.VIDA_AP_SEND_ON_CREATE }}
         run: |
           set -Eeuo pipefail
           gcloud run services update "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
-            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_STAGING_API_KEYS},LOG_LEVEL=info,NODE_ENV=production"
+            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_STAGING_API_KEYS},LOG_LEVEL=info,NODE_ENV=production,VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE},PEPPOL_MODE=sandbox,JWT_SECRET=${JWT_SECRET}"
