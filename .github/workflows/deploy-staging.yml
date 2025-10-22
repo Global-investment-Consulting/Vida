@@ -73,3 +73,19 @@ jobs:
           LOG_LEVEL: info
           NODE_ENV: production
         run: ./scripts/deploy_staging.sh
+
+      - name: Ensure env on service
+        if: always()
+        shell: bash
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+          REGION: ${{ env.REGION }}
+          SERVICE: ${{ env.SERVICE }}
+          AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
+          VIDA_STAGING_API_KEYS: ${{ secrets.VIDA_STAGING_API_KEYS }}
+        run: |
+          set -Eeuo pipefail
+          gcloud run services update "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_STAGING_API_KEYS},LOG_LEVEL=info,NODE_ENV=production"
