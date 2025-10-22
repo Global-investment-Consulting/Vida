@@ -30,6 +30,8 @@ jobs:
       IMAGE_TAG:  staging
       VIDA_AP_ADAPTER: mock
       VIDA_AP_SEND_ON_CREATE: 'true'
+      COMMIT_SHA: ${{ github.sha }}
+      BUILT_AT: ${{ github.run_started_at }}
     steps:
       - uses: actions/checkout@v4
 

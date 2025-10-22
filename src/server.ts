@@ -154,6 +154,14 @@ app.get(["/health", "/_health", "/healthz", "/healthz/"], (_req, res) => {
   res.status(200).type("text/plain").send("ok");
 });
 
+app.get("/_version", (_req, res) => {
+  res.json({
+    version: process.env.npm_package_version ?? undefined,
+    commit: process.env.GITHUB_SHA ?? process.env.COMMIT_SHA ?? "local",
+    builtAt: process.env.BUILT_AT ?? new Date().toISOString()
+  });
+});
+
 app.get("/", (_req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
 });

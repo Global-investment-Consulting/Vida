@@ -8,6 +8,7 @@ set -Eeuo pipefail
 main() {
   cd_repo_root
   read_inputs
+  inject_build_metadata
   create_source_tarball
   upload_source_archive
   trigger_cloud_build
@@ -61,6 +62,30 @@ read_inputs() {
 
   # Prepare summary file handle if we are inside GitHub Actions.
   SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-}"
+}
+
+inject_build_metadata() {
+  if [[ -z "${COMMIT_SHA:-}" && -z "${BUILT_AT:-}" ]]; then
+    return
+  fi
+
+  local target=".env"
+  local tmp
+  tmp="$(mktemp)"
+
+  if [[ -f "$target" ]]; then
+    grep -Ev '^(COMMIT_SHA|BUILT_AT)=' "$target" > "$tmp" || true
+  fi
+
+  if [[ -n "${COMMIT_SHA:-}" ]]; then
+    printf 'COMMIT_SHA=%s\n' "$COMMIT_SHA" >> "$tmp"
+  fi
+
+  if [[ -n "${BUILT_AT:-}" ]]; then
+    printf 'BUILT_AT=%s\n' "$BUILT_AT" >> "$tmp"
+  fi
+
+  mv "$tmp" "$target"
 }
 
 create_source_tarball() {
