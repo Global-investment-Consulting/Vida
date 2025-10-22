@@ -62,18 +62,18 @@ jobs:
               "```"
             ].join("\n");
             const query = `repo:${context.repo.owner}/${context.repo.repo} "${title}" in:title state:open`;
-            const issues = await github.search.issuesAndPullRequests({ q: query });
+            const issues = await github.rest.search.issuesAndPullRequests({ q: query });
 
             if (issues.data.items.length > 0) {
               const issueNumber = issues.data.items[0].number;
-              await github.issues.createComment({
+              await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
                 body
               });
             } else {
-              await github.issues.create({
+              await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title,
