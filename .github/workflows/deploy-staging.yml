@@ -31,9 +31,19 @@ jobs:
       VIDA_AP_ADAPTER: mock
       VIDA_AP_SEND_ON_CREATE: 'true'
       COMMIT_SHA: ${{ github.sha }}
-      BUILT_AT: ${{ github.run_started_at }}
+      BUILT_AT: ${{ github.event.head_commit.timestamp || github.run_started_at }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Write build metadata
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="$(jq -r '.version' package.json)"
+          printf 'COMMIT_SHA=%s\n' "${GITHUB_SHA}" >> build.env
+          printf 'BUILT_AT=%s\n' "${{ github.event.head_commit.timestamp || github.run_started_at }}" >> build.env
+          printf 'VERSION=%s\n' "${VERSION}" >> build.env
+          printf 'VERSION=%s\n' "${VERSION}" >> "${GITHUB_ENV}"
 
       - name: Sanity check secret parses (no output)
         run: node -e "JSON.parse(process.env.GCP_SA_KEY); process.stdout.write('ok\n')"
@@ -74,6 +84,7 @@ jobs:
           AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
           LOG_LEVEL: info
           NODE_ENV: production
+          VERSION: ${{ env.VERSION }}
         run: ./scripts/deploy_staging.sh
 
       - name: Ensure env on service

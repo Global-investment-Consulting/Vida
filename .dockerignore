@@ -9,3 +9,4 @@ data
 !prisma/
 !public/
 !docs/
+!build.env

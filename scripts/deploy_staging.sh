@@ -8,7 +8,6 @@ set -Eeuo pipefail
 main() {
   cd_repo_root
   read_inputs
-  inject_build_metadata
   create_source_tarball
   upload_source_archive
   trigger_cloud_build
@@ -64,30 +63,6 @@ read_inputs() {
   SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-}"
 }
 
-inject_build_metadata() {
-  if [[ -z "${COMMIT_SHA:-}" && -z "${BUILT_AT:-}" ]]; then
-    return
-  fi
-
-  local target=".env"
-  local tmp
-  tmp="$(mktemp)"
-
-  if [[ -f "$target" ]]; then
-    grep -Ev '^(COMMIT_SHA|BUILT_AT)=' "$target" > "$tmp" || true
-  fi
-
-  if [[ -n "${COMMIT_SHA:-}" ]]; then
-    printf 'COMMIT_SHA=%s\n' "$COMMIT_SHA" >> "$tmp"
-  fi
-
-  if [[ -n "${BUILT_AT:-}" ]]; then
-    printf 'BUILT_AT=%s\n' "$BUILT_AT" >> "$tmp"
-  fi
-
-  mv "$tmp" "$target"
-}
-
 create_source_tarball() {
   echo "Creating source archive..."
   tar --exclude='.git' \
@@ -108,15 +83,21 @@ upload_source_archive() {
 
 trigger_cloud_build() {
   echo "Triggering Cloud Build..."
+  local commit_sha="${COMMIT_SHA:-unknown}"
+  local built_at="${BUILT_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+  local version="${VERSION:-unknown}"
   local payload
   payload="$(jq -n \
     --arg bucket "$CLOUD_BUILD_BUCKET" \
     --arg object "$BUILD_OBJECT" \
     --arg image "$IMAGE_URI" \
+    --arg commit "$commit_sha" \
+    --arg built "$built_at" \
+    --arg version "$version" \
     '{
       source: { storageSource: { bucket: $bucket, object: $object } },
       steps: [
-        { name: "gcr.io/cloud-builders/docker", args: ["build", "-t", $image, "."] },
+        { name: "gcr.io/cloud-builders/docker", args: ["build", "-t", $image, ".", "--build-arg", "COMMIT_SHA=" + $commit, "--build-arg", "BUILT_AT=" + $built, "--build-arg", "VERSION=" + $version] },
         { name: "gcr.io/cloud-builders/docker", args: ["push", $image] }
       ],
       images: [$image],

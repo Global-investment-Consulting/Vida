@@ -11,7 +11,13 @@ RUN npm ci
 COPY prisma ./prisma
 RUN npx prisma generate
 
-# Copy the rest of the source and build
+# Copy build metadata and source, then build
+COPY build.env ./
+# shellcheck disable=SC2034 -- build args used via ENV assignments
+ARG COMMIT_SHA
+ARG BUILT_AT
+ARG VERSION
+ENV COMMIT_SHA=${COMMIT_SHA} BUILT_AT=${BUILT_AT} npm_package_version=${VERSION}
 COPY . .
 RUN npm run build
 
@@ -28,6 +34,12 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/docs ./docs
+COPY --from=builder /app/build.env ./build.env
+# shellcheck disable=SC2034 -- build args used via ENV assignments
+ARG COMMIT_SHA
+ARG BUILT_AT
+ARG VERSION
+ENV COMMIT_SHA=${COMMIT_SHA} BUILT_AT=${BUILT_AT} npm_package_version=${VERSION}
 
 ENV NODE_ENV=production HOST=0.0.0.0
 EXPOSE 8080
