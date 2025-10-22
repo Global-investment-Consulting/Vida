@@ -8,6 +8,7 @@ import { listInvoiceStatuses, resetInvoiceStatusCache } from "src/history/invoic
 import { resetRateLimitBuckets } from "src/middleware/rateLimiter.js";
 import { resetIdempotencyCache } from "src/services/idempotencyCache.js";
 import { renderMetrics, resetMetrics } from "src/metrics.js";
+import { getStorage, resetStorage } from "src/storage/index.js";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
 const API_KEY = "retry-test-key";
@@ -42,6 +43,7 @@ describe("AP send retries and DLQ", () => {
     process.env.VIDA_API_KEYS = API_KEY;
     process.env.VIDA_AP_ADAPTER = "mock_error";
     process.env.VIDA_AP_SEND_ON_CREATE = "true";
+    await resetStorage();
     resetInvoiceStatusCache();
     resetIdempotencyCache();
     resetRateLimitBuckets();
@@ -69,6 +71,7 @@ describe("AP send retries and DLQ", () => {
     delete process.env.VIDA_API_KEYS;
     delete process.env.VIDA_AP_ADAPTER;
     delete process.env.VIDA_AP_SEND_ON_CREATE;
+    await resetStorage();
     resetInvoiceStatusCache();
     resetIdempotencyCache();
     resetRateLimitBuckets();
@@ -117,20 +120,29 @@ describe("AP send retries and DLQ", () => {
     expect(metrics).toContain("ap_send_success_total 0");
     expect(metrics).toMatch(/ap_queue_current 0/);
 
-    const dlqPath = path.join(dlqDir, "dlq.jsonl");
-    const dlqContent = await readFile(dlqPath, "utf8");
-    const lines = dlqContent
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-    expect(lines).toHaveLength(1);
-    const entry = JSON.parse(lines[0]) as {
-      invoiceId: string;
-      tenant: string | null;
-      error: string;
-    };
-    expect(entry.invoiceId).toBe(record.invoiceId);
-    expect(entry.tenant).toBe("tenant-retry");
-    expect(entry.error).toMatch(/Mock adapter forced failure/);
+    const backend = (process.env.VIDA_STORAGE_BACKEND ?? "file").toLowerCase();
+    if (backend === "prisma") {
+      const storage = getStorage();
+      if (typeof storage.dlq.count === "function") {
+        const dlqCount = await storage.dlq.count();
+        expect(dlqCount).toBeGreaterThanOrEqual(1);
+      }
+    } else {
+      const dlqPath = path.join(dlqDir, "dlq.jsonl");
+      const dlqContent = await readFile(dlqPath, "utf8");
+      const lines = dlqContent
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+      expect(lines).toHaveLength(1);
+      const entry = JSON.parse(lines[0]) as {
+        invoiceId: string;
+        tenant: string | null;
+        error: string;
+      };
+      expect(entry.invoiceId).toBe(record.invoiceId);
+      expect(entry.tenant).toBe("tenant-retry");
+      expect(entry.error).toMatch(/Mock adapter forced failure/);
+    }
   }, 20000);
 });

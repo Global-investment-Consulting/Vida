@@ -1,63 +1,8 @@
-import { appendFile, mkdir, readFile } from "node:fs/promises";
-import path from "node:path";
-import { resolveInvoiceStatusDir } from "../config.js";
 import { type ApDeliveryStatus } from "../apadapters/types.js";
+import { getStorage } from "../storage/index.js";
+import type { InvoiceStatusValue } from "../storage/types.js";
 
-export type InvoiceStatusRecord = {
-  tenant: string;
-  invoiceId: string;
-  providerId?: string;
-  status: ApDeliveryStatus;
-  attempts: number;
-  lastError?: string;
-  updatedAt: string;
-};
-
-type StatusKey = string;
-
-const DEFAULT_TENANT = "__default__";
-const CACHE = new Map<StatusKey, InvoiceStatusRecord>();
-let loaded = false;
-
-function statusKey(tenant: string, invoiceId: string): StatusKey {
-  return `${tenant}::${invoiceId}`;
-}
-
-function resolveStatusPath(): string {
-  return path.join(resolveInvoiceStatusDir(), "status.jsonl");
-}
-
-async function ensureLoaded(): Promise<void> {
-  if (loaded) {
-    return;
-  }
-  const filePath = resolveStatusPath();
-  let content: string;
-  try {
-    content = await readFile(filePath, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-      loaded = true;
-      return;
-    }
-    throw error;
-  }
-
-  for (const line of content.split("\n")) {
-    if (!line) continue;
-    try {
-      const parsed = JSON.parse(line) as InvoiceStatusRecord;
-      const tenant = parsed.tenant || DEFAULT_TENANT;
-      CACHE.set(statusKey(tenant, parsed.invoiceId), {
-        ...parsed,
-        tenant
-      });
-    } catch {
-      // ignore malformed records
-    }
-  }
-  loaded = true;
-}
+export type InvoiceStatusRecord = InvoiceStatusValue;
 
 type SetInvoiceStatusParams = {
   tenant?: string;
@@ -68,64 +13,128 @@ type SetInvoiceStatusParams = {
   lastError?: string;
 };
 
+const DEFAULT_TENANT = "__default__";
+const SNAPSHOT = new Map<string, InvoiceStatusRecord>();
+let snapshotPrimed = false;
+let snapshotLoadPromise: Promise<void> | null = null;
+
+function statusKey(tenant: string, invoiceId: string): string {
+  return `${tenant}::${invoiceId}`;
+}
+
+function normalizeTenantInput(value: string | undefined): string {
+  if (!value) {
+    return "";
+  }
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? "" : trimmed;
+}
+
+function resolveTenant(value: string | undefined, fallback?: string): string {
+  const trimmed = value?.trim();
+  if (trimmed && trimmed.length > 0) {
+    return trimmed;
+  }
+  if (fallback && fallback.length > 0) {
+    return fallback;
+  }
+  return DEFAULT_TENANT;
+}
+
+function cacheRecord(record: InvoiceStatusRecord): void {
+  SNAPSHOT.set(statusKey(record.tenant, record.invoiceId), record);
+  snapshotPrimed = true;
+}
+
+async function loadSnapshotFromStore(): Promise<void> {
+  const storage = getStorage();
+  const snapshotFn = storage.status.snapshot;
+  if (typeof snapshotFn !== "function") {
+    snapshotPrimed = true;
+    return;
+  }
+
+  const records = await snapshotFn();
+  SNAPSHOT.clear();
+  for (const record of records) {
+    cacheRecord(record);
+  }
+  snapshotPrimed = true;
+}
+
+function ensureSnapshotPrimed(): void {
+  if (snapshotPrimed || snapshotLoadPromise) {
+    return;
+  }
+  snapshotLoadPromise = loadSnapshotFromStore()
+    .catch((error) => {
+      console.error("[storage/status] failed to load snapshot", error);
+    })
+    .finally(() => {
+      snapshotLoadPromise = null;
+    });
+}
+
 export async function setInvoiceStatus(params: SetInvoiceStatusParams): Promise<InvoiceStatusRecord> {
-  await ensureLoaded();
-  const tenant = params.tenant?.trim() || DEFAULT_TENANT;
-  const key = statusKey(tenant, params.invoiceId);
-  const existing = CACHE.get(key);
+  const storage = getStorage();
+  const tenantInput = normalizeTenantInput(params.tenant);
+  const existing = await storage.status.get(tenantInput, params.invoiceId);
   const updatedAt = new Date().toISOString();
+
+  const tenant = resolveTenant(tenantInput, existing?.tenant);
   const attempts = params.attempts ?? existing?.attempts ?? 0;
+  const providerId = params.providerId ?? existing?.providerId;
+  const lastError =
+    params.status === "error"
+      ? params.lastError ?? existing?.lastError
+      : undefined;
+
   const record: InvoiceStatusRecord = {
     tenant,
     invoiceId: params.invoiceId,
-    providerId: params.providerId ?? existing?.providerId,
+    providerId,
     status: params.status,
     attempts,
-    lastError:
-      params.status === "error"
-        ? params.lastError ?? existing?.lastError
-        : undefined,
+    lastError,
     updatedAt
   };
 
-  CACHE.set(key, record);
+  await storage.status.set(tenant, params.invoiceId, {
+    status: record.status,
+    providerId: record.providerId,
+    attempts: record.attempts,
+    lastError: record.lastError,
+    updatedAt: record.updatedAt
+  });
 
-  const filePath = resolveStatusPath();
-  const dir = path.dirname(filePath);
-  await mkdir(dir, { recursive: true });
-  await appendFile(filePath, `${JSON.stringify(record)}\n`, { encoding: "utf8" });
+  cacheRecord(record);
   return record;
 }
 
 export async function getInvoiceStatus(tenant: string | undefined, invoiceId: string): Promise<InvoiceStatusRecord | null> {
-  await ensureLoaded();
-  const normalizedTenant = tenant?.trim() || DEFAULT_TENANT;
-  const exact = CACHE.get(statusKey(normalizedTenant, invoiceId));
-  if (exact) {
-    return exact;
+  const storage = getStorage();
+  const tenantInput = normalizeTenantInput(tenant);
+  const record = await storage.status.get(tenantInput, invoiceId);
+  if (record) {
+    cacheRecord(record);
+  } else {
+    ensureSnapshotPrimed();
   }
-  if (tenant) {
-    return null;
-  }
-  // Fallback to any tenant when none provided.
-  for (const value of CACHE.values()) {
-    if (value.invoiceId === invoiceId) {
-      return value;
-    }
-  }
-  return null;
+  return record;
 }
 
 export async function listInvoiceStatuses(): Promise<InvoiceStatusRecord[]> {
-  await ensureLoaded();
-  return Array.from(CACHE.values());
-}
-
-export function resetInvoiceStatusCache(): void {
-  CACHE.clear();
-  loaded = false;
+  await loadSnapshotFromStore();
+  return Array.from(SNAPSHOT.values());
 }
 
 export function getInvoiceStatusSnapshot(): InvoiceStatusRecord[] {
-  return Array.from(CACHE.values());
+  ensureSnapshotPrimed();
+  return Array.from(SNAPSHOT.values());
+}
+
+export function resetInvoiceStatusCache(): void {
+  SNAPSHOT.clear();
+  snapshotPrimed = false;
+  snapshotLoadPromise = null;
 }

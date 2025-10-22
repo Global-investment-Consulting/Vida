@@ -1,9 +1,8 @@
-import { appendFile, mkdir } from "node:fs/promises";
-import path from "node:path";
 import { getAdapter } from "../apadapters/index.js";
 import { type ApAdapter, type ApDeliveryStatus } from "../apadapters/types.js";
-import { resolveApAdapterName, resolveDlqPath } from "../config.js";
+import { resolveApAdapterName } from "../config.js";
 import { setInvoiceStatus } from "../history/invoiceStatus.js";
+import { getStorage } from "../storage/index.js";
 import {
   incrementApSendAttempts,
   incrementApSendFail,
@@ -26,17 +25,16 @@ async function appendDlq(entry: {
   tenant: string | undefined;
   invoiceId: string;
   error: string;
+  payload?: unknown;
 }): Promise<void> {
-  const filePath = resolveDlqPath();
-  const dir = path.dirname(filePath);
-  await mkdir(dir, { recursive: true });
-  const payload = {
-    tenant: entry.tenant ?? null,
+  const storage = getStorage();
+  await storage.dlq.append({
+    tenant: entry.tenant?.trim() && entry.tenant.trim().length > 0 ? entry.tenant.trim() : "__default__",
     invoiceId: entry.invoiceId,
     error: entry.error,
-    timestamp: new Date().toISOString()
-  };
-  await appendFile(filePath, `${JSON.stringify(payload)}\n`, { encoding: "utf8" });
+    payload: entry.payload,
+    ts: new Date().toISOString()
+  });
 }
 
 type SendParams = {

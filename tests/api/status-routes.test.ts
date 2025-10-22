@@ -6,13 +6,10 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetMockAdapter, mockAdapter } from "src/apadapters/mock.js";
 import { app } from "src/server.js";
-import {
-  getInvoiceStatus,
-  resetInvoiceStatusCache,
-  setInvoiceStatus
-} from "src/history/invoiceStatus.js";
+import { getInvoiceStatus, resetInvoiceStatusCache, setInvoiceStatus } from "src/history/invoiceStatus.js";
 import { renderMetrics, resetMetrics } from "src/metrics.js";
 import { resetReplayGuard } from "src/services/replayGuard.js";
+import { resetStorage } from "src/storage/index.js";
 
 const API_KEY = "status-test-key";
 const AP_SECRET = "test-ap-secret";
@@ -39,6 +36,7 @@ describe("AP status routes", () => {
     process.env.VIDA_API_KEYS = API_KEY;
     process.env.VIDA_AP_ADAPTER = "mock";
     process.env.AP_WEBHOOK_SECRET = AP_SECRET;
+    await resetStorage();
     resetInvoiceStatusCache();
     resetMetrics();
     __resetMockAdapter();
@@ -50,6 +48,7 @@ describe("AP status routes", () => {
     delete process.env.VIDA_API_KEYS;
     delete process.env.VIDA_AP_ADAPTER;
     delete process.env.AP_WEBHOOK_SECRET;
+    await resetStorage();
     resetInvoiceStatusCache();
     resetMetrics();
     __resetMockAdapter();

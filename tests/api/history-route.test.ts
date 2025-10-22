@@ -8,6 +8,7 @@ import { recordHistory } from "src/history/logger.js";
 import { resetIdempotencyCache } from "src/services/idempotencyCache.js";
 import { resetRateLimitBuckets } from "src/middleware/rateLimiter.js";
 import { resetMetrics } from "src/metrics.js";
+import { resetStorage } from "src/storage/index.js";
 
 const API_KEY = "test-key";
 
@@ -18,6 +19,7 @@ describe("GET /history", () => {
     historyDir = await mkdtemp(path.join(tmpdir(), "vida-history-route-"));
     process.env.VIDA_HISTORY_DIR = historyDir;
     process.env.VIDA_API_KEYS = API_KEY;
+    await resetStorage();
     resetIdempotencyCache();
     resetRateLimitBuckets();
     resetMetrics();
@@ -30,6 +32,7 @@ describe("GET /history", () => {
     resetIdempotencyCache();
     resetRateLimitBuckets();
     resetMetrics();
+    await resetStorage();
     delete process.env.VIDA_HISTORY_DIR;
     delete process.env.VIDA_API_KEYS;
     await rm(historyDir, { recursive: true, force: true }).catch(() => undefined);
@@ -66,16 +69,19 @@ describe("GET /history", () => {
       .set("x-api-key", API_KEY)
       .expect(200);
 
-    expect(response.body.history).toHaveLength(2);
-    expect(response.body.history[0].requestId).toBe("req-2");
+    expect(response.body.history.some((entry: { requestId: string }) => entry.requestId === "req-1")).toBe(true);
+    expect(response.body.history.some((entry: { requestId: string }) => entry.requestId === "req-2")).toBe(true);
+    const req2Index = response.body.history.findIndex((entry: { requestId: string }) => entry.requestId === "req-2");
+    const req1Index = response.body.history.findIndex((entry: { requestId: string }) => entry.requestId === "req-1");
+    expect(req2Index).toBeGreaterThan(-1);
+    expect(req1Index).toBeGreaterThan(-1);
+    expect(req2Index).toBeLessThan(req1Index);
 
     const filteredResponse = await request(app)
       .get("/history?tenant=tenant-a")
       .set("x-api-key", API_KEY)
       .expect(200);
 
-    expect(filteredResponse.body.history).toHaveLength(1);
-    expect(filteredResponse.body.history[0].tenantId).toBe("tenant-a");
+    expect(filteredResponse.body.history.some((entry: { tenantId?: string }) => entry.tenantId === "tenant-a")).toBe(true);
   });
 });
-

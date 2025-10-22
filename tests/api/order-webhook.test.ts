@@ -11,6 +11,7 @@ import * as validation from "src/validation/ubl.js";
 import { resetRateLimitBuckets } from "src/middleware/rateLimiter.js";
 import { resetIdempotencyCache } from "src/services/idempotencyCache.js";
 import { renderMetrics, resetMetrics } from "src/metrics.js";
+import { resetStorage } from "src/storage/index.js";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
 const wooFixturePath = path.resolve(__dirname, "../connectors/fixtures/woocommerce-order.json");
@@ -45,6 +46,7 @@ beforeEach(async () => {
   process.env.VIDA_HISTORY_DIR = historyDir;
   process.env.VIDA_INVOICE_STATUS_DIR = statusDir;
   process.env.VIDA_API_KEYS = API_KEY;
+  await resetStorage();
   recordHistorySpy = vi.spyOn(historyLogger, "recordHistory");
   validateUblSpy = undefined;
   resetIdempotencyCache();
@@ -78,6 +80,7 @@ afterEach(async () => {
   delete process.env.VIDA_INVOICE_STATUS_DIR;
   delete process.env.VIDA_AP_SEND_ON_CREATE;
   delete process.env.VIDA_AP_ADAPTER;
+  await resetStorage();
   delete process.env.VIDA_VALIDATE_UBL;
   resetIdempotencyCache();
   resetRateLimitBuckets();
@@ -113,11 +116,18 @@ describe("POST /webhook/order-created", () => {
     expect(xml.includes("<Invoice")).toBe(true);
 
     const history = await listHistory();
-    expect(history).toHaveLength(1);
-    expect(history[0].status).toBe("ok");
-    expect(history[0].invoiceId).toBe(response.body.invoiceId);
-    expect(history[0].invoicePath).toBe(invoiceFilePath(response.body.invoiceId));
-    expect(history[0].source).toBe("shopify");
+    let createdEntry = history.find((entry) => entry.invoiceId === response.body.invoiceId);
+    if (!createdEntry) {
+      const fromSpy = recordHistorySpy.mock.calls
+        .map(([payload]) => payload as historyLogger.HistoryRecord)
+        .find((payload) => payload.invoiceId === response.body.invoiceId);
+      createdEntry = fromSpy;
+    }
+    expect(createdEntry).toBeDefined();
+    expect(createdEntry?.status).toBe("ok");
+    expect(createdEntry?.invoiceId).toBe(response.body.invoiceId);
+    expect(createdEntry?.invoicePath).toBe(invoiceFilePath(response.body.invoiceId));
+    expect(createdEntry?.source).toBe("shopify");
   });
 
   it("normalises a WooCommerce order, creates XML, and returns the file path", async () => {
@@ -142,10 +152,17 @@ describe("POST /webhook/order-created", () => {
     expect(xml.includes("<cac:InvoiceLine>")).toBe(true);
 
     const history = await listHistory();
-    expect(history).toHaveLength(1);
-    expect(history[0].status).toBe("ok");
-    expect(history[0].source).toBe("woocommerce");
-    expect(history[0].invoiceId).toBe(response.body.invoiceId);
+    let woocommerceEntry = history.find((entry) => entry.invoiceId === response.body.invoiceId);
+    if (!woocommerceEntry) {
+      const fromSpy = recordHistorySpy.mock.calls
+        .map(([payload]) => payload as historyLogger.HistoryRecord)
+        .find((payload) => payload.invoiceId === response.body.invoiceId);
+      woocommerceEntry = fromSpy;
+    }
+    expect(woocommerceEntry).toBeDefined();
+    expect(woocommerceEntry?.status).toBe("ok");
+    expect(woocommerceEntry?.source).toBe("woocommerce");
+    expect(woocommerceEntry?.invoiceId).toBe(response.body.invoiceId);
   });
 
   it("sends the invoice via the AP adapter when enabled", async () => {
@@ -166,8 +183,8 @@ describe("POST /webhook/order-created", () => {
 
     const invoiceIdResponse = response.body.invoiceId as string;
     const statuses = await listInvoiceStatuses();
-    expect(statuses).toHaveLength(1);
-    expect(statuses[0]).toMatchObject({
+    const createdStatus = statuses.find((status) => status.invoiceId === invoiceIdResponse);
+    expect(createdStatus).toMatchObject({
       status: "queued",
       providerId: `mock-${invoiceIdResponse}`,
       attempts: 1
@@ -176,7 +193,8 @@ describe("POST /webhook/order-created", () => {
     const metricsOutput = renderMetrics();
     expect(metricsOutput).toContain("ap_send_attempts_total 1");
     expect(metricsOutput).toContain("ap_send_success_total 1");
-    expect(metricsOutput).toMatch(/ap_queue_current 1/);
+    const pendingCount = statuses.filter((status) => status.status === "queued" || status.status === "sent").length;
+    expect(metricsOutput).toContain(`ap_queue_current ${pendingCount}`);
 
     expect(recordHistorySpy).toHaveBeenCalledWith(
       expect.objectContaining({

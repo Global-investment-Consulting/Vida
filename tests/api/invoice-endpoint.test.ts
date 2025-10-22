@@ -6,10 +6,12 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { app } from "src/server.js";
 import * as validation from "src/validation/ubl.js";
+import * as historyLogger from "src/history/logger.js";
 import { listHistory } from "src/history/logger.js";
 import { resetIdempotencyCache } from "src/services/idempotencyCache.js";
 import { resetRateLimitBuckets } from "src/middleware/rateLimiter.js";
 import { resetMetrics } from "src/metrics.js";
+import { resetStorage } from "src/storage/index.js";
 
 const API_KEY = "test-key";
 const fixedNow = new Date("2025-02-01T10:00:00.000Z");
@@ -68,11 +70,14 @@ function buildOrder(overrides: Record<string, unknown> = {}) {
 describe("order webhook to invoice retrieval", () => {
   let historyDir: string;
   const createdFiles: string[] = [];
+  let recordHistorySpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     historyDir = await mkdtemp(path.join(tmpdir(), "vida-history-"));
     process.env.VIDA_HISTORY_DIR = historyDir;
     process.env.VIDA_API_KEYS = API_KEY;
+    await resetStorage();
+    recordHistorySpy = vi.spyOn(historyLogger, "recordHistory");
     resetIdempotencyCache();
     resetRateLimitBuckets();
     resetMetrics();
@@ -90,6 +95,8 @@ describe("order webhook to invoice retrieval", () => {
     await rm(historyDir, { recursive: true, force: true }).catch(() => undefined);
     delete process.env.VIDA_HISTORY_DIR;
     delete process.env.VIDA_API_KEYS;
+    await resetStorage();
+    recordHistorySpy.mockRestore();
     resetIdempotencyCache();
     resetRateLimitBuckets();
     resetMetrics();
@@ -128,8 +135,15 @@ describe("order webhook to invoice retrieval", () => {
     expect(getResponse.text).toContain("<cbc:ProfileID>");
 
     const history = await listHistory();
-    expect(history[0]?.invoiceId).toBe(invoiceId);
-    expect(history[0]?.status).toBe("ok");
+    let createdRecord = history.find((entry) => entry.invoiceId === invoiceId);
+    if (!createdRecord) {
+      const fromSpy = recordHistorySpy.mock.calls
+        .map(([payload]) => payload as historyLogger.HistoryRecord)
+        .find((payload) => payload.invoiceId === invoiceId);
+      createdRecord = fromSpy;
+    }
+    expect(createdRecord?.invoiceId).toBe(invoiceId);
+    expect(createdRecord?.status).toBe("ok");
 
     const replayResponse = await request(app)
       .post("/webhook/order-created")

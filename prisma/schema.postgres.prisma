@@ -1,17 +1,17 @@
-// prisma/schema.prisma
+// prisma/schema.postgres.prisma
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Invoice {
   id           String   @id @default(cuid())
   number       String   @unique
-  status       String             // "SENT" | "PAID"
+  status       String
   currency     String
   buyerName    String
   buyerCountry String
@@ -19,12 +19,12 @@ model Invoice {
   net          Decimal
   tax          Decimal
   gross        Decimal
-  issuedAt     DateTime @default(now())   // <-- added
+  issuedAt     DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  lines     LineItem[]
-  payments  Payment[]
+  lines    LineItem[]
+  payments Payment[]
 }
 
 model LineItem {
@@ -34,7 +34,7 @@ model LineItem {
   qty       Int
   price     Decimal
 
-  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
 
 model Payment {
@@ -44,12 +44,12 @@ model Payment {
   paymentMethod String
   paidAt        DateTime @default(now())
 
-  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
 
 model IdempotencyKey {
   id        String   @id @default(cuid())
-  scope     String   // "create" | "pay"
+  scope     String
   key       String   @unique
   targetId  String
   createdAt DateTime @default(now())
@@ -59,7 +59,7 @@ model InvoiceHistory {
   id        String   @id @default(cuid())
   tenant    String
   invoiceId String
-  payload   String
+  payload   Json
   ts        DateTime @default(now())
 
   @@index([tenant, ts])
@@ -83,6 +83,6 @@ model Dlq {
   tenant    String
   invoiceId String
   error     String
-  payload   String?
+  payload   Json?
   ts        DateTime @default(now())
 }

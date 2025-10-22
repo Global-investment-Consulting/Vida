@@ -11,6 +11,9 @@
     "start": "node dist/src/server.js",
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "db:reset": "prisma migrate reset --force",
     "wait:api": "node scripts/wait-for-api.mjs",
     "smoke:health": "curl -fsS http://127.0.0.1:3001/healthz",
     "lint": "eslint . --max-warnings=0",
@@ -21,6 +24,7 @@
     "history:list": "tsx src/cli/history-list.ts"
   },
   "dependencies": {
+    "@prisma/client": "^5.20.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -37,6 +41,7 @@
     "@typescript-eslint/parser": "^8.46.1",
     "eslint": "^9.37.0",
     "globals": "^16.4.0",
+    "prisma": "^5.20.0",
     "supertest": "^7.1.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
