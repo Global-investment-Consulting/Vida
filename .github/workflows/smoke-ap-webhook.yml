@@ -49,7 +49,7 @@ jobs:
           PROVIDER_ID="${{ github.event.inputs.providerId || 'mock-integration-test' }}"
           STATUS="${{ github.event.inputs.status || 'delivered' }}"
           cat > payload.json <<JSON
-          { "event":"status","providerId":"$PROVIDER_ID","status":"$STATUS","eventId":"smoke-$TS","timestamp":$TS }
+          { "tenant":"smoke-suite","invoiceId":"smoke-$TS","providerId":"$PROVIDER_ID","status":"$STATUS","attempts":1 }
           JSON
           SIG=$(node -e "const c=require('crypto');const fs=require('fs');const s=process.env.AP_WEBHOOK_SECRET;const b=fs.readFileSync('payload.json');process.stdout.write(c.createHmac('sha256',s).update(b).digest('hex'))")
           echo "TS=$TS" >> $GITHUB_ENV
