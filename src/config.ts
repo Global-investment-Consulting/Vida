@@ -32,6 +32,11 @@ export const VIDA_API_KEYS = normalizeCsv(process.env.VIDA_API_KEYS); // migrate
 export const PORT = normalizeNumber(process.env.PORT, 3001); // migrated
 export const NODE_ENV = process.env.NODE_ENV ?? "development"; // migrated
 export const LOG_LEVEL = process.env.LOG_LEVEL ?? "info"; // migrated
+export const AP_PROVIDER = process.env.AP_PROVIDER ?? "";
+export const AP_BASE_URL = process.env.AP_BASE_URL ?? "";
+export const AP_CLIENT_ID = process.env.AP_CLIENT_ID ?? "";
+export const AP_CLIENT_SECRET = process.env.AP_CLIENT_SECRET ?? "";
+export const AP_API_KEY = process.env.AP_API_KEY ?? "";
 
 export const getVidaApiKeys = (): string[] => normalizeCsv(process.env.VIDA_API_KEYS); // migrated
 export const isUblValidationEnabled = (): boolean => normalizeBoolean(process.env.VIDA_VALIDATE_UBL); // migrated

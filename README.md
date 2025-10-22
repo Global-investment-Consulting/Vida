@@ -19,6 +19,12 @@ npm start
 | `VIDA_PEPPOL_SEND` | When `true`, enables Access Point delivery (stub integration scaffold). |
 | `VIDA_PEPPOL_AP` | Access Point mode (defaults to `stub`). |
 | `VIDA_PEPPOL_OUTBOX_DIR` | Override directory for stub AP outbox files (defaults to `./data/ap-outbox`). |
+| `AP_WEBHOOK_SECRET` | Shared secret used to verify `/ap/status-webhook` callbacks. |
+| `VIDA_AP_ADAPTER` | AP adapter selector (`mock` by default, set to `billit` to enable the Billit integration). |
+| `AP_PROVIDER` | Optional label for the active AP provider (use `billit` when enabled). |
+| `AP_BASE_URL` | Base URL for the Billit API (e.g. `https://api.billit.be`). |
+| `AP_API_KEY` | Billit API bearer token used when present. |
+| `AP_CLIENT_ID` / `AP_CLIENT_SECRET` | Billit OAuth client credentials used when no API key is configured. |
 
 ## Useful Commands
 - `npm run history:list` – print the most recent webhook history entries.
@@ -43,6 +49,13 @@ The container exposes the API on port `8080` and mounts `./data` for history log
 ## Cloud Run
 - Staging deploys run via `.github/workflows/deploy-staging.yml`, which builds with Cloud Build, pushes to Artifact Registry (`europe-west1-docker.pkg.dev/$GCP_PROJECT_ID/vida/vida:staging`), and deploys the `vida-staging` service.
 - The health probe responds with `ok` at `/health`, `/_health`, `/healthz`, and `/healthz/`.
+
+## Accounts Payable adapters
+- The adapter registry and Billit implementation are documented in [`docs/ADAPTERS.md`](docs/ADAPTERS.md). Start there before wiring up additional providers.
+- Staging stays on the mock adapter by default because `.github/workflows/deploy-staging.yml` hardcodes `VIDA_AP_ADAPTER=mock`. Override that value only after the Billit secrets are populated.
+- To enable Billit in another environment, set `VIDA_AP_ADAPTER=billit` alongside `AP_BASE_URL` and either `AP_API_KEY` or `AP_CLIENT_ID`/`AP_CLIENT_SECRET`.
+- Provision empty GitHub Actions secrets for both staging and production environments so credentials can be added later: `AP_BASE_URL`, `AP_CLIENT_ID`, `AP_CLIENT_SECRET`, `AP_API_KEY`.
+- Webhook callbacks continue to use `AP_WEBHOOK_SECRET` — see the adapters doc for details on `/ap/status-webhook`.
 
 ## API
 Generate an invoice directly through `/api/invoice` (see [openapi.js](openapi.js) for the payload schema):
