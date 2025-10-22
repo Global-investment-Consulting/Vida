@@ -685,7 +685,7 @@ app.get("/metrics", (_req, res: Response) => {
   res.send(renderMetrics());
 });
 
-const HOST = "0.0.0.0";
+const HOST = process.env.HOST ?? "0.0.0.0";
 
 export function startServer(port = PORT) {
   const server = app.listen(port, HOST, () => {
