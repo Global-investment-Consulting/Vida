@@ -19,14 +19,23 @@ jobs:
     env:
       STAGING_URL: https://vida-staging-mtsykhir3q-ew.a.run.app
       AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
+      STAGING_SMOKE_API_KEY: ${{ secrets.STAGING_SMOKE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - name: Check secrets
         run: |
+          missing=false
           if [ -z "$AP_WEBHOOK_SECRET" ]; then
             echo "AP_WEBHOOK_SECRET is missing"
+            missing=true
+          fi
+          if [ -z "$STAGING_SMOKE_API_KEY" ]; then
+            echo "STAGING_SMOKE_API_KEY is missing"
+            missing=true
+          fi
+          if [ "$missing" = true ]; then
             exit 2
           fi
       - name: Tools
@@ -53,6 +62,7 @@ jobs:
             -H "X-AP-Signature: $SIG" \
             -H "X-Event-ID: smoke-$TS" \
             -H "X-Event-Timestamp: $TS" \
+            -H "x-api-key: $STAGING_SMOKE_API_KEY" \
             --data-binary @payload.json || true)
           echo "HTTP $CODE"
           echo "===RESP HEADERS==="
@@ -61,6 +71,7 @@ jobs:
           sed -n '1,120p' resp.txt || true
           test "$CODE" = "200"
       - name: Metrics head
+        if: always()
         run: |
           curl -sS "$STAGING_URL/metrics" | tee metrics.txt
           (grep -E "ap_webhook_ok_total|ap_webhook_fail_total|ap_webhook_latency_ms" metrics.txt || true) | sed -n '1,20p'
