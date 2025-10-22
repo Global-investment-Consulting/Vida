@@ -15,8 +15,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: staging-deploy
-  cancel-in-progress: true
+  group: deploy-staging-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   deploy:
