@@ -43,3 +43,11 @@ logs/
 /invoice.xml
 # Editor backups
 *.save
+# ViDA agents service
+services/vida_agents_service/.venv/
+services/vida_agents_service/__pycache__/
+services/vida_agents_service/*.pyc
+services/vida_agents_service/*.pyo
+services/vida_agents_service/*.pyd
+services/vida_agents_service/*.bak
+services/vida_agents_service/.env

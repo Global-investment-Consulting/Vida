@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+.venv/
+venv/
+*.bak
+
+# Dotenv / secrets
+.env
+.env.*
+!*.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
