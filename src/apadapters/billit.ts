@@ -248,6 +248,11 @@ function mapProviderDeliveryStatus(status: string | undefined): ApDeliveryStatus
   return "sent";
 }
 
+/**
+ * Billit Access Point adapter.
+ * Contract expectations and sandbox setup are documented in docs/ADAPTERS.md.
+ * TODO: Confirm production endpoint paths and payload requirements with Billit.
+ */
 export const billitAdapter: ApAdapter = {
   name: ADAPTER_NAME,
   async send({ tenant, invoiceId, ublXml }): Promise<ApSendResult> {
