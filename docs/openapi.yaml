@@ -71,6 +71,158 @@ components:
           type: string
         peppolId:
           type: string
+    OrderParty:
+      type: object
+      description: Party information aligned with src/schemas/order.ts.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        registrationName:
+          type: string
+        companyId:
+          type: string
+        vatId:
+          type: string
+        endpoint:
+          type: object
+          properties:
+            id:
+              type: string
+            scheme:
+              type: string
+        address:
+          type: object
+          properties:
+            streetName:
+              type: string
+            additionalStreetName:
+              type: string
+            buildingNumber:
+              type: string
+            cityName:
+              type: string
+            postalZone:
+              type: string
+            countryCode:
+              type: string
+        contact:
+          type: object
+          properties:
+            name:
+              type: string
+            telephone:
+              type: string
+            electronicMail:
+              type: string
+    OrderLine:
+      type: object
+      required:
+        - description
+        - quantity
+        - unitPriceMinor
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: number
+        unitCode:
+          type: string
+        unitPriceMinor:
+          type: integer
+        discountMinor:
+          type: integer
+        vatRate:
+          type: number
+        vatCategory:
+          type: string
+        vatExemptionReason:
+          type: string
+        itemName:
+          type: string
+        buyerAccountingReference:
+          type: string
+    OrderRequest:
+      type: object
+      description: >
+        Minimal representation of the order payload accepted by POST /api/invoice.
+        See src/schemas/order.ts for the full Zod schema.
+      required:
+        - orderNumber
+        - currency
+        - issueDate
+        - buyer
+        - supplier
+        - lines
+      properties:
+        orderNumber:
+          type: string
+        currency:
+          type: string
+          description: ISO 4217 currency code.
+        currencyMinorUnit:
+          type: integer
+          minimum: 0
+          maximum: 3
+        issueDate:
+          type: string
+          format: date-time
+        dueDate:
+          type: string
+          format: date-time
+        buyer:
+          $ref: '#/components/schemas/OrderParty'
+        supplier:
+          $ref: '#/components/schemas/OrderParty'
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLine'
+        defaultVatRate:
+          type: number
+        totals:
+          type: object
+          description: Optional pre-computed totals used for validation or logging.
+          additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+    InvoiceStatusResponse:
+      type: object
+      required:
+        - status
+        - providerId
+      properties:
+        status:
+          type: string
+          enum: [queued, sent, delivered, error]
+        providerId:
+          type: string
+          nullable: true
+    ApStatusWebhook:
+      type: object
+      required:
+        - invoiceId
+        - providerId
+        - status
+      properties:
+        tenant:
+          type: string
+        invoiceId:
+          type: string
+        providerId:
+          type: string
+        status:
+          type: string
+          enum: [queued, sent, delivered, error]
+        attempts:
+          type: integer
+          minimum: 0
+        error:
+          type: string
 paths:
   /webhook/order-created:
     post:
@@ -150,6 +302,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/invoice:
+    post:
+      summary: Generate a UBL invoice directly from an order payload
+      description: >
+        Accepts a normalised order payload, generates BIS 3.0 compliant UBL, and returns the XML document.
+      tags: [Invoice]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+      responses:
+        "200":
+          description: BIS 3.0 compliant invoice document.
+          content:
+            application/xml:
+              schema:
+                type: string
+        "400":
+          description: Invalid order payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Authentication failed.
+        "422":
+          description: UBL validation failed (BIS rule violation).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "500":
+          description: Unexpected server error while generating the document.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /invoice/{invoiceId}:
     get:
       summary: Retrieve a generated UBL invoice
@@ -181,6 +374,113 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         "500":
           description: Unexpected server error.
+  /invoice/{invoiceId}/status:
+    get:
+      summary: Retrieve the delivery status of an invoice
+      tags: [AccessPoint]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: invoiceId
+          required: true
+          schema:
+            type: string
+          description: Identifier returned from the invoice creation endpoints.
+        - in: header
+          name: x-vida-tenant
+          required: false
+          schema:
+            type: string
+          description: Optional tenant hint to disambiguate invoice status.
+        - in: query
+          name: tenant
+          required: false
+          schema:
+            type: string
+          description: Optional tenant query parameter when the header is not supplied.
+      responses:
+        "200":
+          description: Current status as tracked by the access point adapter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceStatusResponse'
+        "400":
+          description: Invalid invoice identifier supplied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Authentication failed.
+        "404":
+          description: Invoice status not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "500":
+          description: Adapter or storage error while resolving the status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /ap/status-webhook:
+    post:
+      summary: Receive asynchronous delivery updates from an access point
+      tags: [AccessPoint]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: header
+          name: X-AP-Signature
+          required: true
+          schema:
+            type: string
+          description: HMAC signature generated with the shared AP webhook secret.
+        - in: header
+          name: X-Event-ID
+          required: true
+          schema:
+            type: string
+          description: Unique event identifier used for replay protection.
+        - in: header
+          name: X-Event-Timestamp
+          required: true
+          schema:
+            type: string
+          description: Provider-supplied timestamp (ISO-8601 or epoch seconds).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApStatusWebhook'
+      responses:
+        "200":
+          description: Status accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        "400":
+          description: Invalid payload or signature.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Authentication failed.
+        "500":
+          description: Failed to persist the status update.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /history:
     get:
       summary: List recent webhook executions
