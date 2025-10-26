@@ -1,5 +1,11 @@
 name: Deploy staging
 
+# Required deploy service-account roles:
+#   roles/run.admin
+#   roles/cloudbuild.builds.editor
+#   roles/artifactregistry.writer
+#   roles/iam.serviceAccountUser
+
 on:
   workflow_dispatch:
     inputs:
@@ -27,7 +33,8 @@ jobs:
       REGION:     ${{ vars.REGION != '' && vars.REGION || 'europe-west1' }}
       SERVICE:    ${{ vars.SERVICE != '' && vars.SERVICE || 'vida-staging' }}
       CLOUD_BUILD_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET != '' && vars.CLOUD_BUILD_BUCKET || 'vida-staging-1760866919-cb-src' }}
-      IMAGE_TAG:  staging
+      IMAGE_TAG:  staging-${{ github.sha }}
+      AGENTS_ENABLED: ${{ vars.AGENTS_ENABLED != '' && vars.AGENTS_ENABLED || 'false' }}
       VIDA_AP_ADAPTER: mock
       VIDA_AP_SEND_ON_CREATE: 'true'
       COMMIT_SHA: ${{ github.sha }}
@@ -60,16 +67,23 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Enable required services (idempotent)
+      - name: Ensure required Google APIs are enabled
         shell: bash
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
         run: |
           set -Eeuo pipefail
           for svc in run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com; do
-            gcloud services enable "$svc" && echo "Enabled $svc" || echo "Skipping enable for $svc"
+            if gcloud services enable "$svc" --project "$PROJECT_ID"; then
+              echo "Ensured $svc enabled for $PROJECT_ID"
+            else
+              echo "::error title=Enable API failed::$svc could not be enabled. Ensure the deploy service account has roles/serviceusage.serviceUsageAdmin." >&2
+              exit 1
+            fi
           done
 
       - name: Ensure Artifact Registry auth
-        run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Deploy via Cloud Build and Cloud Run
         shell: bash
@@ -78,13 +92,14 @@ jobs:
           REGION: ${{ env.REGION }}
           SERVICE: ${{ env.SERVICE }}
           CLOUD_BUILD_BUCKET: ${{ env.CLOUD_BUILD_BUCKET }}
-          IMAGE_URI: europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/vida/vida:${{ env.IMAGE_TAG }}
+          IMAGE_URI: ${{ format('{0}-docker.pkg.dev/{1}/vida/vida:{2}', env.REGION, env.PROJECT_ID, env.IMAGE_TAG) }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           VIDA_API_KEYS: ${{ secrets.VIDA_STAGING_API_KEYS }}
           AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
           LOG_LEVEL: info
           NODE_ENV: production
           VERSION: ${{ env.VERSION }}
+          AGENTS_ENABLED: ${{ env.AGENTS_ENABLED }}
         run: ./scripts/deploy_staging.sh
 
       - name: Ensure env on service
@@ -99,9 +114,10 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           VIDA_AP_ADAPTER: ${{ env.VIDA_AP_ADAPTER }}
           VIDA_AP_SEND_ON_CREATE: ${{ env.VIDA_AP_SEND_ON_CREATE }}
+          AGENTS_ENABLED: ${{ env.AGENTS_ENABLED }}
         run: |
           set -Eeuo pipefail
           gcloud run services update "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
-            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_STAGING_API_KEYS},LOG_LEVEL=info,NODE_ENV=production,VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE},PEPPOL_MODE=sandbox,JWT_SECRET=${JWT_SECRET}"
+            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_STAGING_API_KEYS},LOG_LEVEL=info,NODE_ENV=production,VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE},PEPPOL_MODE=sandbox,JWT_SECRET=${JWT_SECRET},AGENTS_ENABLED=${AGENTS_ENABLED}"
