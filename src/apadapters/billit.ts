@@ -18,6 +18,7 @@ type BillitBaseConfig = {
   transportType: string;
   receiverScheme?: string;
   receiverValue?: string;
+  registrationEntry?: Record<string, unknown>;
 };
 
 type OAuthTokenCache = {
@@ -187,7 +188,8 @@ function resolveConfig(): BillitBaseConfig {
     contextPartyId: contextPartyId?.trim(),
     transportType,
     receiverScheme: readEnv("BILLIT_RX_SCHEME") ?? readEnv("AP_RECEIVER_SCHEME"),
-    receiverValue: readEnv("BILLIT_RX_VALUE") ?? readEnv("AP_RECEIVER_VALUE")
+    receiverValue: readEnv("BILLIT_RX_VALUE") ?? readEnv("AP_RECEIVER_VALUE"),
+    registrationEntry: undefined
   };
 }
 
@@ -311,6 +313,7 @@ async function resolveRegistrationId(config: BillitBaseConfig, auth: AuthHeaders
     cachedRegistration.partyId === (config.partyId ?? undefined) &&
     now - cachedRegistration.fetchedAt < REGISTRATION_CACHE_TTL_MS
   ) {
+    config.registrationEntry = cachedRegistration.entry;
     return cachedRegistration.registrationId;
   }
 
@@ -371,6 +374,7 @@ async function resolveRegistrationId(config: BillitBaseConfig, auth: AuthHeaders
           fetchedAt: now,
           entry: matchedEntry
         };
+        config.registrationEntry = matchedEntry;
         return registrationId;
       }
 
@@ -743,6 +747,26 @@ function mapBillitTotals(totals: Order["totals"] | undefined, minorUnit: number)
   });
 }
 
+function extractRegistrationCompany(entry?: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (!entry) {
+    return undefined;
+  }
+  const companies = asArray((entry as Record<string, unknown>).Companies ?? (entry as Record<string, unknown>).companies);
+  const company = companies.length > 0 ? asRecord(companies[0]) : undefined;
+  if (!company) {
+    return undefined;
+  }
+  const details = asRecord(company.CompanyDetails ?? company.companyDetails);
+  if (!details) {
+    return undefined;
+  }
+
+  return pruneEmpty({
+    name: pickString(details.CompanyName ?? details.companyName),
+    vatNumber: pickString(details.TaxIdentifier ?? details.taxIdentifier)
+  });
+}
+
 function pruneEmpty<T extends Record<string, unknown>>(input: T): T {
   const output: Record<string, unknown> = {};
 
@@ -830,13 +854,19 @@ function buildBillitSendPayload(
     return entry;
   });
 
+  const registrationCompany = extractRegistrationCompany(config.registrationEntry);
+  const sellerDetails = mapBillitParty(order.supplier);
+  if (registrationCompany) {
+    Object.assign(sellerDetails, registrationCompany);
+  }
+
   const document = pruneEmpty<Record<string, unknown>>({
     invoiceNumber: order.orderNumber ?? invoiceId,
     currency: order.currency,
     issueDate: formatIsoDate(order.issueDate),
     dueDate: formatIsoDate(order.dueDate),
     buyer: mapBillitParty(order.buyer),
-    seller: mapBillitParty(order.supplier),
+    seller: sellerDetails,
     totals: mapBillitTotals(order.totals, minorUnit),
     lines
   });
