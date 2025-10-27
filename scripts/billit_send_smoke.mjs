@@ -60,6 +60,7 @@ async function run() {
     let body = JSON.stringify(payload);
     report.requestPayload = payload;
     report.registrationId = registrationForBody ?? null;
+    report.registrationEntry = config.registrationEntry ?? cachedRegistration?.entry ?? null;
 
     console.log("Sending invoice to Billit sandbox…", sanitizeUrl(targetUrl));
     let response = await fetch(targetUrl, {
@@ -89,6 +90,7 @@ async function run() {
         body = JSON.stringify(payload);
         report.requestPayload = payload;
         report.registrationId = registrationForBody;
+        report.registrationEntry = config.registrationEntry ?? cachedRegistration?.entry ?? null;
         console.log("Retrying with registration path…", sanitizeUrl(targetUrl));
         response = await fetch(targetUrl, {
           method: "POST",
@@ -540,16 +542,28 @@ async function resolveRegistrationId(config, auth) {
         continue;
       }
 
+      let matchedEntry;
       const payload = await parseJson(response);
-      const registrationId = extractRegistrationId(payload, config.partyId, config.transportType);
+      const registrationId = extractRegistrationId(
+        payload,
+        config.partyId,
+        config.transportType,
+        (entry) => {
+          matchedEntry = entry;
+        }
+      );
       if (registrationId) {
         cachedRegistration = {
           baseUrl: config.baseUrl,
           partyId: config.partyId,
           registrationId,
-          fetchedAt: now
+          fetchedAt: now,
+          entry: matchedEntry
         };
         config.registrationId = registrationId;
+        if (matchedEntry) {
+          config.registrationEntry = matchedEntry;
+        }
         return registrationId;
       }
 
@@ -570,11 +584,15 @@ async function resolveRegistrationId(config, auth) {
   );
 }
 
-function extractRegistrationId(payload, preferred, transportType) {
+function extractRegistrationId(payload, preferred, transportType, onEntry) {
   if (Array.isArray(payload)) {
     for (const entry of payload) {
       const candidate = selectRegistrationId(entry, preferred, transportType);
       if (candidate) {
+        const record = asRecord(entry);
+        if (record && typeof onEntry === "function") {
+          onEntry(record);
+        }
         return candidate;
       }
     }
@@ -588,28 +606,51 @@ function extractRegistrationId(payload, preferred, transportType) {
 
   const direct = selectRegistrationId(root, preferred, transportType);
   if (direct) {
+    if (typeof onEntry === "function") {
+      onEntry(root);
+    }
     return direct;
   }
 
-  const listCandidates = [
-    asArray(root.registrations),
-    asArray(root.Registrations),
-    asArray(root.items),
-    asArray(root.data),
-    asArray(root.payload),
-    asArray(root.result),
-    asArray(root.response)
+  const collections = [];
+  const collectionKeys = [
+    "Companies",
+    "companies",
+    "Registrations",
+    "registrations",
+    "data",
+    "items",
+    "results"
   ];
+  for (const key of collectionKeys) {
+    const value = root[key];
+    if (Array.isArray(value)) {
+      collections.push(...value);
+    }
+  }
 
-  for (const list of listCandidates) {
-    for (const entry of list) {
+  for (const entry of collections) {
+    const candidate = selectRegistrationId(entry, preferred, transportType);
+    if (candidate) {
       const record = asRecord(entry);
-      if (!record) {
-        continue;
+      if (record && typeof onEntry === "function") {
+        onEntry(record);
       }
-      const id = selectRegistrationId(record, preferred, transportType);
-      if (id) {
-        return id;
+      return candidate;
+    }
+  }
+
+  for (const value of Object.values(root)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const candidate = selectRegistrationId(entry, preferred, transportType);
+        if (candidate) {
+          const record = asRecord(entry);
+          if (record && typeof onEntry === "function") {
+            onEntry(record);
+          }
+          return candidate;
+        }
       }
     }
   }

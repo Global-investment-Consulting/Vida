@@ -33,6 +33,7 @@ type CachedRegistration = {
   partyId?: string;
   registrationId: string;
   fetchedAt: number;
+  entry?: Record<string, unknown>;
 };
 
 type TokenResponse = {
@@ -352,14 +353,23 @@ async function resolveRegistrationId(config: BillitBaseConfig, auth: AuthHeaders
         continue;
       }
 
+      let matchedEntry: Record<string, unknown> | undefined;
       const payload = await parseJson(response);
-      const registrationId = extractRegistrationId(payload, config.partyId, config.transportType);
+      const registrationId = extractRegistrationId(
+        payload,
+        config.partyId,
+        config.transportType,
+        (entry) => {
+          matchedEntry = entry;
+        }
+      );
       if (registrationId) {
         cachedRegistration = {
           baseUrl: config.baseUrl,
           partyId: config.partyId,
           registrationId,
-          fetchedAt: now
+          fetchedAt: now,
+          entry: matchedEntry
         };
         return registrationId;
       }
@@ -384,12 +394,17 @@ async function resolveRegistrationId(config: BillitBaseConfig, auth: AuthHeaders
 function extractRegistrationId(
   payload: unknown,
   preferred: string | undefined,
-  transportType: string
+  transportType: string,
+  onEntry?: (entry: Record<string, unknown>) => void
 ): string | undefined {
   if (Array.isArray(payload)) {
     for (const entry of payload) {
       const candidate = selectRegistrationId(entry, preferred, transportType);
       if (candidate) {
+        const record = asRecord(entry);
+        if (record) {
+          onEntry?.(record);
+        }
         return candidate;
       }
     }
@@ -403,6 +418,7 @@ function extractRegistrationId(
 
   const direct = selectRegistrationId(root, preferred, transportType);
   if (direct) {
+    onEntry?.(root);
     return direct;
   }
 
@@ -418,6 +434,10 @@ function extractRegistrationId(
   for (const entry of collections) {
     const candidate = selectRegistrationId(entry, preferred, transportType);
     if (candidate) {
+      const record = asRecord(entry);
+      if (record) {
+        onEntry?.(record);
+      }
       return candidate;
     }
   }
@@ -427,6 +447,10 @@ function extractRegistrationId(
       for (const entry of value) {
         const candidate = selectRegistrationId(entry, preferred, transportType);
         if (candidate) {
+          const record = asRecord(entry);
+          if (record) {
+            onEntry?.(record);
+          }
           return candidate;
         }
       }
