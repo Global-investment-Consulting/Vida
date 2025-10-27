@@ -49,7 +49,7 @@ type SendParams = {
 export async function sendWithRetry(params: SendParams): Promise<void> {
   const adapter = resolveAdapter(params.adapterName);
   const tenant = params.tenant?.trim() || undefined;
-  const { invoiceId, ublXml, requestId } = params;
+  const { invoiceId, ublXml, requestId, order } = params;
   const logger = params.logger ?? console;
   let lastError: string | undefined;
 
@@ -63,7 +63,8 @@ export async function sendWithRetry(params: SendParams): Promise<void> {
       const result = await adapter.send({
         tenant: tenant ?? "default",
         invoiceId,
-        ublXml
+        ublXml,
+        order
       });
 
       await setInvoiceStatus({
