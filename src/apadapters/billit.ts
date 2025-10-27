@@ -946,7 +946,11 @@ export const billitAdapter: ApAdapter = {
       if (!fallbackRegistration) {
         try {
           fallbackRegistration = await resolveRegistrationId(config, auth);
-        } catch {
+        } catch (lookupError) {
+          console.warn(
+            "Billit registration lookup failed:",
+            lookupError instanceof Error ? lookupError.message : String(lookupError)
+          );
           fallbackRegistration = undefined;
         }
       }
