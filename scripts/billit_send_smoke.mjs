@@ -512,6 +512,7 @@ async function resolveRegistrationId(config, auth) {
   }
 
   let lastError;
+  let lastStructure;
 
   for (const variant of headerVariants) {
     for (const path of searchPaths) {
@@ -547,6 +548,12 @@ async function resolveRegistrationId(config, auth) {
         config.registrationId = registrationId;
         return registrationId;
       }
+
+      lastStructure = describeRegistrationPayload(payload);
+      console.warn(
+        "Billit registration payload missing id:",
+        `auth=${variant.label} path=${path} structure=${lastStructure}`
+      );
     }
   }
 
@@ -555,7 +562,7 @@ async function resolveRegistrationId(config, auth) {
   }
 
   throw new Error(
-    "Unable to determine Billit registration id. Provide AP_REGISTRATION_ID or ensure the account has an active registration."
+    `Unable to determine Billit registration id. Provide AP_REGISTRATION_ID or ensure the account has an active registration.${lastStructure ? ` Last payload: ${lastStructure}` : ''}`
   );
 }
 
@@ -694,6 +701,40 @@ function pickId(value) {
     return value.toString();
   }
   return undefined;
+}
+
+function describeRegistrationPayload(payload) {
+  if (Array.isArray(payload)) {
+    const length = payload.length;
+    const first = payload[0];
+    const firstKeys =
+      first && typeof first === "object" && !Array.isArray(first)
+        ? Object.keys(first).slice(0, 8)
+        : [];
+    return `array(len=${length}, firstKeys=${firstKeys.join(",")})`;
+  }
+
+  const record = asRecord(payload);
+  if (!record) {
+    return `type=${typeof payload}`;
+  }
+
+  const keys = Object.keys(record);
+  const previewKeys = keys.slice(0, 8).join(",");
+
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value) && value.length > 0) {
+      const nested = value[0];
+      const nestedKeys =
+        nested && typeof nested === "object" && !Array.isArray(nested)
+          ? Object.keys(nested).slice(0, 8)
+          : [];
+      return `object(keys=${previewKeys}, firstArray=${key}, firstArrayKeys=${nestedKeys.join(",")})`;
+    }
+  }
+
+  return `object(keys=${previewKeys})`;
 }
 
 function toAmount(minor, minorUnit) {
