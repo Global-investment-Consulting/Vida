@@ -846,8 +846,6 @@ type BillitSendParams = {
 export const billitAdapter: ApAdapter = {
   name: ADAPTER_NAME,
   async send({ tenant, invoiceId, ublXml: _ignored, order }: BillitSendParams): Promise<ApSendResult> {
-    // Temporary debug log to confirm order presence during CI failures
-    console.log("[billitAdapter.send] order present:", order ? "yes" : "no");
     if (!order) {
       throw new Error("Billit adapter requires order details to build the JSON payload");
     }
