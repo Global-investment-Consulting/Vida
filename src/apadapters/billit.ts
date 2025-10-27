@@ -364,6 +364,16 @@ function extractRegistrationId(
   preferred: string | undefined,
   transportType: string
 ): string | undefined {
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      const candidate = selectRegistrationId(entry, preferred, transportType);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return undefined;
+  }
+
   const root = asRecord(payload);
   if (!root) {
     return undefined;
