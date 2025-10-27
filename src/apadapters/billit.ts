@@ -521,6 +521,31 @@ function collectCandidateIds(record: Record<string, unknown>): string[] {
     }
   }
 
+  for (const value of Object.values(record)) {
+    if (!value) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+          for (const nested of collectCandidateIds(entry as Record<string, unknown>)) {
+            if (!candidates.includes(nested)) {
+              candidates.push(nested);
+            }
+          }
+        }
+      }
+      continue;
+    }
+    if (typeof value === "object") {
+      for (const nested of collectCandidateIds(value as Record<string, unknown>)) {
+        if (!candidates.includes(nested)) {
+          candidates.push(nested);
+        }
+      }
+    }
+  }
+
   return candidates;
 }
 
