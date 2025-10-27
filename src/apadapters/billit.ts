@@ -698,6 +698,25 @@ function formatIsoDate(value: unknown): string | undefined {
   return date.toISOString().slice(0, 10);
 }
 
+function coerceDate(value: unknown): Date | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (value instanceof Date) {
+    if (!Number.isNaN(value.getTime())) {
+      return value;
+    }
+    return undefined;
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+  }
+  return undefined;
+}
+
 function mapBillitAddress(address?: Order["buyer"]["address"]): Record<string, unknown> | undefined {
   if (!address) {
     return undefined;
@@ -833,6 +852,17 @@ function buildBillitSendPayload(
   let computedLineTotalMinor = 0;
   let computedVatTotalMinor = 0;
 
+  const taxSummaries = new Map<
+    string,
+    {
+      taxableMinor: number;
+      taxMinor: number;
+      rate?: number;
+      category?: string;
+      exemption?: string;
+    }
+  >();
+
   const lines = order.lines.map((line, index) => {
     const quantity = Number(line.quantity ?? 1) || 1;
     const unitPriceMinor = line.unitPriceMinor;
@@ -841,22 +871,50 @@ function buildBillitSendPayload(
     const vatRate = line.vatRate ?? defaultVatRate;
     const lineExtensionMinor = Math.max(Math.round(quantity * unitPriceMinor) - discountMinor, 0);
     const vatAmountMinor = Math.round((lineExtensionMinor * (vatRate ?? 0)) / 100);
+    const vatCategory =
+      line.vatCategory ??
+      (typeof vatRate === "number"
+        ? vatRate > 0
+          ? "S"
+          : line.vatExemptionReason
+          ? "E"
+          : "Z"
+        : undefined);
 
     computedLineTotalMinor += lineExtensionMinor;
     computedVatTotalMinor += vatAmountMinor;
+
+    const summaryKey = `${vatCategory ?? ""}|${vatRate ?? ""}|${line.vatExemptionReason ?? ""}`;
+    const summary =
+      taxSummaries.get(summaryKey) ??
+      {
+        taxableMinor: 0,
+        taxMinor: 0,
+        rate: vatRate,
+        category: vatCategory,
+        exemption: line.vatExemptionReason
+      };
+    summary.taxableMinor += lineExtensionMinor;
+    summary.taxMinor += vatAmountMinor;
+    summary.rate = vatRate;
+    summary.category = vatCategory;
+    summary.exemption = line.vatExemptionReason;
+    taxSummaries.set(summaryKey, summary);
 
     const entry = pruneEmpty({
       description,
       quantity,
       unitCode: line.unitCode,
       unitPrice: formatAmount(unitPriceMinor, minorUnit),
+      taxCategory: vatCategory,
+      taxRate: vatRate,
       vatRate,
       vatAmount: formatAmount(vatAmountMinor, minorUnit),
       lineTotal: formatAmount(lineExtensionMinor, minorUnit),
       discount: formatAmount(discountMinor, minorUnit),
       buyerReference: line.buyerAccountingReference,
       itemName: line.itemName,
-      vatCategory: line.vatCategory,
+      vatCategory,
       vatExemptionReason: line.vatExemptionReason
     });
 
@@ -875,14 +933,64 @@ function buildBillitSendPayload(
     Object.assign(sellerDetails, registrationCompany);
   }
 
+  const currency = order.currency ?? "EUR";
+  const issueDateSource = coerceDate(order.issueDate) ?? new Date();
+  const issueDateIso = formatIsoDate(issueDateSource) ?? formatIsoDate(new Date());
+  let dueDateIso = formatIsoDate(order.dueDate);
+  if (!dueDateIso) {
+    const base = new Date(issueDateSource.getTime());
+    base.setDate(base.getDate() + 30);
+    dueDateIso = formatIsoDate(base);
+  }
+
+  const totalsSummary =
+    mapBillitTotals(totalsSource, minorUnit) ??
+    pruneEmpty({
+      lineExtension: formatAmount(computedLineTotalMinor, minorUnit),
+      taxTotal: formatAmount(computedVatTotalMinor, minorUnit),
+      payable: formatAmount(computedLineTotalMinor + computedVatTotalMinor, minorUnit),
+      currency
+    });
+
+  const totalLineExtensionMinor = totalsSource.lineExtensionTotalMinor ?? computedLineTotalMinor;
+  const totalTaxMinor = totalsSource.taxTotalMinor ?? computedVatTotalMinor;
+  const totalPayableMinor = totalsSource.payableAmountMinor ?? totalLineExtensionMinor + totalTaxMinor;
+
+  const taxTotal = pruneEmpty({
+    amount: formatAmount(totalTaxMinor, minorUnit)
+  });
+
+  const legalMonetaryTotal = pruneEmpty({
+    lineExtensionAmount: formatAmount(totalLineExtensionMinor, minorUnit),
+    taxExclusiveAmount: formatAmount(totalLineExtensionMinor, minorUnit),
+    taxInclusiveAmount: formatAmount(totalPayableMinor, minorUnit),
+    payableAmount: formatAmount(totalPayableMinor, minorUnit)
+  });
+
+  const taxTotals = Array.from(taxSummaries.values())
+    .map((summary) =>
+      pruneEmpty({
+        category: summary.category,
+        rate: summary.rate,
+        exemptionReason: summary.exemption,
+        taxableAmount: formatAmount(summary.taxableMinor, minorUnit),
+        taxAmount: formatAmount(summary.taxMinor, minorUnit),
+        currency
+      })
+    )
+    .filter((entry) => Object.keys(entry).length > 0);
+
   const document = pruneEmpty<Record<string, unknown>>({
     invoiceNumber: order.orderNumber ?? invoiceId,
-    currency: order.currency,
-    issueDate: formatIsoDate(order.issueDate),
-    dueDate: formatIsoDate(order.dueDate),
+    currency,
+    issueDate: issueDateIso,
+    dueDate: dueDateIso,
     buyer: mapBillitParty(order.buyer),
     seller: sellerDetails,
-    totals: mapBillitTotals(totalsSource, minorUnit),
+    totals: totalsSummary,
+    taxTotal,
+    legalMonetaryTotal,
+    taxTotals: taxTotals.length > 0 ? taxTotals : undefined,
     lines
   });
 
@@ -1129,65 +1237,95 @@ export const billitAdapter: ApAdapter = {
     }
 
     const config = resolveConfig();
-    const auth = await resolveAuthHeaders(config);
     const idempotencyKey = buildIdempotencyKey(config, invoiceId, tenant);
-    const requestId = randomUUID();
+    const auth = await resolveAuthHeaders(config);
 
-    const baseHeaders: Record<string, string> = {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-      "X-Request-ID": requestId,
-      ...auth.headers
-    };
-    const configuredRegistration = config.registrationId?.trim() || undefined;
-    const makeBody = (registration?: string) =>
-      JSON.stringify(buildBillitSendPayload(order, config, invoiceId, registration));
-
-    const sendOnce = async (path: string, body: string): Promise<Response> => {
-      const url = joinUrl(config.baseUrl, path);
-      return fetch(url, {
-        method: "POST",
-        headers: baseHeaders,
-        body
-      });
+    type AttemptResult = {
+      response: Response;
+      parsed: unknown;
+      mode: AuthHeaders["mode"];
     };
 
-    let response = await sendOnce("/v1/commands/send", makeBody(configuredRegistration));
-    const shouldRetry =
-      response.status === 404 ||
-      response.status === 400 ||
-      (response.status >= 500 && response.status < 600);
+    const executeSend = async (authHeaders: AuthHeaders): Promise<AttemptResult> => {
+      const requestId = randomUUID();
+      const baseHeaders: Record<string, string> = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+        "X-Request-ID": requestId,
+        ...authHeaders.headers
+      };
+      const configuredRegistration = config.registrationId?.trim() || undefined;
+      const makeBody = (registration?: string) =>
+        JSON.stringify(buildBillitSendPayload(order, config, invoiceId, registration));
 
-    if (shouldRetry) {
-      let fallbackRegistration = configuredRegistration;
-      if (!fallbackRegistration) {
-        try {
-          fallbackRegistration = await resolveRegistrationId(config, auth);
-        } catch (lookupError) {
-          console.warn(
-            "Billit registration lookup failed:",
-            lookupError instanceof Error ? lookupError.message : String(lookupError)
+      const sendOnce = async (path: string, body: string): Promise<Response> => {
+        const url = joinUrl(config.baseUrl, path);
+        return fetch(url, {
+          method: "POST",
+          headers: baseHeaders,
+          body
+        });
+      };
+
+      let response = await sendOnce("/v1/commands/send", makeBody(configuredRegistration));
+      const shouldRetry =
+        response.status === 404 ||
+        response.status === 400 ||
+        (response.status >= 500 && response.status < 600);
+
+      if (shouldRetry) {
+        let fallbackRegistration = configuredRegistration;
+        if (!fallbackRegistration) {
+          try {
+            fallbackRegistration = await resolveRegistrationId(config, authHeaders);
+          } catch (lookupError) {
+            console.warn(
+              "Billit registration lookup failed:",
+              lookupError instanceof Error ? lookupError.message : String(lookupError)
+            );
+            fallbackRegistration = undefined;
+          }
+        }
+        if (fallbackRegistration) {
+          response = await sendOnce(
+            `/v1/einvoices/registrations/${encodeURIComponent(fallbackRegistration)}/commands/send`,
+            makeBody(fallbackRegistration)
           );
-          fallbackRegistration = undefined;
         }
       }
-      if (fallbackRegistration) {
-        response = await sendOnce(
-          `/v1/einvoices/registrations/${encodeURIComponent(fallbackRegistration)}/commands/send`,
-          makeBody(fallbackRegistration)
+
+      const parsed = await parseJson(response);
+      return { response, parsed, mode: authHeaders.mode };
+    };
+
+    let attempt = await executeSend(auth);
+
+    const shouldSwitchAuth =
+      attempt.response.status === 500 && auth.mode === "api-key" && config.clientId && config.clientSecret;
+
+    if (!attempt.response.ok && shouldSwitchAuth) {
+      try {
+        const oauthAuth = await resolveAuthHeaders({ ...config, apiKey: undefined });
+        attempt = await executeSend(oauthAuth);
+      } catch (switchError) {
+        console.warn(
+          "Billit OAuth fallback failed:",
+          switchError instanceof Error ? switchError.message : String(switchError)
         );
       }
     }
 
-    const parsed = await parseJson(response);
-
-    if (!response.ok) {
-      const errorBody = await safeReadBody(response, parsed);
+    if (!attempt.response.ok) {
+      const errorBody = await safeReadBody(attempt.response, attempt.parsed);
       throw new Error(
-        `Billit send failed (${response.status} ${response.statusText}) invoice=${invoiceId} tenant=${tenant ?? "default"}: ${errorBody}`
+        `Billit send failed (${attempt.response.status} ${attempt.response.statusText}) invoice=${invoiceId} tenant=${
+          tenant ?? "default"
+        } auth=${attempt.mode}: ${errorBody}`
       );
     }
+
+    const parsed = attempt.parsed;
 
     const provider = extractProviderResponse(parsed);
     const status = mapProviderSendStatus(provider.status);

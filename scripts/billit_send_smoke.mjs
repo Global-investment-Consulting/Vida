@@ -47,157 +47,184 @@ async function run() {
     const invoiceDraft = loadInvoiceDraft();
     const order = buildOrderFromDraft(invoiceDraft);
 
-    const requestId = randomUUID();
     const idempotencyKey = buildIdempotencyKey(config, order.orderNumber);
-
-    const requestHeaders = {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-      "X-Request-ID": requestId,
-      ...auth.headers
-    };
 
     const receiverScheme = config.receiverScheme ?? DEFAULT_RECEIVER_SCHEME;
     const receiverValue = config.receiverValue ?? DEFAULT_RECEIVER_VALUE;
 
-    let registrationForBody = config.registrationId;
-    let targetPath = "/v1/commands/send";
-    let targetUrl = joinUrl(config.baseUrl, targetPath);
-    let payload = buildBillitPayload(order, config, registrationForBody);
-    let body = JSON.stringify(payload);
+    const performSend = async (authHeaders) => {
+      const requestId = randomUUID();
+      const requestHeaders = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+        "X-Request-ID": requestId,
+        ...authHeaders.headers
+      };
 
-    const sanitizedInitialUrl = sanitizeUrl(targetUrl);
-    report.attempt.endpoint = sanitizedInitialUrl;
-    report.attempt.registrationId = registrationForBody ?? null;
-    report.requestPayload = payload;
-    report.registrationId = registrationForBody ?? null;
-    report.registrationEntry = config.registrationEntry ?? cachedRegistration?.entry ?? null;
-    report.httpRequest = {
-      url: sanitizedInitialUrl,
-      method: "POST",
-      headers: redactHeaders(requestHeaders),
-      documentType: config.documentType,
-      receiver: {
-        scheme: receiverScheme,
-        value: receiverValue
-      },
-      idempotencyKey: requestHeaders["Idempotency-Key"],
-      requestId,
-      registrationId: registrationForBody ?? null
-    };
+      const recordRequest = (url, registrationId, phaseLabel, body) => {
+        const sanitizedUrl = sanitizeUrl(url);
+        report.attempt.phase = phaseLabel;
+        report.attempt.endpoint = sanitizedUrl;
+        report.attempt.registrationId = registrationId ?? null;
+        report.attempt.authMode = authHeaders.mode;
+        report.httpRequest = {
+          url: sanitizedUrl,
+          method: "POST",
+          headers: redactHeaders(requestHeaders),
+          documentType: config.documentType,
+          receiver: {
+            scheme: receiverScheme,
+            value: receiverValue
+          },
+          idempotencyKey: requestHeaders["Idempotency-Key"],
+          requestId,
+          registrationId: registrationId ?? null
+        };
+        report.requestShape = {
+          url: sanitizedUrl,
+          method: "POST",
+          headers: redactHeaders(requestHeaders),
+          bodyBytes: Buffer.byteLength(body ?? "", "utf8"),
+          invoiceNumber: order.orderNumber
+        };
+      };
 
-    console.log("Sending invoice to Billit sandbox…", sanitizedInitialUrl);
-    let response = await fetch(targetUrl, {
-      method: "POST",
-      headers: requestHeaders,
-      body
-    });
+      let registrationForBody = config.registrationId;
+      let phaseLabel = "A";
+      let targetPath = "/v1/commands/send";
+      let targetUrl = joinUrl(config.baseUrl, targetPath);
+      let payload = buildBillitPayload(order, config, registrationForBody);
+      report.requestPayload = payload;
+      report.registrationId = registrationForBody ?? null;
+      report.registrationEntry = config.registrationEntry ?? cachedRegistration?.entry ?? null;
+      let body = JSON.stringify(payload);
+      recordRequest(targetUrl, registrationForBody, phaseLabel, body);
 
-    const shouldRetry =
-      response.status === 404 ||
-      response.status === 400 ||
-      (response.status >= 500 && response.status < 600);
+      console.log("Sending invoice to Billit sandbox…", sanitizeUrl(targetUrl));
+      let response = await fetch(targetUrl, {
+        method: "POST",
+        headers: requestHeaders,
+        body
+      });
 
-    if (shouldRetry) {
-      let fallbackRegistration = registrationForBody;
-      if (!fallbackRegistration) {
-        try {
-          fallbackRegistration = await resolveRegistrationId(config, auth);
-        } catch (lookupError) {
-          const message = lookupError instanceof Error ? lookupError.message : String(lookupError);
-          console.warn("Registration lookup failed:", message);
-          report.errors.push(`registration: ${message}`);
-          fallbackRegistration = undefined;
+      const shouldRetry =
+        response.status === 404 ||
+        response.status === 400 ||
+        (response.status >= 500 && response.status < 600);
+
+      if (shouldRetry) {
+        let fallbackRegistration = registrationForBody;
+        if (!fallbackRegistration) {
+          try {
+            fallbackRegistration = await resolveRegistrationId(config, authHeaders);
+          } catch (lookupError) {
+            const message = lookupError instanceof Error ? lookupError.message : String(lookupError);
+            console.warn("Registration lookup failed:", message);
+            report.errors.push(`registration: ${message}`);
+            fallbackRegistration = undefined;
+          }
+        }
+        if (fallbackRegistration) {
+          config.registrationId = fallbackRegistration;
+          registrationForBody = fallbackRegistration;
+          phaseLabel = "B";
+          targetPath = `/v1/einvoices/registrations/${encodeURIComponent(fallbackRegistration)}/commands/send`;
+          targetUrl = joinUrl(config.baseUrl, targetPath);
+          payload = buildBillitPayload(order, config, registrationForBody);
+          report.requestPayload = payload;
+          report.registrationId = registrationForBody;
+          report.registrationEntry = config.registrationEntry ?? cachedRegistration?.entry ?? null;
+          body = JSON.stringify(payload);
+          recordRequest(targetUrl, registrationForBody, phaseLabel, body);
+          console.log("Retrying with registration path…", sanitizeUrl(targetUrl));
+          response = await fetch(targetUrl, {
+            method: "POST",
+            headers: requestHeaders,
+            body
+          });
         }
       }
-      if (fallbackRegistration) {
-        config.registrationId = fallbackRegistration;
-        registrationForBody = fallbackRegistration;
-        targetPath = `/v1/einvoices/registrations/${encodeURIComponent(fallbackRegistration)}/commands/send`;
-        targetUrl = joinUrl(config.baseUrl, targetPath);
-        payload = buildBillitPayload(order, config, registrationForBody);
-        body = JSON.stringify(payload);
-        report.requestPayload = payload;
-        report.registrationId = registrationForBody;
-        report.registrationEntry = config.registrationEntry ?? cachedRegistration?.entry ?? null;
-        const sanitizedFallbackUrl = sanitizeUrl(targetUrl);
-        report.attempt.phase = "B";
-        report.attempt.endpoint = sanitizedFallbackUrl;
-        report.attempt.registrationId = registrationForBody ?? null;
+
+      const finalUrl = report.httpRequest?.url ?? sanitizeUrl(targetUrl);
+      if (report.httpRequest) {
         report.httpRequest = {
-          ...(report.httpRequest ?? {}),
-          url: sanitizedFallbackUrl,
+          ...report.httpRequest,
+          url: finalUrl,
           registrationId: registrationForBody ?? null
         };
-        console.log("Retrying with registration path…", sanitizedFallbackUrl);
-        response = await fetch(targetUrl, {
-          method: "POST",
-          headers: requestHeaders,
-          body
+      }
+      report.requestShape = {
+        url: finalUrl,
+        method: "POST",
+        headers: report.httpRequest?.headers ?? redactHeaders(requestHeaders),
+        bodyBytes: Buffer.byteLength(body ?? "", "utf8"),
+        invoiceNumber: order.orderNumber
+      };
+
+      let responseText;
+      try {
+        responseText = await response.text();
+      } catch (readError) {
+        const message = readError instanceof Error ? readError.message : String(readError);
+        responseText = `<<failed to read response body: ${message}>>`;
+      }
+      const responseHeaders = {};
+      if (response.headers && typeof response.headers.forEach === "function") {
+        response.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
         });
       }
-    }
-
-    const finalUrl = report.httpRequest?.url ?? sanitizeUrl(targetUrl);
-    if (report.httpRequest) {
-      report.httpRequest = {
-        ...report.httpRequest,
+      report.httpResponse = {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
         url: finalUrl,
-        registrationId: registrationForBody ?? null
+        headers: responseHeaders,
+        bodyBytes: Buffer.byteLength(responseText ?? "", "utf8")
       };
-    }
-    report.requestShape = {
-      url: finalUrl,
-      method: "POST",
-      headers: report.httpRequest?.headers ?? redactHeaders(requestHeaders),
-      bodyBytes: Buffer.byteLength(body, "utf8"),
-      invoiceNumber: order.orderNumber
+      report.rawResponse = responseText ?? "";
+
+      let parsed;
+      if (!responseText) {
+        parsed = {};
+      } else {
+        try {
+          parsed = JSON.parse(responseText);
+        } catch {
+          parsed = { raw: responseText };
+        }
+      }
+
+      return { response, parsed };
     };
 
-    let responseText;
-    try {
-      responseText = await response.text();
-    } catch (readError) {
-      const message =
-        readError instanceof Error ? readError.message : String(readError);
-      responseText = `<<failed to read response body: ${message}>>`;
-    }
-    const responseHeaders = {};
-    if (response.headers && typeof response.headers.forEach === "function") {
-      response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
-    }
-    report.httpResponse = {
-      status: response.status,
-      ok: response.ok,
-      statusText: response.statusText,
-      url: finalUrl,
-      headers: responseHeaders,
-      bodyBytes: Buffer.byteLength(responseText ?? "", "utf8")
-    };
-    report.rawResponse = responseText ?? "";
+    let attempt = await performSend(auth);
 
-    let parsed;
-    if (!responseText) {
-      parsed = {};
-    } else {
+    const shouldSwitchAuth =
+      attempt.response.status === 500 && auth.mode === "api-key" && config.clientId && config.clientSecret;
+
+    if (!attempt.response.ok && shouldSwitchAuth) {
       try {
-        parsed = JSON.parse(responseText);
-      } catch {
-        parsed = { raw: responseText };
+        console.log("Billit send failed with API key; retrying with OAuth token…");
+        const oauthAuth = await resolveAuthHeaders({ ...config, apiKey: undefined });
+        attempt = await performSend(oauthAuth);
+      } catch (switchError) {
+        const message = switchError instanceof Error ? switchError.message : String(switchError);
+        console.warn("OAuth fallback failed:", message);
+        report.errors.push(`auth: ${message}`);
       }
     }
 
-    if (!response.ok) {
-      const snippet = responseText ? responseText.slice(0, 2000) : "<empty>";
+    if (!attempt.response.ok) {
+      const raw = report.rawResponse ?? "<empty>";
+      const snippet = typeof raw === "string" ? raw.slice(0, 2000) : "<unavailable>";
       throw new Error(
-        `Billit send failed (${response.status} ${response.statusText}): ${snippet}`
+        `Billit send failed (${attempt.response.status} ${attempt.response.statusText}): ${snippet}`
       );
     }
 
-    const provider = extractProviderResponse(parsed);
+    const provider = extractProviderResponse(attempt.parsed);
     const sendStatus = mapProviderSendStatus(provider.status);
     report.response = { id: provider.providerId, status: sendStatus };
 
@@ -488,6 +515,20 @@ function formatIsoDate(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function coerceDate(value) {
+  if (!value) {
+    return undefined;
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date;
+}
+
 function mapBillitAddress(address) {
   if (!address) {
     return undefined;
@@ -593,6 +634,7 @@ function buildBillitPayload(order, config, registrationId) {
 
   let computedLineTotalMinor = 0;
   let computedVatTotalMinor = 0;
+  const taxSummaries = new Map();
 
   const lines = order.lines.map((line, index) => {
     const quantity = Number(line.quantity ?? 1) || 1;
@@ -601,22 +643,50 @@ function buildBillitPayload(order, config, registrationId) {
     const vatRate = line.vatRate != null ? Number(line.vatRate) : defaultVatRate;
     const lineExtensionMinor = Math.max(Math.round(quantity * unitPriceMinor) - discountMinor, 0);
     const vatAmountMinor = Math.round((lineExtensionMinor * (vatRate ?? 0)) / 100);
+    const vatCategory =
+      line.vatCategory ??
+      (typeof vatRate === "number"
+        ? vatRate > 0
+          ? "S"
+          : line.vatExemptionReason
+          ? "E"
+          : "Z"
+        : undefined);
 
     computedLineTotalMinor += lineExtensionMinor;
     computedVatTotalMinor += vatAmountMinor;
+
+    const summaryKey = `${vatCategory ?? ""}|${vatRate ?? ""}|${line.vatExemptionReason ?? ""}`;
+    const summary =
+      taxSummaries.get(summaryKey) ??
+      {
+        taxableMinor: 0,
+        taxMinor: 0,
+        rate: vatRate,
+        category: vatCategory,
+        exemption: line.vatExemptionReason
+      };
+    summary.taxableMinor += lineExtensionMinor;
+    summary.taxMinor += vatAmountMinor;
+    summary.rate = vatRate;
+    summary.category = vatCategory;
+    summary.exemption = line.vatExemptionReason;
+    taxSummaries.set(summaryKey, summary);
 
     return pruneEmpty({
       description: line.description ?? line.itemName ?? `Line ${index + 1}`,
       quantity,
       unitCode: line.unitCode ?? "EA",
       unitPrice: formatAmount(unitPriceMinor, minorUnit),
+      taxCategory: vatCategory,
+      taxRate: vatRate,
       vatRate,
       vatAmount: formatAmount(vatAmountMinor, minorUnit),
       lineTotal: formatAmount(lineExtensionMinor, minorUnit),
       discount: formatAmount(discountMinor, minorUnit),
       buyerReference: line.buyerAccountingReference,
       itemName: line.itemName,
-      vatCategory: line.vatCategory,
+      vatCategory,
       vatExemptionReason: line.vatExemptionReason
     });
   });
@@ -633,14 +703,64 @@ function buildBillitPayload(order, config, registrationId) {
     payableAmountMinor: computedLineTotalMinor + computedVatTotalMinor
   };
 
+  const currency = order.currency ?? "EUR";
+  const issueDateSource = coerceDate(order.issueDate) ?? new Date();
+  const issueDateIso = formatIsoDate(issueDateSource) ?? formatIsoDate(new Date());
+  let dueDateIso = formatIsoDate(order.dueDate);
+  if (!dueDateIso) {
+    const base = new Date(issueDateSource.getTime());
+    base.setDate(base.getDate() + 30);
+    dueDateIso = formatIsoDate(base);
+  }
+
+  const totalsSummary =
+    mapBillitTotals(totalsSource, minorUnit) ??
+    pruneEmpty({
+      lineExtension: formatAmount(computedLineTotalMinor, minorUnit),
+      taxTotal: formatAmount(computedVatTotalMinor, minorUnit),
+      payable: formatAmount(computedLineTotalMinor + computedVatTotalMinor, minorUnit),
+      currency
+    });
+
+  const totalLineExtensionMinor = totalsSource.lineExtensionTotalMinor ?? computedLineTotalMinor;
+  const totalTaxMinor = totalsSource.taxTotalMinor ?? computedVatTotalMinor;
+  const totalPayableMinor = totalsSource.payableAmountMinor ?? totalLineExtensionMinor + totalTaxMinor;
+
+  const taxTotal = pruneEmpty({
+    amount: formatAmount(totalTaxMinor, minorUnit)
+  });
+
+  const legalMonetaryTotal = pruneEmpty({
+    lineExtensionAmount: formatAmount(totalLineExtensionMinor, minorUnit),
+    taxExclusiveAmount: formatAmount(totalLineExtensionMinor, minorUnit),
+    taxInclusiveAmount: formatAmount(totalPayableMinor, minorUnit),
+    payableAmount: formatAmount(totalPayableMinor, minorUnit)
+  });
+
+  const taxTotals = Array.from(taxSummaries.values())
+    .map((summary) =>
+      pruneEmpty({
+        category: summary.category,
+        rate: summary.rate,
+        exemptionReason: summary.exemption,
+        taxableAmount: formatAmount(summary.taxableMinor, minorUnit),
+        taxAmount: formatAmount(summary.taxMinor, minorUnit),
+        currency
+      })
+    )
+    .filter((entry) => Object.keys(entry).length > 0);
+
   const document = pruneEmpty({
     invoiceNumber: order.orderNumber,
-    currency: order.currency,
-    issueDate: formatIsoDate(order.issueDate),
-    dueDate: formatIsoDate(order.dueDate),
+    currency,
+    issueDate: issueDateIso,
+    dueDate: dueDateIso,
     buyer: mapBillitParty(order.buyer),
     seller: sellerDetails,
-    totals: mapBillitTotals(totalsSource, minorUnit),
+    totals: totalsSummary,
+    taxTotal,
+    legalMonetaryTotal,
+    taxTotals: taxTotals.length > 0 ? taxTotals : undefined,
     lines
   });
 
