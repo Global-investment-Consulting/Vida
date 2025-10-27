@@ -15,6 +15,8 @@ const REPORT_PATH = path.join(REPORT_DIR, "billit-sandbox-live.json");
 const TOKEN_SAFETY_WINDOW_MS = 30_000;
 const DEFAULT_TOKEN_TTL_MS = 5 * 60 * 1_000;
 const REGISTRATION_CACHE_TTL_MS = 15 * 60 * 1_000;
+const DEFAULT_RECEIVER_SCHEME = "0088";
+const DEFAULT_RECEIVER_VALUE = "0000000000000";
 
 let cachedToken;
 let cachedRegistration;
@@ -223,7 +225,9 @@ function resolveConfig() {
     clientSecret,
     partyId: optionalEnv("AP_PARTY_ID"),
     contextPartyId: optionalEnv("AP_CONTEXT_PARTY_ID"),
-    transportType: normalizeTransportType(optionalEnv("AP_TRANSPORT_TYPE") ?? optionalEnv("BILLIT_TRANSPORT_TYPE"))
+    transportType: normalizeTransportType(optionalEnv("AP_TRANSPORT_TYPE") ?? optionalEnv("BILLIT_TRANSPORT_TYPE")),
+    receiverScheme: optionalEnv("BILLIT_RX_SCHEME") ?? optionalEnv("AP_RECEIVER_SCHEME"),
+    receiverValue: optionalEnv("BILLIT_RX_VALUE") ?? optionalEnv("AP_RECEIVER_VALUE")
   };
 }
 
@@ -436,6 +440,22 @@ function buildBillitPayload(order, config, registrationId) {
     lines
   });
 
+  const receiverScheme =
+    pickString(order.buyer?.endpoint?.scheme) ??
+    pickString(config.receiverScheme) ??
+    DEFAULT_RECEIVER_SCHEME;
+  const receiverValue =
+    pickString(order.buyer?.endpoint?.id) ??
+    pickString(config.receiverValue) ??
+    DEFAULT_RECEIVER_VALUE;
+
+  if (receiverScheme && receiverValue) {
+    document.receiver = {
+      scheme: receiverScheme,
+      value: receiverValue
+    };
+  }
+
   const payload = pruneEmpty({
     registrationId,
     transportType: config.transportType,
@@ -476,40 +496,51 @@ async function resolveRegistrationId(config, auth) {
     return cachedRegistration.registrationId;
   }
 
-  const url = joinUrl(config.baseUrl, "v1/einvoices/registrations");
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      ...auth.headers,
-      Accept: "application/json"
+  const searchPaths = ["v1/einvoices/registrations", "v1/registrations"];
+  let lastError;
+
+  for (const path of searchPaths) {
+    const url = joinUrl(config.baseUrl, path);
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        ...auth.headers,
+        Accept: "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        continue;
+      }
+      const errorBody = await safeReadBody(response);
+      lastError = new Error(
+        `Billit registrations lookup failed (${response.status} ${response.statusText}) path=${path}: ${errorBody}`
+      );
+      continue;
     }
-  });
 
-  if (!response.ok) {
-    const errorBody = await safeReadBody(response);
-    throw new Error(
-      `Billit registrations lookup failed (${response.status} ${response.statusText}): ${errorBody}`
-    );
+    const payload = await parseJson(response);
+    const registrationId = extractRegistrationId(payload, config.partyId, config.transportType);
+    if (registrationId) {
+      cachedRegistration = {
+        baseUrl: config.baseUrl,
+        partyId: config.partyId,
+        registrationId,
+        fetchedAt: now
+      };
+      config.registrationId = registrationId;
+      return registrationId;
+    }
   }
 
-  const payload = await parseJson(response);
-  const registrationId = extractRegistrationId(payload, config.partyId, config.transportType);
-  if (!registrationId) {
-    throw new Error(
-      "Unable to determine Billit registration id. Provide AP_REGISTRATION_ID or ensure the account has an active registration."
-    );
+  if (lastError) {
+    throw lastError;
   }
 
-  cachedRegistration = {
-    baseUrl: config.baseUrl,
-    partyId: config.partyId,
-    registrationId,
-    fetchedAt: now
-  };
-
-  config.registrationId = registrationId;
-
-  return registrationId;
+  throw new Error(
+    "Unable to determine Billit registration id. Provide AP_REGISTRATION_ID or ensure the account has an active registration."
+  );
 }
 
 function extractRegistrationId(payload, preferred, transportType) {
@@ -607,7 +638,10 @@ function collectCandidateIds(record) {
     "PartyId",
     "partyId",
     "id",
-    "ID"
+    "ID",
+    "Guid",
+    "guid",
+    "GUID"
   ];
 
   for (const key of keys) {

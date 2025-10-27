@@ -16,6 +16,8 @@ type BillitBaseConfig = {
   contextPartyId?: string;
   registrationId?: string;
   transportType: string;
+  receiverScheme?: string;
+  receiverValue?: string;
 };
 
 type OAuthTokenCache = {
@@ -56,6 +58,8 @@ const PRODUCTION_BASE_URL = "https://api.billit.be";
 const TOKEN_SAFETY_WINDOW_MS = 30_000;
 const DEFAULT_TOKEN_TTL_MS = 5 * 60 * 1_000;
 const REGISTRATION_CACHE_TTL_MS = 15 * 60 * 1_000;
+const DEFAULT_RECEIVER_SCHEME = "0088";
+const DEFAULT_RECEIVER_VALUE = "0000000000000";
 
 let cachedToken: OAuthTokenCache | undefined;
 let cachedRegistration: CachedRegistration | undefined;
@@ -180,7 +184,9 @@ function resolveConfig(): BillitBaseConfig {
     registrationId: registrationId?.trim(),
     partyId: partyId?.trim(),
     contextPartyId: contextPartyId?.trim(),
-    transportType
+    transportType,
+    receiverScheme: readEnv("BILLIT_RX_SCHEME") ?? readEnv("AP_RECEIVER_SCHEME"),
+    receiverValue: readEnv("BILLIT_RX_VALUE") ?? readEnv("AP_RECEIVER_VALUE")
   };
 }
 
@@ -307,38 +313,50 @@ async function resolveRegistrationId(config: BillitBaseConfig, auth: AuthHeaders
     return cachedRegistration.registrationId;
   }
 
-  const url = joinUrl(config.baseUrl, "v1/einvoices/registrations");
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      ...auth.headers,
-      Accept: "application/json"
+  const searchPaths = ["v1/einvoices/registrations", "v1/registrations"];
+  let lastError: Error | undefined;
+
+  for (const path of searchPaths) {
+    const url = joinUrl(config.baseUrl, path);
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        ...auth.headers,
+        Accept: "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        continue;
+      }
+      const errorBody = await safeReadBody(response);
+      lastError = new Error(
+        `Billit registrations lookup failed (${response.status} ${response.statusText}) path=${path}: ${errorBody}`
+      );
+      continue;
     }
-  });
 
-  if (!response.ok) {
-    const errorBody = await safeReadBody(response);
-    throw new Error(
-      `Billit registrations lookup failed (${response.status} ${response.statusText}): ${errorBody}`
-    );
+    const payload = await parseJson(response);
+    const registrationId = extractRegistrationId(payload, config.partyId, config.transportType);
+    if (registrationId) {
+      cachedRegistration = {
+        baseUrl: config.baseUrl,
+        partyId: config.partyId,
+        registrationId,
+        fetchedAt: now
+      };
+      return registrationId;
+    }
   }
 
-  const payload = await parseJson(response);
-  const registrationId = extractRegistrationId(payload, config.partyId, config.transportType);
-  if (!registrationId) {
-    throw new Error(
-      "Unable to determine Billit registration id. Provide AP_REGISTRATION_ID or ensure the account has an active registration."
-    );
+  if (lastError) {
+    throw lastError;
   }
 
-  cachedRegistration = {
-    baseUrl: config.baseUrl,
-    partyId: config.partyId,
-    registrationId,
-    fetchedAt: now
-  };
-
-  return registrationId;
+  throw new Error(
+    "Unable to determine Billit registration id. Provide AP_REGISTRATION_ID or ensure the account has an active registration."
+  );
 }
 
 function extractRegistrationId(
@@ -453,7 +471,10 @@ function collectCandidateIds(record: Record<string, unknown>): string[] {
     "PartyId",
     "partyId",
     "id",
-    "ID"
+    "ID",
+    "Guid",
+    "guid",
+    "GUID"
   ];
 
   for (const key of keys) {
@@ -617,7 +638,7 @@ function buildBillitSendPayload(
     return pruneEmpty(entry);
   });
 
-  const document = pruneEmpty({
+  const document = pruneEmpty<Record<string, unknown>>({
     invoiceNumber: order.orderNumber ?? invoiceId,
     buyer: pruneEmpty({
       name: order.buyer?.name
@@ -627,6 +648,22 @@ function buildBillitSendPayload(
     }),
     lines
   });
+
+  const receiverScheme =
+    pickString(order.buyer?.endpoint?.scheme) ??
+    pickString(config.receiverScheme) ??
+    DEFAULT_RECEIVER_SCHEME;
+  const receiverValue =
+    pickString(order.buyer?.endpoint?.id) ??
+    pickString(config.receiverValue) ??
+    DEFAULT_RECEIVER_VALUE;
+
+  if (receiverScheme && receiverValue) {
+    document.receiver = {
+      scheme: receiverScheme,
+      value: receiverValue
+    };
+  }
 
   const payload: {
     registrationId?: string;
