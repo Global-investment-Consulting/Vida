@@ -2,7 +2,7 @@
 
 ViDA can integrate with different AP (accounts payable) providers through a thin adapter layer located under `src/apadapters`. Each adapter implements the `ApAdapter` interface with two responsibilities:
 
-- `send({ tenant, invoiceId, ublXml, order })` submits the invoice (both the UBL string and the parsed order context) to the provider and returns a provider-specific identifier alongside the initial dispatch status.
+- `send({ tenant, invoiceId, ublXml })` submits the UBL document to the provider and returns a provider-specific identifier alongside the initial dispatch status.
 - `getStatus(providerId)` polls the provider for delivery updates and maps provider states into ViDA's canonical `queued | sent | delivered | error` lifecycle.
 
 The adapter registry lives in `src/apadapters/index.ts`. To register a new provider, add it to the registry map with a unique key (lower-case) and implement the interface in a new module. Unknown values fall back to the mock adapter, so adding new providers is non-breaking by default.
@@ -11,10 +11,10 @@ The adapter registry lives in `src/apadapters/index.ts`. To register a new provi
 
 The Billit adapter lives in `src/apadapters/billit.ts` and is intended for production use once credentials are available. It supports two authentication modes:
 
-- API key: set `AP_API_KEY` and the adapter will send the `apiKey` header alongside optional `partyID`/`ContextPartyID` routing headers. No `Authorization` header is used in this mode.
-- OAuth2 client credentials: when no API key is present the adapter exchanges `AP_CLIENT_ID` and `AP_CLIENT_SECRET` for an access token using the client-credentials grant at `${AP_BASE_URL}/oauth/token`. Tokens are cached in-process until they expire and the resulting bearer token is sent via the `Authorization` header together with any party headers.
+- API key: set `AP_API_KEY` and the adapter will send `Authorization: Bearer <key>`.
+- OAuth2 client credentials: when no API key is present the adapter exchanges `AP_CLIENT_ID` and `AP_CLIENT_SECRET` for an access token using the client-credentials grant at `${AP_BASE_URL}/oauth/token`. Tokens are cached in-process until they expire.
 
-Invoices are POSTed as JSON to `${AP_BASE_URL}/v1/einvoices/registrations/{registrationID}/commands/send`. Delivery status is polled via `${AP_BASE_URL}/v1/einvoices/registrations/{registrationID}/orders/{orderId}` with the same authentication headers. The adapter derives the registration identifier from `AP_REGISTRATION_ID` (or falls back to `AP_PARTY_ID`/`BILLIT_REGISTRATION_ID`).
+> ℹ️ The invoice submission endpoint is currently configured as `${AP_BASE_URL}/api/invoices` and the status endpoint as `${AP_BASE_URL}/api/invoices/{providerId}/status`. Confirm the final Billit paths and payload shape before go-live (`TODO` comments are in place where adjustments may be required, e.g. multipart uploads).
 
 ### Required environment variables
 
@@ -27,10 +27,6 @@ Configure the following variables wherever the adapter will run:
 | `AP_BASE_URL` | Base URL for the Billit API (e.g. `https://api.billit.be`). |
 | `AP_API_KEY` | Bearer token for direct API-key authentication (preferred when available). |
 | `AP_CLIENT_ID` / `AP_CLIENT_SECRET` | Client credentials for OAuth2 fallback when no API key is provided. |
-| `AP_REGISTRATION_ID` | Required Billit registration identifier (falls back to `BILLIT_REGISTRATION_ID`/`AP_PARTY_ID` when unset). |
-| `AP_PARTY_ID` | Optional party header to scope requests to a specific company (also used as the registration id when no explicit `AP_REGISTRATION_ID` is provided). |
-| `AP_CONTEXT_PARTY_ID` | Optional accountant/partner identifier forwarded as the `ContextPartyID` header. |
-| `AP_TRANSPORT_TYPE` | Preferred Billit transport (defaults to `Peppol`). |
 
 All variables default to empty strings, so missing configuration will surface as runtime errors rather than implicit fallbacks.
 

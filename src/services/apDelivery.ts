@@ -44,13 +44,12 @@ type SendParams = {
   requestId: string;
   adapterName?: string;
   logger?: Pick<typeof console, "info" | "error">;
-  order?: import("../peppol/convert.js").Order;
 };
 
 export async function sendWithRetry(params: SendParams): Promise<void> {
   const adapter = resolveAdapter(params.adapterName);
   const tenant = params.tenant?.trim() || undefined;
-  const { invoiceId, ublXml, order, requestId } = params;
+  const { invoiceId, ublXml, requestId } = params;
   const logger = params.logger ?? console;
   let lastError: string | undefined;
 
@@ -64,8 +63,7 @@ export async function sendWithRetry(params: SendParams): Promise<void> {
       const result = await adapter.send({
         tenant: tenant ?? "default",
         invoiceId,
-        ublXml,
-        order
+        ublXml
       });
 
       await setInvoiceStatus({

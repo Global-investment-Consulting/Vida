@@ -342,8 +342,7 @@ app.post(
             tenant: tenantId,
             invoiceId,
             ublXml: xml,
-            requestId,
-            order
+            requestId
           });
           const deliveryStatus = await getInvoiceStatus(tenantId, invoiceId);
           peppolStatus = deliveryStatus?.status;
