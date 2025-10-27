@@ -58,6 +58,8 @@ async function run() {
     let targetUrl = joinUrl(config.baseUrl, targetPath);
     let payload = buildBillitPayload(order, config, registrationForBody);
     let body = JSON.stringify(payload);
+    report.requestPayload = payload;
+    report.registrationId = registrationForBody ?? null;
 
     console.log("Sending invoice to Billit sandbox…", sanitizeUrl(targetUrl));
     let response = await fetch(targetUrl, {
@@ -85,6 +87,8 @@ async function run() {
         targetUrl = joinUrl(config.baseUrl, targetPath);
         payload = buildBillitPayload(order, config, registrationForBody);
         body = JSON.stringify(payload);
+        report.requestPayload = payload;
+        report.registrationId = registrationForBody;
         console.log("Retrying with registration path…", sanitizeUrl(targetUrl));
         response = await fetch(targetUrl, {
           method: "POST",
