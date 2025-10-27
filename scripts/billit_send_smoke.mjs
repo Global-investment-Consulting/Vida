@@ -544,6 +544,16 @@ async function resolveRegistrationId(config, auth) {
 }
 
 function extractRegistrationId(payload, preferred, transportType) {
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      const candidate = selectRegistrationId(entry, preferred, transportType);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return undefined;
+  }
+
   const root = asRecord(payload);
   if (!root) {
     return undefined;
