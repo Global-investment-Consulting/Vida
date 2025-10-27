@@ -37,9 +37,11 @@ nohup.out
 
 # Logs
 *.log
+!reports/*.log
 logs/
 
 # Generated artifacts
+build.env
 /invoice.xml
 # Editor backups
 *.save

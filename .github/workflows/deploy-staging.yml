@@ -42,16 +42,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Write build metadata
+      - name: Generate build metadata
         shell: bash
         run: |
           set -Eeuo pipefail
-          VERSION="$(jq -r '.version' package.json)"
-          printf 'COMMIT_SHA=%s\n' "${GITHUB_SHA}" >> build.env
-          printf 'BUILT_AT=%s\n' "${{ github.event.head_commit.timestamp || github.run_started_at }}" >> build.env
-          printf 'VERSION=%s\n' "${VERSION}" >> build.env
-          printf 'VERSION=%s\n' "${VERSION}" >> "${GITHUB_ENV}"
-
+          bash scripts/make_build_env.sh
+          VERSION_LINE=$(grep -E "^VERSION=" build.env | head -n1)
+          if [[ -z "${VERSION_LINE}" ]]; then
+            VERSION_LINE="VERSION=0.0.0"
+          fi
+          printf '%s\n' "${VERSION_LINE}" >> "${GITHUB_ENV}"
       - name: Sanity check secret parses (no output)
         run: node -e "JSON.parse(process.env.GCP_SA_KEY); process.stdout.write('ok\n')"
         env:
