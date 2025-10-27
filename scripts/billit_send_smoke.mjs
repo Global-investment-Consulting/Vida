@@ -71,7 +71,10 @@ async function run() {
       if (!fallbackRegistration) {
         try {
           fallbackRegistration = await resolveRegistrationId(config, auth);
-        } catch {
+        } catch (lookupError) {
+          const message = lookupError instanceof Error ? lookupError.message : String(lookupError);
+          console.warn("Registration lookup failed:", message);
+          report.errors.push(`registration: ${message}`);
           fallbackRegistration = undefined;
         }
       }
