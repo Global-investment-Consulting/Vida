@@ -2,6 +2,11 @@ name: "Smoke AP Billit (Sandbox — LIVE call)"
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type YES_I_UNDERSTAND to allow the live sandbox call"
+        required: false
+        default: "YES_I_UNDERSTAND"
 
 permissions:
   contents: read
@@ -10,16 +15,37 @@ jobs:
   gate:
     runs-on: ubuntu-latest
     outputs:
-      enabled: ${{ steps.g.outputs.enabled }}
+      enabled: ${{ steps.gate_check.outputs.enabled }}
     steps:
-      - id: g
+      - id: gate_check
+        shell: bash
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          BILLIT_SANDBOX: ${{ vars.BILLIT_SANDBOX }}
+          SB_URL: ${{ secrets.AP_BASE_URL }}
+          SB_ID: ${{ secrets.AP_CLIENT_ID }}
+          SB_SECRET: ${{ secrets.AP_CLIENT_SECRET }}
+          SB_KEY: ${{ secrets.AP_API_KEY }}
         run: |
+          set -Eeuo pipefail
           ok=true
-          [ "${{ vars.BILLIT_SANDBOX }}" = "true" ] || ok=false
-          for v in AP_BASE_URL AP_CLIENT_ID AP_CLIENT_SECRET AP_API_KEY; do
-            [ -n "${{ secrets[v] }}" ] || ok=false
+          if [ "${CONFIRM:-}" != "YES_I_UNDERSTAND" ]; then
+            echo "confirm input not acknowledged"
+            ok=false
+          fi
+          if [ "${BILLIT_SANDBOX:-}" != "true" ]; then
+            echo "BILLIT_SANDBOX var must be true"
+            ok=false
+          fi
+          for var in SB_URL SB_ID SB_SECRET SB_KEY; do
+            if [ -z "${!var:-}" ]; then
+              echo "$var: missing"
+              ok=false
+            else
+              echo "$var: present"
+            fi
           done
-          echo "enabled=$ok" >> "$GITHUB_OUTPUT"
+          echo "enabled=${ok}" >> "$GITHUB_OUTPUT"
 
   live:
     needs: gate
