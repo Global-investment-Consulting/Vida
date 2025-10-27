@@ -510,6 +510,9 @@ function buildBillitPayload(order, config, registrationId) {
   const minorUnit = order.currencyMinorUnit ?? 2;
   const defaultVatRate = order.defaultVatRate ?? 0;
 
+  let computedLineTotalMinor = 0;
+  let computedVatTotalMinor = 0;
+
   const lines = order.lines.map((line, index) => {
     const quantity = Number(line.quantity ?? 1) || 1;
     const unitPriceMinor = Number(line.unitPriceMinor ?? 0);
@@ -517,6 +520,9 @@ function buildBillitPayload(order, config, registrationId) {
     const vatRate = line.vatRate != null ? Number(line.vatRate) : defaultVatRate;
     const lineExtensionMinor = Math.max(Math.round(quantity * unitPriceMinor) - discountMinor, 0);
     const vatAmountMinor = Math.round((lineExtensionMinor * (vatRate ?? 0)) / 100);
+
+    computedLineTotalMinor += lineExtensionMinor;
+    computedVatTotalMinor += vatAmountMinor;
 
     return pruneEmpty({
       description: line.description ?? line.itemName ?? `Line ${index + 1}`,
@@ -540,6 +546,12 @@ function buildBillitPayload(order, config, registrationId) {
     Object.assign(sellerDetails, registrationCompany);
   }
 
+  const totalsSource = order.totals ?? {
+    lineExtensionTotalMinor: computedLineTotalMinor,
+    taxTotalMinor: computedVatTotalMinor,
+    payableAmountMinor: computedLineTotalMinor + computedVatTotalMinor
+  };
+
   const document = pruneEmpty({
     invoiceNumber: order.orderNumber,
     currency: order.currency,
@@ -547,7 +559,7 @@ function buildBillitPayload(order, config, registrationId) {
     dueDate: formatIsoDate(order.dueDate),
     buyer: mapBillitParty(order.buyer),
     seller: sellerDetails,
-    totals: mapBillitTotals(order.totals, minorUnit),
+    totals: mapBillitTotals(totalsSource, minorUnit),
     lines
   });
 

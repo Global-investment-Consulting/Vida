@@ -827,6 +827,9 @@ function buildBillitSendPayload(
 ): Record<string, unknown> {
   const minorUnit = order.currencyMinorUnit ?? 2;
   const defaultVatRate = order.defaultVatRate ?? 0;
+  let computedLineTotalMinor = 0;
+  let computedVatTotalMinor = 0;
+
   const lines = order.lines.map((line, index) => {
     const quantity = Number(line.quantity ?? 1) || 1;
     const unitPriceMinor = line.unitPriceMinor;
@@ -835,6 +838,9 @@ function buildBillitSendPayload(
     const vatRate = line.vatRate ?? defaultVatRate;
     const lineExtensionMinor = Math.max(Math.round(quantity * unitPriceMinor) - discountMinor, 0);
     const vatAmountMinor = Math.round((lineExtensionMinor * (vatRate ?? 0)) / 100);
+
+    computedLineTotalMinor += lineExtensionMinor;
+    computedVatTotalMinor += vatAmountMinor;
 
     const entry = pruneEmpty({
       description,
@@ -854,6 +860,12 @@ function buildBillitSendPayload(
     return entry;
   });
 
+  const totalsSource = order.totals ?? {
+    lineExtensionTotalMinor: computedLineTotalMinor,
+    taxTotalMinor: computedVatTotalMinor,
+    payableAmountMinor: computedLineTotalMinor + computedVatTotalMinor
+  };
+
   const registrationCompany = extractRegistrationCompany(config.registrationEntry);
   const sellerDetails = mapBillitParty(order.supplier);
   if (registrationCompany) {
@@ -867,7 +879,7 @@ function buildBillitSendPayload(
     dueDate: formatIsoDate(order.dueDate),
     buyer: mapBillitParty(order.buyer),
     seller: sellerDetails,
-    totals: mapBillitTotals(order.totals, minorUnit),
+    totals: mapBillitTotals(totalsSource, minorUnit),
     lines
   });
 
