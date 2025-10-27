@@ -17,6 +17,7 @@ const DEFAULT_TOKEN_TTL_MS = 5 * 60 * 1_000;
 const REGISTRATION_CACHE_TTL_MS = 15 * 60 * 1_000;
 const DEFAULT_RECEIVER_SCHEME = "0088";
 const DEFAULT_RECEIVER_VALUE = "0000000000000";
+const DEFAULT_DOCUMENT_TYPE = "BISv3Invoice";
 
 let cachedToken;
 let cachedRegistration;
@@ -69,7 +70,12 @@ async function run() {
       body
     });
 
-    if (response.status === 404) {
+    const shouldRetry =
+      response.status === 404 ||
+      response.status === 400 ||
+      (response.status >= 500 && response.status < 600);
+
+    if (shouldRetry) {
       let fallbackRegistration = registrationForBody;
       if (!fallbackRegistration) {
         try {
@@ -235,6 +241,7 @@ function resolveConfig() {
     partyId: optionalEnv("AP_PARTY_ID"),
     contextPartyId: optionalEnv("AP_CONTEXT_PARTY_ID"),
     transportType: normalizeTransportType(optionalEnv("AP_TRANSPORT_TYPE") ?? optionalEnv("BILLIT_TRANSPORT_TYPE")),
+    documentType: optionalEnv("BILLIT_DOC_TYPE") ?? optionalEnv("AP_DOCUMENT_TYPE") ?? DEFAULT_DOCUMENT_TYPE,
     receiverScheme: optionalEnv("BILLIT_RX_SCHEME") ?? optionalEnv("AP_RECEIVER_SCHEME"),
     receiverValue: optionalEnv("BILLIT_RX_VALUE") ?? optionalEnv("AP_RECEIVER_VALUE")
   };
@@ -582,6 +589,7 @@ function buildBillitPayload(order, config, registrationId) {
   const payload = pruneEmpty({
     registrationId,
     transportType: config.transportType,
+    documentType: pickString(config.documentType) ?? DEFAULT_DOCUMENT_TYPE,
     documents: [document]
   });
 
