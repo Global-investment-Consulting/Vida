@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import process from "node:process";
 
 import type { Order } from "../peppol/convert.js";
-import type { ApAdapter, ApDeliveryStatus, ApSendParams, ApSendResult } from "./types.js";
+import type { ApAdapter, ApDeliveryStatus, ApSendResult } from "./types.js";
 
 type BillitEnvironment = "sandbox" | "production";
 
@@ -836,9 +836,11 @@ function mapProviderDeliveryStatus(status: string | undefined): ApDeliveryStatus
   return "sent";
 }
 
+type BillitSendParams = Parameters<ApAdapter["send"]>[0];
+
 export const billitAdapter: ApAdapter = {
   name: ADAPTER_NAME,
-  async send({ tenant, invoiceId, ublXml: _ignored, order }: ApSendParams): Promise<ApSendResult> {
+  async send({ tenant, invoiceId, ublXml: _ignored, order }: BillitSendParams): Promise<ApSendResult> {
     if (!order) {
       throw new Error("Billit adapter requires order details to build the JSON payload");
     }
