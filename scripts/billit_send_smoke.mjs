@@ -17,6 +17,7 @@ const DEFAULT_TOKEN_TTL_MS = 5 * 60 * 1_000;
 const REGISTRATION_CACHE_TTL_MS = 15 * 60 * 1_000;
 const DEFAULT_RECEIVER_SCHEME = "0088";
 const DEFAULT_RECEIVER_VALUE = "0000000000000";
+const DEFAULT_DOCUMENT_TYPE = "BISv3Invoice";
 
 let cachedToken;
 let cachedRegistration;
@@ -28,7 +29,11 @@ run().catch((error) => {
 
 async function run() {
   const report = {
+    attempt: { phase: "A", endpoint: null, registrationId: null },
     requestShape: {},
+    httpRequest: null,
+    httpResponse: null,
+    rawResponse: null,
     response: undefined,
     poll: [],
     errors: []
@@ -53,23 +58,48 @@ async function run() {
       ...auth.headers
     };
 
+    const receiverScheme = config.receiverScheme ?? DEFAULT_RECEIVER_SCHEME;
+    const receiverValue = config.receiverValue ?? DEFAULT_RECEIVER_VALUE;
+
     let registrationForBody = config.registrationId;
     let targetPath = "/v1/commands/send";
     let targetUrl = joinUrl(config.baseUrl, targetPath);
     let payload = buildBillitPayload(order, config, registrationForBody);
     let body = JSON.stringify(payload);
+
+    const sanitizedInitialUrl = sanitizeUrl(targetUrl);
+    report.attempt.endpoint = sanitizedInitialUrl;
+    report.attempt.registrationId = registrationForBody ?? null;
     report.requestPayload = payload;
     report.registrationId = registrationForBody ?? null;
     report.registrationEntry = config.registrationEntry ?? cachedRegistration?.entry ?? null;
+    report.httpRequest = {
+      url: sanitizedInitialUrl,
+      method: "POST",
+      headers: redactHeaders(requestHeaders),
+      documentType: config.documentType,
+      receiver: {
+        scheme: receiverScheme,
+        value: receiverValue
+      },
+      idempotencyKey: requestHeaders["Idempotency-Key"],
+      requestId,
+      registrationId: registrationForBody ?? null
+    };
 
-    console.log("Sending invoice to Billit sandbox…", sanitizeUrl(targetUrl));
+    console.log("Sending invoice to Billit sandbox…", sanitizedInitialUrl);
     let response = await fetch(targetUrl, {
       method: "POST",
       headers: requestHeaders,
       body
     });
 
-    if (response.status === 404) {
+    const shouldRetry =
+      response.status === 404 ||
+      response.status === 400 ||
+      (response.status >= 500 && response.status < 600);
+
+    if (shouldRetry) {
       let fallbackRegistration = registrationForBody;
       if (!fallbackRegistration) {
         try {
@@ -91,7 +121,16 @@ async function run() {
         report.requestPayload = payload;
         report.registrationId = registrationForBody;
         report.registrationEntry = config.registrationEntry ?? cachedRegistration?.entry ?? null;
-        console.log("Retrying with registration path…", sanitizeUrl(targetUrl));
+        const sanitizedFallbackUrl = sanitizeUrl(targetUrl);
+        report.attempt.phase = "B";
+        report.attempt.endpoint = sanitizedFallbackUrl;
+        report.attempt.registrationId = registrationForBody ?? null;
+        report.httpRequest = {
+          ...(report.httpRequest ?? {}),
+          url: sanitizedFallbackUrl,
+          registrationId: registrationForBody ?? null
+        };
+        console.log("Retrying with registration path…", sanitizedFallbackUrl);
         response = await fetch(targetUrl, {
           method: "POST",
           headers: requestHeaders,
@@ -100,20 +139,61 @@ async function run() {
       }
     }
 
+    const finalUrl = report.httpRequest?.url ?? sanitizeUrl(targetUrl);
+    if (report.httpRequest) {
+      report.httpRequest = {
+        ...report.httpRequest,
+        url: finalUrl,
+        registrationId: registrationForBody ?? null
+      };
+    }
     report.requestShape = {
-      url: sanitizeUrl(targetUrl),
+      url: finalUrl,
       method: "POST",
-      headers: redactHeaders(requestHeaders),
+      headers: report.httpRequest?.headers ?? redactHeaders(requestHeaders),
       bodyBytes: Buffer.byteLength(body, "utf8"),
       invoiceNumber: order.orderNumber
     };
 
-    const parsed = await parseJson(response);
+    let responseText;
+    try {
+      responseText = await response.text();
+    } catch (readError) {
+      const message =
+        readError instanceof Error ? readError.message : String(readError);
+      responseText = `<<failed to read response body: ${message}>>`;
+    }
+    const responseHeaders = {};
+    if (response.headers && typeof response.headers.forEach === "function") {
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+    }
+    report.httpResponse = {
+      status: response.status,
+      ok: response.ok,
+      statusText: response.statusText,
+      url: finalUrl,
+      headers: responseHeaders,
+      bodyBytes: Buffer.byteLength(responseText ?? "", "utf8")
+    };
+    report.rawResponse = responseText ?? "";
+
+    let parsed;
+    if (!responseText) {
+      parsed = {};
+    } else {
+      try {
+        parsed = JSON.parse(responseText);
+      } catch {
+        parsed = { raw: responseText };
+      }
+    }
 
     if (!response.ok) {
-      const errorBody = await safeReadBody(response, parsed);
+      const snippet = responseText ? responseText.slice(0, 2000) : "<empty>";
       throw new Error(
-        `Billit send failed (${response.status} ${response.statusText}): ${errorBody}`
+        `Billit send failed (${response.status} ${response.statusText}): ${snippet}`
       );
     }
 
@@ -235,6 +315,7 @@ function resolveConfig() {
     partyId: optionalEnv("AP_PARTY_ID"),
     contextPartyId: optionalEnv("AP_CONTEXT_PARTY_ID"),
     transportType: normalizeTransportType(optionalEnv("AP_TRANSPORT_TYPE") ?? optionalEnv("BILLIT_TRANSPORT_TYPE")),
+    documentType: optionalEnv("BILLIT_DOC_TYPE") ?? optionalEnv("AP_DOCUMENT_TYPE") ?? DEFAULT_DOCUMENT_TYPE,
     receiverScheme: optionalEnv("BILLIT_RX_SCHEME") ?? optionalEnv("AP_RECEIVER_SCHEME"),
     receiverValue: optionalEnv("BILLIT_RX_VALUE") ?? optionalEnv("AP_RECEIVER_VALUE")
   };
@@ -582,6 +663,7 @@ function buildBillitPayload(order, config, registrationId) {
   const payload = pruneEmpty({
     registrationId,
     transportType: config.transportType,
+    documentType: pickString(config.documentType) ?? DEFAULT_DOCUMENT_TYPE,
     documents: [document]
   });
 

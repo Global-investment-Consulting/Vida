@@ -16,6 +16,7 @@ type BillitBaseConfig = {
   contextPartyId?: string;
   registrationId?: string;
   transportType: string;
+  documentType?: string;
   receiverScheme?: string;
   receiverValue?: string;
   registrationEntry?: Record<string, unknown>;
@@ -62,6 +63,7 @@ const DEFAULT_TOKEN_TTL_MS = 5 * 60 * 1_000;
 const REGISTRATION_CACHE_TTL_MS = 15 * 60 * 1_000;
 const DEFAULT_RECEIVER_SCHEME = "0088";
 const DEFAULT_RECEIVER_VALUE = "0000000000000";
+const DEFAULT_DOCUMENT_TYPE = "BISv3Invoice";
 
 let cachedToken: OAuthTokenCache | undefined;
 let cachedRegistration: CachedRegistration | undefined;
@@ -187,6 +189,7 @@ function resolveConfig(): BillitBaseConfig {
     partyId: partyId?.trim(),
     contextPartyId: contextPartyId?.trim(),
     transportType,
+    documentType: readEnv("BILLIT_DOC_TYPE") ?? readEnv("AP_DOCUMENT_TYPE") ?? undefined,
     receiverScheme: readEnv("BILLIT_RX_SCHEME") ?? readEnv("AP_RECEIVER_SCHEME"),
     receiverValue: readEnv("BILLIT_RX_VALUE") ?? readEnv("AP_RECEIVER_VALUE"),
     registrationEntry: undefined
@@ -902,9 +905,11 @@ function buildBillitSendPayload(
   const payload: {
     registrationId?: string;
     transportType: string;
+    documentType: string;
     documents: Array<Record<string, unknown>>;
   } = {
     transportType: config.transportType ?? "Peppol",
+    documentType: pickString(config.documentType) ?? DEFAULT_DOCUMENT_TYPE,
     documents: [document]
   };
 
@@ -1149,8 +1154,12 @@ export const billitAdapter: ApAdapter = {
     };
 
     let response = await sendOnce("/v1/commands/send", makeBody(configuredRegistration));
+    const shouldRetry =
+      response.status === 404 ||
+      response.status === 400 ||
+      (response.status >= 500 && response.status < 600);
 
-    if (response.status === 404) {
+    if (shouldRetry) {
       let fallbackRegistration = configuredRegistration;
       if (!fallbackRegistration) {
         try {
