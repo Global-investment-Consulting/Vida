@@ -29,6 +29,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID != '' && vars.GCP_PROJECT_ID || 'vida-staging-1760866919' }}
       PROJECT_ID: ${{ vars.GCP_PROJECT_ID != '' && vars.GCP_PROJECT_ID || 'vida-staging-1760866919' }}
       REGION:     ${{ vars.REGION != '' && vars.REGION || 'europe-west1' }}
       SERVICE:    ${{ vars.SERVICE != '' && vars.SERVICE || 'vida-staging' }}
@@ -38,7 +39,7 @@ jobs:
       VIDA_AP_ADAPTER: mock
       VIDA_AP_SEND_ON_CREATE: 'true'
       COMMIT_SHA: ${{ github.sha }}
-      BUILT_AT: ${{ github.event.head_commit.timestamp || github.run_started_at }}
+      BUILT_AT: ${{ github.event.head_commit.timestamp || github.event.workflow_run.run_started_at || github.run_id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -55,35 +56,36 @@ jobs:
       - name: Preflight context (names only)
         shell: bash
         env:
-          PROJECT_ID: ${{ env.PROJECT_ID }}
-          REGION: ${{ env.REGION }}
-          SERVICE: ${{ env.SERVICE }}
-          CLOUD_BUILD_BUCKET: ${{ env.CLOUD_BUILD_BUCKET }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
-          AGENTS_ENABLED: ${{ env.AGENTS_ENABLED }}
-          VIDA_AP_ADAPTER: ${{ env.VIDA_AP_ADAPTER }}
+          PROJECT_ID:          ${{ env.GCP_PROJECT_ID }}
+          REGION:              ${{ env.REGION }}
+          SERVICE:             ${{ env.SERVICE }}
+          CLOUD_BUILD_BUCKET:  ${{ env.CLOUD_BUILD_BUCKET }}
+          IMAGE_TAG:           ${{ env.IMAGE_TAG }}
+          AGENTS_ENABLED:      ${{ env.AGENTS_ENABLED }}
+          VIDA_AP_ADAPTER:     ${{ env.VIDA_AP_ADAPTER }}
           VIDA_AP_SEND_ON_CREATE: ${{ env.VIDA_AP_SEND_ON_CREATE }}
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          # presence check only; never echo content:
+          GCP_SA_KEY:          ${{ secrets.GCP_SA_KEY }}
         run: |
           set -Eeuo pipefail
           declare -a keys=(PROJECT_ID REGION SERVICE CLOUD_BUILD_BUCKET IMAGE_TAG AGENTS_ENABLED VIDA_AP_ADAPTER VIDA_AP_SEND_ON_CREATE)
           for key in "${keys[@]}"; do
             if [[ -n "${!key:-}" ]]; then
-              printf '%s: present\n' "$key"
+              printf "%s: present\n" "$key"
             else
-              printf '%s: missing\n' "$key"
+              printf "%s: missing\n" "$key"
             fi
           done
-          sa_email="$(jq -r '.client_email // empty' <<<"$GCP_SA_KEY")"
-          if [[ -n "$sa_email" ]]; then
-            echo "service_account_email_present: true"
+          if [[ -n "${GCP_SA_KEY:-}" ]]; then
+            echo "service_account_secret_present: true"
           else
-            echo "service_account_email_present: false"
+            echo "service_account_secret_present: false"
           fi
-      - name: Sanity check secret parses (no output)
-        run: node -e "JSON.parse(process.env.GCP_SA_KEY); process.stdout.write('ok\n')"
+
+      - name: Sanity check secret parse (no output)
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: node -e "JSON.parse(process.env.GCP_SA_KEY || '{}'); process.stdout.write('ok\n')"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
