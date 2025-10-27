@@ -25,6 +25,10 @@ npm start
 | `AP_BASE_URL` | Base URL for the Billit API (e.g. `https://api.billit.be`). |
 | `AP_API_KEY` | Billit API bearer token used when present. |
 | `AP_CLIENT_ID` / `AP_CLIENT_SECRET` | Billit OAuth client credentials used when no API key is configured. |
+| `AP_REGISTRATION_ID` | Billit registration identifier (falls back to `BILLIT_REGISTRATION_ID` / `AP_PARTY_ID`). |
+| `AP_PARTY_ID` | Optional party header identifying the target company (also used as the registration id when `AP_REGISTRATION_ID` is unset). |
+| `AP_CONTEXT_PARTY_ID` | Optional accountant/partner company identifier forwarded as `ContextPartyID`. |
+| `AP_TRANSPORT_TYPE` | Billit transport channel (defaults to `Peppol`). |
 
 ## Storage Backends
 - The default storage bundle writes JSONL files under `./data`. No configuration changes are required for local development or staging.
@@ -61,8 +65,8 @@ The container exposes the API on port `8080` and mounts `./data` for history log
 ## Accounts Payable adapters
 - The adapter registry and Billit implementation are documented in [`docs/ADAPTERS.md`](docs/ADAPTERS.md). Start there before wiring up additional providers.
 - Staging stays on the mock adapter by default because `.github/workflows/deploy-staging.yml` hardcodes `VIDA_AP_ADAPTER=mock`. Override that value only after the Billit secrets are populated.
-- To enable Billit in another environment, set `VIDA_AP_ADAPTER=billit` alongside `AP_BASE_URL` and either `AP_API_KEY` or `AP_CLIENT_ID`/`AP_CLIENT_SECRET`.
-- Provision empty GitHub Actions secrets for both staging and production environments so credentials can be added later: `AP_BASE_URL`, `AP_CLIENT_ID`, `AP_CLIENT_SECRET`, `AP_API_KEY`.
+- To enable Billit in another environment, set `VIDA_AP_ADAPTER=billit` alongside `AP_BASE_URL`, `AP_REGISTRATION_ID` (or `AP_PARTY_ID`), and either `AP_API_KEY` or `AP_CLIENT_ID`/`AP_CLIENT_SECRET`.
+- Provision empty GitHub Actions secrets for both staging and production environments so credentials can be added later: `AP_BASE_URL`, `AP_REGISTRATION_ID`, `AP_API_KEY`, `AP_CLIENT_ID`, `AP_CLIENT_SECRET`, `AP_PARTY_ID`, and `AP_CONTEXT_PARTY_ID`.
 - Webhook callbacks continue to use `AP_WEBHOOK_SECRET` — see the adapters doc for details on `/ap/status-webhook`.
 
 ### Billit sandbox setup (checklist)
