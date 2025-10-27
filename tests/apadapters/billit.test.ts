@@ -240,7 +240,19 @@ describe("billit adapter", () => {
       })
     ).rejects.toThrow(/Billit send failed/);
 
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const fetchTargets = fetchMock.mock.calls.map(([input]) => {
+      if (typeof input === "string") {
+        return input;
+      }
+      if (input && typeof input === "object" && "url" in input && typeof (input as { url?: unknown }).url === "string") {
+        return (input as { url: string }).url;
+      }
+      return String(input);
+    });
+    const sendCalls = fetchTargets.filter((url) => url.includes("/v1/commands/send"));
+    expect(sendCalls).toHaveLength(5);
+    const registrationCalls = fetchTargets.filter((url) => url.includes("/registrations"));
+    expect(registrationCalls.length).toBeGreaterThanOrEqual(1);
 
     const backend = (process.env.VIDA_STORAGE_BACKEND ?? "file").toLowerCase();
     let lastEntry: Record<string, string> | undefined;
