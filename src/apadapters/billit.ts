@@ -672,9 +672,75 @@ async function safeReadBody(response: Response, parsed?: unknown): Promise<strin
   }
 }
 
-function toAmount(minor: number, minorUnit: number): number {
+function formatAmount(minor: number | undefined, minorUnit: number): string | undefined {
+  if (typeof minor !== "number" || !Number.isFinite(minor)) {
+    return undefined;
+  }
   const divider = 10 ** minorUnit;
-  return Number((minor / divider).toFixed(minorUnit));
+  return (minor / divider).toFixed(minorUnit);
+}
+
+function formatIsoDate(value: unknown): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const date = value instanceof Date ? value : new Date(value as string);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function mapBillitAddress(address?: Order["buyer"]["address"]): Record<string, unknown> | undefined {
+  if (!address) {
+    return undefined;
+  }
+  return pruneEmpty({
+    street: address.streetName,
+    street2: address.additionalStreetName,
+    buildingNumber: address.buildingNumber,
+    city: address.cityName,
+    postalCode: address.postalZone,
+    countryCode: address.countryCode
+  });
+}
+
+function mapBillitContact(contact?: Order["buyer"]["contact"]): Record<string, unknown> | undefined {
+  if (!contact) {
+    return undefined;
+  }
+  return pruneEmpty({
+    name: contact.name,
+    telephone: contact.telephone,
+    email: contact.electronicMail
+  });
+}
+
+function mapBillitParty(party?: Order["buyer"]): Record<string, unknown> {
+  return pruneEmpty({
+    name: party?.name,
+    registrationName: party?.registrationName,
+    companyId: party?.companyId,
+    vatNumber: party?.vatId,
+    endpoint: party?.endpoint?.id,
+    endpointScheme: party?.endpoint?.scheme,
+    address: mapBillitAddress(party?.address),
+    contact: mapBillitContact(party?.contact)
+  });
+}
+
+function mapBillitTotals(totals: Order["totals"] | undefined, minorUnit: number): Record<string, unknown> | undefined {
+  if (!totals) {
+    return undefined;
+  }
+  return pruneEmpty({
+    lineExtension: formatAmount(totals.lineExtensionTotalMinor, minorUnit),
+    taxTotal: formatAmount(totals.taxTotalMinor, minorUnit),
+    payable: formatAmount(totals.payableAmountMinor, minorUnit),
+    allowanceTotal: formatAmount(totals.allowanceTotalMinor, minorUnit),
+    chargeTotal: formatAmount(totals.chargeTotalMinor, minorUnit),
+    rounding: totals.roundingMinor
+  });
 }
 
 function pruneEmpty<T extends Record<string, unknown>>(input: T): T {
@@ -738,33 +804,40 @@ function buildBillitSendPayload(
   const minorUnit = order.currencyMinorUnit ?? 2;
   const defaultVatRate = order.defaultVatRate ?? 0;
   const lines = order.lines.map((line, index) => {
+    const quantity = Number(line.quantity ?? 1) || 1;
     const unitPriceMinor = line.unitPriceMinor;
     const description = line.description ?? line.itemName ?? `Line ${index + 1}`;
-
-    const entry: Record<string, unknown> = {
-      description,
-      quantity: line.quantity,
-      unitPrice: toAmount(unitPriceMinor, minorUnit)
-    };
-
+    const discountMinor = line.discountMinor ?? 0;
     const vatRate = line.vatRate ?? defaultVatRate;
-    if (vatRate !== undefined) {
-      entry.vatRate = vatRate;
-    }
-    if (line.buyerAccountingReference) {
-      entry.buyerReference = line.buyerAccountingReference;
-    }
-    return pruneEmpty(entry);
+    const lineExtensionMinor = Math.max(Math.round(quantity * unitPriceMinor) - discountMinor, 0);
+    const vatAmountMinor = Math.round((lineExtensionMinor * (vatRate ?? 0)) / 100);
+
+    const entry = pruneEmpty({
+      description,
+      quantity,
+      unitCode: line.unitCode,
+      unitPrice: formatAmount(unitPriceMinor, minorUnit),
+      vatRate,
+      vatAmount: formatAmount(vatAmountMinor, minorUnit),
+      lineTotal: formatAmount(lineExtensionMinor, minorUnit),
+      discount: formatAmount(discountMinor, minorUnit),
+      buyerReference: line.buyerAccountingReference,
+      itemName: line.itemName,
+      vatCategory: line.vatCategory,
+      vatExemptionReason: line.vatExemptionReason
+    });
+
+    return entry;
   });
 
   const document = pruneEmpty<Record<string, unknown>>({
     invoiceNumber: order.orderNumber ?? invoiceId,
-    buyer: pruneEmpty({
-      name: order.buyer?.name
-    }),
-    seller: pruneEmpty({
-      name: order.supplier?.name
-    }),
+    currency: order.currency,
+    issueDate: formatIsoDate(order.issueDate),
+    dueDate: formatIsoDate(order.dueDate),
+    buyer: mapBillitParty(order.buyer),
+    seller: mapBillitParty(order.supplier),
+    totals: mapBillitTotals(order.totals, minorUnit),
     lines
   });
 

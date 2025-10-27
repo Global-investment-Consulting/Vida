@@ -389,6 +389,79 @@ function toMinor(amount, minorUnit) {
   return Math.round(Number(amount || 0) * factor);
 }
 
+function formatAmount(minor, minorUnit) {
+  if (typeof minor !== "number" || !Number.isFinite(minor)) {
+    return undefined;
+  }
+  return (minor / 10 ** minorUnit).toFixed(minorUnit);
+}
+
+function formatIsoDate(value) {
+  if (!value) {
+    return undefined;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function mapBillitAddress(address) {
+  if (!address) {
+    return undefined;
+  }
+  return pruneEmpty({
+    street: address.streetName,
+    street2: address.additionalStreetName,
+    buildingNumber: address.buildingNumber,
+    city: address.cityName,
+    postalCode: address.postalZone,
+    countryCode: address.countryCode
+  });
+}
+
+function mapBillitContact(contact) {
+  if (!contact) {
+    return undefined;
+  }
+  return pruneEmpty({
+    name: contact.name,
+    telephone: contact.telephone,
+    email: contact.electronicMail
+  });
+}
+
+function mapBillitParty(party) {
+  if (!party) {
+    return {};
+  }
+  return pruneEmpty({
+    name: party.name,
+    registrationName: party.registrationName,
+    companyId: party.companyId,
+    vatNumber: party.vatId,
+    endpoint: party.endpoint?.id,
+    endpointScheme: party.endpoint?.scheme,
+    address: mapBillitAddress(party.address),
+    contact: mapBillitContact(party.contact)
+  });
+}
+
+function mapBillitTotals(totals, minorUnit) {
+  if (!totals) {
+    return undefined;
+  }
+  return pruneEmpty({
+    lineExtension: formatAmount(totals.lineExtensionTotalMinor, minorUnit),
+    taxTotal: formatAmount(totals.taxTotalMinor, minorUnit),
+    payable: formatAmount(totals.payableAmountMinor, minorUnit),
+    allowanceTotal: formatAmount(totals.allowanceTotalMinor, minorUnit),
+    chargeTotal: formatAmount(totals.chargeTotalMinor, minorUnit),
+    rounding: totals.roundingMinor
+  });
+}
+
 function normalizeLines(linesInput, defaultVatRate, minorUnit) {
   const lines = Array.isArray(linesInput) ? linesInput : [];
   return lines.map((line, index) => {
@@ -419,33 +492,37 @@ function buildBillitPayload(order, config, registrationId) {
   const defaultVatRate = order.defaultVatRate ?? 0;
 
   const lines = order.lines.map((line, index) => {
+    const quantity = Number(line.quantity ?? 1) || 1;
     const unitPriceMinor = Number(line.unitPriceMinor ?? 0);
+    const discountMinor = Number(line.discountMinor ?? 0);
     const vatRate = line.vatRate != null ? Number(line.vatRate) : defaultVatRate;
+    const lineExtensionMinor = Math.max(Math.round(quantity * unitPriceMinor) - discountMinor, 0);
+    const vatAmountMinor = Math.round((lineExtensionMinor * (vatRate ?? 0)) / 100);
 
-    const entry = {
+    return pruneEmpty({
       description: line.description ?? line.itemName ?? `Line ${index + 1}`,
-      quantity: Number(line.quantity ?? 1) || 1,
-      unitPrice: toAmount(unitPriceMinor, minorUnit)
-    };
-
-    if (Number.isFinite(vatRate)) {
-      entry.vatRate = vatRate;
-    }
-    if (line.buyerAccountingReference) {
-      entry.buyerReference = line.buyerAccountingReference;
-    }
-
-    return pruneEmpty(entry);
+      quantity,
+      unitCode: line.unitCode ?? "EA",
+      unitPrice: formatAmount(unitPriceMinor, minorUnit),
+      vatRate,
+      vatAmount: formatAmount(vatAmountMinor, minorUnit),
+      lineTotal: formatAmount(lineExtensionMinor, minorUnit),
+      discount: formatAmount(discountMinor, minorUnit),
+      buyerReference: line.buyerAccountingReference,
+      itemName: line.itemName,
+      vatCategory: line.vatCategory,
+      vatExemptionReason: line.vatExemptionReason
+    });
   });
 
   const document = pruneEmpty({
     invoiceNumber: order.orderNumber,
-    buyer: pruneEmpty({
-      name: order.buyer?.name
-    }),
-    seller: pruneEmpty({
-      name: order.supplier?.name
-    }),
+    currency: order.currency,
+    issueDate: formatIsoDate(order.issueDate),
+    dueDate: formatIsoDate(order.dueDate),
+    buyer: mapBillitParty(order.buyer),
+    seller: mapBillitParty(order.supplier),
+    totals: mapBillitTotals(order.totals, minorUnit),
     lines
   });
 
