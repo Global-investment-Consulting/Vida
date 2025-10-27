@@ -52,6 +52,34 @@ jobs:
             VERSION_LINE="VERSION=0.0.0"
           fi
           printf '%s\n' "${VERSION_LINE}" >> "${GITHUB_ENV}"
+      - name: Preflight context (names only)
+        shell: bash
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+          REGION: ${{ env.REGION }}
+          SERVICE: ${{ env.SERVICE }}
+          CLOUD_BUILD_BUCKET: ${{ env.CLOUD_BUILD_BUCKET }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          AGENTS_ENABLED: ${{ env.AGENTS_ENABLED }}
+          VIDA_AP_ADAPTER: ${{ env.VIDA_AP_ADAPTER }}
+          VIDA_AP_SEND_ON_CREATE: ${{ env.VIDA_AP_SEND_ON_CREATE }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          set -Eeuo pipefail
+          declare -a keys=(PROJECT_ID REGION SERVICE CLOUD_BUILD_BUCKET IMAGE_TAG AGENTS_ENABLED VIDA_AP_ADAPTER VIDA_AP_SEND_ON_CREATE)
+          for key in "${keys[@]}"; do
+            if [[ -n "${!key:-}" ]]; then
+              printf '%s: present\n' "$key"
+            else
+              printf '%s: missing\n' "$key"
+            fi
+          done
+          sa_email="$(jq -r '.client_email // empty' <<<"$GCP_SA_KEY")"
+          if [[ -n "$sa_email" ]]; then
+            echo "service_account_email_present: true"
+          else
+            echo "service_account_email_present: false"
+          fi
       - name: Sanity check secret parses (no output)
         run: node -e "JSON.parse(process.env.GCP_SA_KEY); process.stdout.write('ok\n')"
         env:
