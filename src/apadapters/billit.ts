@@ -836,7 +836,12 @@ function mapProviderDeliveryStatus(status: string | undefined): ApDeliveryStatus
   return "sent";
 }
 
-type BillitSendParams = Parameters<ApAdapter["send"]>[0];
+type BillitSendParams = {
+  tenant: string;
+  invoiceId: string;
+  ublXml: string;
+  order?: Order;
+};
 
 export const billitAdapter: ApAdapter = {
   name: ADAPTER_NAME,
