@@ -497,40 +497,53 @@ async function resolveRegistrationId(config, auth) {
   }
 
   const searchPaths = ["v1/einvoices/registrations", "v1/registrations"];
+  const headerVariants = [{ headers: auth.headers, label: auth.mode }];
+
+  if (auth.mode === "api-key" && config.clientId && config.clientSecret) {
+    try {
+      const oauthAuth = await resolveAuthHeaders({ ...config, apiKey: undefined });
+      headerVariants.push({ headers: oauthAuth.headers, label: oauthAuth.mode });
+    } catch {
+      // ignore oauth fallback errors
+    }
+  }
+
   let lastError;
 
-  for (const path of searchPaths) {
-    const url = joinUrl(config.baseUrl, path);
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        ...auth.headers,
-        Accept: "application/json"
-      }
-    });
+  for (const variant of headerVariants) {
+    for (const path of searchPaths) {
+      const url = joinUrl(config.baseUrl, path);
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          ...variant.headers,
+          Accept: "application/json"
+        }
+      });
 
-    if (!response.ok) {
-      if (response.status === 404) {
+      if (!response.ok) {
+        if (response.status === 404) {
+          continue;
+        }
+        const errorBody = await safeReadBody(response);
+        lastError = new Error(
+          `Billit registrations lookup failed (${response.status} ${response.statusText}) auth=${variant.label} path=${path}: ${errorBody}`
+        );
         continue;
       }
-      const errorBody = await safeReadBody(response);
-      lastError = new Error(
-        `Billit registrations lookup failed (${response.status} ${response.statusText}) path=${path}: ${errorBody}`
-      );
-      continue;
-    }
 
-    const payload = await parseJson(response);
-    const registrationId = extractRegistrationId(payload, config.partyId, config.transportType);
-    if (registrationId) {
-      cachedRegistration = {
-        baseUrl: config.baseUrl,
-        partyId: config.partyId,
-        registrationId,
-        fetchedAt: now
-      };
-      config.registrationId = registrationId;
-      return registrationId;
+      const payload = await parseJson(response);
+      const registrationId = extractRegistrationId(payload, config.partyId, config.transportType);
+      if (registrationId) {
+        cachedRegistration = {
+          baseUrl: config.baseUrl,
+          partyId: config.partyId,
+          registrationId,
+          fetchedAt: now
+        };
+        config.registrationId = registrationId;
+        return registrationId;
+      }
     }
   }
 
