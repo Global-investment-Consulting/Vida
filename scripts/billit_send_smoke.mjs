@@ -1,11 +1,9 @@
-// scripts/billit_send_smoke.mjs
-// Manual sandbox smoke that performs a LIVE send against Billit.
 
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { jsonToUblInvoice } from "../src/ubl/jsonToUbl.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,8 +13,13 @@ const INVOICE_PATH = path.join(REPORT_DIR, "invoice.sb.json");
 const REPORT_PATH = path.join(REPORT_DIR, "billit-sandbox-live.json");
 
 const TOKEN_SAFETY_WINDOW_MS = 30_000;
-const DEFAULT_TOKEN_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_TOKEN_TTL_MS = 5 * 60 * 1_000;
+const REGISTRATION_CACHE_TTL_MS = 15 * 60 * 1_000;
+const DEFAULT_RECEIVER_SCHEME = "0088";
+const DEFAULT_RECEIVER_VALUE = "0000000000000";
+
 let cachedToken;
+let cachedRegistration;
 
 run().catch((error) => {
   console.error("Billit sandbox smoke failed:", error.message);
@@ -34,47 +37,78 @@ async function run() {
   try {
     ensureReportDir();
     const config = resolveConfig();
-    const authHeader = await resolveAuthHeader(config);
+    const auth = await resolveAuthHeaders(config);
 
     const invoiceDraft = loadInvoiceDraft();
-    const normalizedInvoice = normalizeInvoice(invoiceDraft);
-    const ublXml = jsonToUblInvoice(normalizedInvoice);
+    const order = buildOrderFromDraft(invoiceDraft);
 
-    const targetUrl = joinUrl(config.baseUrl, "api/invoices");
+    const requestId = randomUUID();
+    const idempotencyKey = buildIdempotencyKey(config, order.orderNumber);
+
+    const requestHeaders = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+      "X-Request-ID": requestId,
+      ...auth.headers
+    };
+
+    let registrationForBody = config.registrationId;
+    let targetPath = "/v1/commands/send";
+    let targetUrl = joinUrl(config.baseUrl, targetPath);
+    let payload = buildBillitPayload(order, config, registrationForBody);
+    let body = JSON.stringify(payload);
+
     console.log("Sending invoice to Billit sandbox…", sanitizeUrl(targetUrl));
+    let response = await fetch(targetUrl, {
+      method: "POST",
+      headers: requestHeaders,
+      body
+    });
+
+    if (response.status === 404) {
+      let fallbackRegistration = registrationForBody;
+      if (!fallbackRegistration) {
+        try {
+          fallbackRegistration = await resolveRegistrationId(config, auth);
+        } catch {
+          fallbackRegistration = undefined;
+        }
+      }
+      if (fallbackRegistration) {
+        config.registrationId = fallbackRegistration;
+        registrationForBody = fallbackRegistration;
+        targetPath = `/v1/einvoices/registrations/${encodeURIComponent(fallbackRegistration)}/commands/send`;
+        targetUrl = joinUrl(config.baseUrl, targetPath);
+        payload = buildBillitPayload(order, config, registrationForBody);
+        body = JSON.stringify(payload);
+        console.log("Retrying with registration path…", sanitizeUrl(targetUrl));
+        response = await fetch(targetUrl, {
+          method: "POST",
+          headers: requestHeaders,
+          body
+        });
+      }
+    }
 
     report.requestShape = {
       url: sanitizeUrl(targetUrl),
       method: "POST",
-      headers: {
-        Authorization: redactAuthHeader(authHeader),
-        "Content-Type": "application/xml",
-        Accept: "application/json"
-      },
-      bodyBytes: Buffer.byteLength(ublXml, "utf8"),
-      invoiceNumber: normalizedInvoice.number
+      headers: redactHeaders(requestHeaders),
+      bodyBytes: Buffer.byteLength(body, "utf8"),
+      invoiceNumber: order.orderNumber
     };
 
-    const response = await fetch(targetUrl, {
-      method: "POST",
-      headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/xml",
-        Accept: "application/json"
-      },
-      body: ublXml
-    });
-
-    const payload = await parseJson(response);
+    const parsed = await parseJson(response);
 
     if (!response.ok) {
-      const errorBody = await safeReadBody(response, payload);
+      const errorBody = await safeReadBody(response, parsed);
       throw new Error(
         `Billit send failed (${response.status} ${response.statusText}): ${errorBody}`
       );
     }
 
-    const provider = extractProviderResponse(payload);
+    const provider = extractProviderResponse(parsed);
     const sendStatus = mapProviderSendStatus(provider.status);
     report.response = { id: provider.providerId, status: sendStatus };
 
@@ -92,19 +126,18 @@ async function run() {
     );
 
     if (provider.providerId) {
-      const pollDelays = [5_000, 15_000];
+      const pollDelays = [5_000, 15_000, 30_000];
       for (const delay of pollDelays) {
         await sleep(delay);
         try {
-          const pollStatus = await pollStatusOnce(config, provider.providerId);
+          const pollStatus = await pollStatusOnce(config, auth, provider.providerId);
           report.poll.push({ t: nowIso(), status: pollStatus });
           console.log("Poll status:", pollStatus);
           if (pollStatus === "delivered" || pollStatus === "error") {
             break;
           }
         } catch (pollError) {
-          const message =
-            pollError instanceof Error ? pollError.message : String(pollError);
+          const message = pollError instanceof Error ? pollError.message : String(pollError);
           console.error("Status poll failed:", message);
           report.errors.push(`poll: ${message}`);
           report.poll.push({ t: nowIso(), status: "unknown" });
@@ -130,22 +163,13 @@ function ensureReportDir() {
   fs.mkdirSync(REPORT_DIR, { recursive: true });
 }
 
-function resolveConfig() {
-  const baseUrl = requireEnv("AP_BASE_URL");
-  const apiKey = optionalEnv("AP_API_KEY");
-  const clientId = optionalEnv("AP_CLIENT_ID");
-  const clientSecret = optionalEnv("AP_CLIENT_SECRET");
-
-  if (!apiKey && (!clientId || !clientSecret)) {
-    throw new Error("AP_API_KEY or both AP_CLIENT_ID and AP_CLIENT_SECRET must be provided");
+function optionalEnv(name) {
+  const value = process.env[name];
+  if (typeof value !== "string") {
+    return undefined;
   }
-
-  return {
-    baseUrl,
-    apiKey,
-    clientId,
-    clientSecret
-  };
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function requireEnv(name) {
@@ -156,38 +180,83 @@ function requireEnv(name) {
   return value;
 }
 
-function optionalEnv(name) {
-  const value = process.env[name];
-  return typeof value === "string" ? value.trim() : undefined;
-}
-
-function sanitizeUrl(url) {
-  try {
-    const parsed = new URL(url);
-    parsed.username = "";
-    parsed.password = "";
-    return parsed.toString();
-  } catch {
-    return url;
+function normalizeTransportType(value) {
+  if (!value) {
+    return "Peppol";
   }
-}
-
-function redactAuthHeader(value) {
-  if (!value) return value;
-  const [scheme, token] = value.split(/\s+/, 2);
-  if (!token) {
-    return `${scheme ?? "Bearer"} ***`;
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "Peppol";
   }
-  return `${scheme} ***redacted***`;
+  const lower = trimmed.toLowerCase();
+  if (lower === "peppol") {
+    return "Peppol";
+  }
+  if (lower === "smtp") {
+    return "SMTP";
+  }
+  if (lower === "letter") {
+    return "Letter";
+  }
+  if (lower === "sdi") {
+    return "SDI";
+  }
+  return trimmed;
 }
 
-async function resolveAuthHeader(config) {
+function resolveConfig() {
+  const baseUrl = requireEnv("AP_BASE_URL").replace(/\/+$/, "").replace(/\/api\/?$/i, "");
+  const registrationId =
+    optionalEnv("AP_REGISTRATION_ID") ?? optionalEnv("BILLIT_REGISTRATION_ID") ?? optionalEnv("AP_PARTY_ID");
+
+  const apiKey = optionalEnv("AP_API_KEY");
+  const clientId = optionalEnv("AP_CLIENT_ID");
+  const clientSecret = optionalEnv("AP_CLIENT_SECRET");
+
+  if (!apiKey && (!clientId || !clientSecret)) {
+    throw new Error("AP_API_KEY or both AP_CLIENT_ID and AP_CLIENT_SECRET must be provided");
+  }
+
+  return {
+    baseUrl,
+    registrationId,
+    apiKey,
+    clientId,
+    clientSecret,
+    partyId: optionalEnv("AP_PARTY_ID"),
+    contextPartyId: optionalEnv("AP_CONTEXT_PARTY_ID"),
+    transportType: normalizeTransportType(optionalEnv("AP_TRANSPORT_TYPE") ?? optionalEnv("BILLIT_TRANSPORT_TYPE")),
+    receiverScheme: optionalEnv("BILLIT_RX_SCHEME") ?? optionalEnv("AP_RECEIVER_SCHEME"),
+    receiverValue: optionalEnv("BILLIT_RX_VALUE") ?? optionalEnv("AP_RECEIVER_VALUE")
+  };
+}
+
+async function resolveAuthHeaders(config) {
   if (config.apiKey) {
-    return `Bearer ${config.apiKey}`;
+    const headers = {
+      ApiKey: config.apiKey
+    };
+    if (config.partyId) {
+      headers.PartyID = config.partyId;
+    }
+    if (config.contextPartyId) {
+      headers.ContextPartyID = config.contextPartyId;
+    }
+    return { headers, mode: "api-key" };
   }
+
   const token = await getOAuthToken(config);
-  const tokenType = token.tokenType.length > 0 ? token.tokenType : "Bearer";
-  return `${tokenType} ${token.accessToken}`;
+  const scheme = token.tokenType && token.tokenType.length > 0 ? token.tokenType : "Bearer";
+  const headers = {
+    Authorization: `${scheme} ${token.accessToken}`
+  };
+  if (config.partyId) {
+    headers.PartyID = config.partyId;
+  }
+  if (config.contextPartyId) {
+    headers.ContextPartyID = config.contextPartyId;
+  }
+  return { headers, mode: "oauth" };
 }
 
 async function getOAuthToken(config) {
@@ -222,9 +291,7 @@ async function getOAuthToken(config) {
 
   if (!response.ok) {
     const errorBody = await safeReadBody(response);
-    throw new Error(
-      `OAuth token request failed (${response.status} ${response.statusText}): ${errorBody}`
-    );
+    throw new Error(`OAuth token request failed (${response.status} ${response.statusText}): ${errorBody}`);
   }
 
   const json = await parseJson(response);
@@ -246,73 +313,6 @@ async function getOAuthToken(config) {
   return cachedToken;
 }
 
-async function pollStatusOnce(config, providerId) {
-  const authHeader = await resolveAuthHeader(config);
-  const targetUrl = joinUrl(config.baseUrl, `api/invoices/${encodeURIComponent(providerId)}/status`);
-
-  const response = await fetch(targetUrl, {
-    method: "GET",
-    headers: {
-      Authorization: authHeader,
-      Accept: "application/json"
-    }
-  });
-
-  if (response.status === 404) {
-    return "error";
-  }
-
-  const payload = await parseJson(response);
-  if (!response.ok) {
-    const errorBody = await safeReadBody(response, payload);
-    throw new Error(
-      `Status check failed (${response.status} ${response.statusText}): ${errorBody}`
-    );
-  }
-
-  const provider = extractProviderResponse(payload);
-  return mapProviderDeliveryStatus(provider.status);
-}
-
-function joinUrl(base, suffix) {
-  const normalizedBase = base.replace(/\/+$/, "");
-  const normalizedPath = suffix.startsWith("/") ? suffix.slice(1) : suffix;
-  return `${normalizedBase}/${normalizedPath}`;
-}
-
-function normalizeInvoice(draft) {
-  const now = Date.now();
-  const number = `SB-LIVE-${now}`;
-
-  const lines = Array.isArray(draft.lines) ? draft.lines : [];
-  const normalizedLines = lines.map((line, idx) => {
-    const quantity = Number(line.qty ?? line.quantity ?? 1) || 1;
-    const price = Number(line.price ?? line.unitPrice ?? 0);
-    return {
-      description: line.desc ?? line.description ?? `Line ${idx + 1}`,
-      quantity,
-      unitPriceMinor: Math.round(price * 100)
-    };
-  });
-
-  const totalMinor = normalizedLines.reduce(
-    (sum, line) => sum + Number(line.quantity || 0) * Number(line.unitPriceMinor || 0),
-    0
-  );
-
-  return {
-    id: draft.id ?? number,
-    number,
-    currency: draft.currency ?? "EUR",
-    buyer: {
-      name: draft.buyer?.name ?? "Sandbox Buyer",
-      vatId: draft.buyer?.vatId
-    },
-    totalMinor,
-    lines: normalizedLines
-  };
-}
-
 function loadInvoiceDraft() {
   if (!fs.existsSync(INVOICE_PATH)) {
     throw new Error(`Missing invoice draft at ${INVOICE_PATH}`);
@@ -321,10 +321,406 @@ function loadInvoiceDraft() {
   return JSON.parse(raw);
 }
 
+function buildOrderFromDraft(draft) {
+  const now = new Date();
+  const issueDate = parseDate(draft.issueDate) ?? now;
+  const dueDate = parseDate(draft.dueDate);
+  const orderNumber = draft.number ?? draft.orderNumber ?? `SB-LIVE-${Date.now()}`;
+  const currency = (draft.currency ?? "EUR").toUpperCase();
+  const currencyMinorUnit = Number.isInteger(draft.currencyMinorUnit) ? draft.currencyMinorUnit : 2;
+  const defaultVatRate = typeof draft.defaultVatRate === "number" ? draft.defaultVatRate : 21;
+
+  const buyer = normalizeParty(draft.buyer, "Sandbox Buyer");
+  const supplier = normalizeParty(draft.supplier, "Sandbox Supplier");
+  const lines = normalizeLines(draft.lines, defaultVatRate, currencyMinorUnit);
+
+  if (lines.length === 0) {
+    throw new Error("Invoice draft must include at least one line");
+  }
+
+  return {
+    orderNumber,
+    currency,
+    currencyMinorUnit,
+    issueDate,
+    dueDate,
+    buyer,
+    supplier,
+    lines,
+    defaultVatRate
+  };
+}
+
+function parseDate(value) {
+  if (!value) {
+    return undefined;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date;
+}
+
+function normalizeParty(party = {}, fallbackName) {
+  const result = {
+    name: party.name ?? fallbackName,
+    registrationName: party.registrationName,
+    companyId: party.companyId,
+    vatId: party.vatId,
+    endpoint: party.endpoint,
+    address: party.address,
+    contact: party.contact
+  };
+  return pruneEmpty(result);
+}
+
+function toMinor(amount, minorUnit) {
+  const factor = 10 ** minorUnit;
+  return Math.round(Number(amount || 0) * factor);
+}
+
+function normalizeLines(linesInput, defaultVatRate, minorUnit) {
+  const lines = Array.isArray(linesInput) ? linesInput : [];
+  return lines.map((line, index) => {
+    const quantity = Number(line.quantity ?? line.qty ?? 1) || 1;
+    const unitPriceMinor =
+      line.unitPriceMinor != null ? Number(line.unitPriceMinor) : toMinor(line.price ?? line.unitPrice ?? 0, minorUnit);
+    const discountMinor =
+      line.discountMinor != null ? Number(line.discountMinor) : toMinor(line.discount ?? 0, minorUnit);
+    const vatRate = line.vatRate != null ? Number(line.vatRate) : defaultVatRate;
+
+    return pruneEmpty({
+      description: line.description ?? line.desc ?? `Line ${index + 1}`,
+      quantity,
+      unitCode: line.unitCode ?? "EA",
+      unitPriceMinor,
+      discountMinor,
+      vatRate,
+      vatCategory: line.vatCategory,
+      vatExemptionReason: line.vatExemptionReason,
+      itemName: line.itemName,
+      buyerAccountingReference: line.buyerAccountingReference
+    });
+  });
+}
+
+function buildBillitPayload(order, config, registrationId) {
+  const minorUnit = order.currencyMinorUnit ?? 2;
+  const defaultVatRate = order.defaultVatRate ?? 0;
+
+  const lines = order.lines.map((line, index) => {
+    const unitPriceMinor = Number(line.unitPriceMinor ?? 0);
+    const vatRate = line.vatRate != null ? Number(line.vatRate) : defaultVatRate;
+
+    const entry = {
+      description: line.description ?? line.itemName ?? `Line ${index + 1}`,
+      quantity: Number(line.quantity ?? 1) || 1,
+      unitPrice: toAmount(unitPriceMinor, minorUnit)
+    };
+
+    if (Number.isFinite(vatRate)) {
+      entry.vatRate = vatRate;
+    }
+    if (line.buyerAccountingReference) {
+      entry.buyerReference = line.buyerAccountingReference;
+    }
+
+    return pruneEmpty(entry);
+  });
+
+  const document = pruneEmpty({
+    invoiceNumber: order.orderNumber,
+    buyer: pruneEmpty({
+      name: order.buyer?.name
+    }),
+    seller: pruneEmpty({
+      name: order.supplier?.name
+    }),
+    lines
+  });
+
+  const receiverScheme =
+    pickString(order.buyer?.endpoint?.scheme) ??
+    pickString(config.receiverScheme) ??
+    DEFAULT_RECEIVER_SCHEME;
+  const receiverValue =
+    pickString(order.buyer?.endpoint?.id) ??
+    pickString(config.receiverValue) ??
+    DEFAULT_RECEIVER_VALUE;
+
+  if (receiverScheme && receiverValue) {
+    document.receiver = {
+      scheme: receiverScheme,
+      value: receiverValue
+    };
+  }
+
+  const payload = pruneEmpty({
+    registrationId,
+    transportType: config.transportType,
+    documents: [document]
+  });
+
+  if (!Array.isArray(payload.documents) || payload.documents.length === 0) {
+    payload.documents = [document];
+  }
+
+  return payload;
+}
+
+async function resolveRegistrationId(config, auth) {
+  const now = Date.now();
+
+  if (config.registrationId) {
+    const trimmed = config.registrationId.trim();
+    if (!trimmed) {
+      throw new Error("AP_REGISTRATION_ID cannot be empty");
+    }
+    config.registrationId = trimmed;
+    cachedRegistration = {
+      baseUrl: config.baseUrl,
+      partyId: config.partyId,
+      registrationId: trimmed,
+      fetchedAt: now
+    };
+    return trimmed;
+  }
+
+  if (
+    cachedRegistration &&
+    cachedRegistration.baseUrl === config.baseUrl &&
+    cachedRegistration.partyId === (config.partyId ?? undefined) &&
+    now - cachedRegistration.fetchedAt < REGISTRATION_CACHE_TTL_MS
+  ) {
+    return cachedRegistration.registrationId;
+  }
+
+  const searchPaths = ["v1/einvoices/registrations", "v1/registrations"];
+  let lastError;
+
+  for (const path of searchPaths) {
+    const url = joinUrl(config.baseUrl, path);
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        ...auth.headers,
+        Accept: "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        continue;
+      }
+      const errorBody = await safeReadBody(response);
+      lastError = new Error(
+        `Billit registrations lookup failed (${response.status} ${response.statusText}) path=${path}: ${errorBody}`
+      );
+      continue;
+    }
+
+    const payload = await parseJson(response);
+    const registrationId = extractRegistrationId(payload, config.partyId, config.transportType);
+    if (registrationId) {
+      cachedRegistration = {
+        baseUrl: config.baseUrl,
+        partyId: config.partyId,
+        registrationId,
+        fetchedAt: now
+      };
+      config.registrationId = registrationId;
+      return registrationId;
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new Error(
+    "Unable to determine Billit registration id. Provide AP_REGISTRATION_ID or ensure the account has an active registration."
+  );
+}
+
+function extractRegistrationId(payload, preferred, transportType) {
+  const root = asRecord(payload);
+  if (!root) {
+    return undefined;
+  }
+
+  const direct = selectRegistrationId(root, preferred, transportType);
+  if (direct) {
+    return direct;
+  }
+
+  const listCandidates = [
+    asArray(root.registrations),
+    asArray(root.Registrations),
+    asArray(root.items),
+    asArray(root.data),
+    asArray(root.payload),
+    asArray(root.result),
+    asArray(root.response)
+  ];
+
+  for (const list of listCandidates) {
+    for (const entry of list) {
+      const record = asRecord(entry);
+      if (!record) {
+        continue;
+      }
+      const id = selectRegistrationId(record, preferred, transportType);
+      if (id) {
+        return id;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function selectRegistrationId(record, preferred, transportType) {
+  const ids = collectCandidateIds(record);
+  if (preferred) {
+    const normalized = preferred.trim();
+    const match = ids.find((id) => id === normalized);
+    if (match) {
+      return match;
+    }
+  }
+
+  const integrations = asArray(record.Integrations ?? record.integrations);
+  if (integrations.length > 0) {
+    const normalizedTransport = (transportType ?? "").trim().toLowerCase();
+    for (const integrationEntry of integrations) {
+      const integration = asRecord(integrationEntry);
+      if (!integration) {
+        continue;
+      }
+      const integrationName = pickString(
+        integration.Integration ??
+          integration.integration ??
+          integration.ExternalProvider ??
+          integration.externalProvider ??
+          integration.Provider ??
+          integration.provider
+      );
+      if (integrationName && integrationName.trim().toLowerCase() === normalizedTransport) {
+        if (ids.length > 0) {
+          return ids[0];
+        }
+      }
+    }
+  }
+
+  if (ids.length > 0) {
+    return ids[0];
+  }
+
+  return undefined;
+}
+
+function collectCandidateIds(record) {
+  const candidates = [];
+  const keys = [
+    "RegistrationID",
+    "registrationID",
+    "RegistrationId",
+    "registrationId",
+    "registration_id",
+    "CompanyID",
+    "companyID",
+    "CompanyId",
+    "companyId",
+    "PartyID",
+    "partyID",
+    "PartyId",
+    "partyId",
+    "id",
+    "ID",
+    "Guid",
+    "guid",
+    "GUID"
+  ];
+
+  for (const key of keys) {
+    const value = record[key];
+    const id = pickId(value);
+    if (id && !candidates.includes(id)) {
+      candidates.push(id);
+    }
+  }
+
+  return candidates;
+}
+
+function pickId(value) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value.toString();
+  }
+  return undefined;
+}
+
+function toAmount(minor, minorUnit) {
+  const divider = 10 ** minorUnit;
+  return Number((minor / divider).toFixed(minorUnit));
+}
+
+async function pollStatusOnce(config, auth, providerId) {
+  const registrationId = await resolveRegistrationId(config, auth);
+  const targetUrl = joinUrl(
+    config.baseUrl,
+    `/v1/einvoices/registrations/${encodeURIComponent(registrationId)}/orders/${encodeURIComponent(providerId)}`
+  );
+
+  const response = await fetch(targetUrl, {
+    method: "GET",
+    headers: {
+      ...auth.headers,
+      Accept: "application/json"
+    }
+  });
+
+  const payload = await parseJson(response);
+
+  if (response.status === 404) {
+    return "error";
+  }
+
+  if (!response.ok) {
+    const errorBody = await safeReadBody(response, payload);
+    throw new Error(
+      `Status check failed (${response.status} ${response.statusText}): ${errorBody}`
+    );
+  }
+
+  const provider = extractProviderResponse(payload);
+  const status = mapProviderDeliveryStatus(provider.status);
+  if (status !== "queued") {
+    return status;
+  }
+  const deliveryStatus = extractDocumentDeliveryStatus(payload);
+  return mapProviderDeliveryStatus(deliveryStatus);
+}
+
+function joinUrl(base, suffix) {
+  const normalizedBase = base.replace(/\/+$/, "");
+  const normalizedPath = suffix.startsWith("/") ? suffix.slice(1) : suffix;
+  return `${normalizedBase}/${normalizedPath}`;
+}
+
 async function parseJson(response) {
   const text = await response.text();
+  if (!text) {
+    return {};
+  }
   try {
-    return text.length > 0 ? JSON.parse(text) : {};
+    return JSON.parse(text);
   } catch {
     return { raw: text };
   }
@@ -335,7 +731,7 @@ async function safeReadBody(response, parsed) {
     try {
       return JSON.stringify(parsed);
     } catch {
-      // fall back to text
+      // fall through
     }
   }
   try {
@@ -347,8 +743,12 @@ async function safeReadBody(response, parsed) {
 }
 
 function pickString(value) {
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value.trim();
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value.toString();
   }
   return undefined;
 }
@@ -366,55 +766,162 @@ function normalizeExpires(expires) {
   return undefined;
 }
 
-function extractProviderResponse(payload) {
-  if (payload && typeof payload === "object") {
-    const candidate = payload;
-    const nested = asRecord(candidate.data) ?? asRecord(candidate.payload);
-    const invoiceRecord = asRecord(candidate.invoice);
-
-    const providerId =
-      pickString(candidate.providerId) ??
-      pickString(candidate.id) ??
-      pickString(candidate.invoiceId) ??
-      (nested && (pickString(nested.providerId) ?? pickString(nested.id))) ??
-      (invoiceRecord &&
-        (pickString(invoiceRecord.providerId) ?? pickString(invoiceRecord.id)));
-
-    const status =
-      pickString(candidate.status) ??
-      pickString(candidate.state) ??
-      pickString(candidate.integrationStatus) ??
-      (nested && (pickString(nested.status) ?? pickString(nested.state)));
-
-    const message =
-      pickString(candidate.message) ??
-      pickString(candidate.error) ??
-      pickString(candidate.detail) ??
-      (nested && (pickString(nested.message) ?? pickString(nested.error))) ??
-      (invoiceRecord &&
-        (pickString(invoiceRecord.message) ?? pickString(invoiceRecord.error)));
-
-    if (providerId) {
-      return {
-        providerId,
-        status,
-        message
-      };
-    }
+function asRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
   }
-
-  throw new Error("Billit response did not include a provider identifier");
+  return value;
 }
 
-function asRecord(value) {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value;
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function extractOrderIdFromList(value) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  for (const entry of value) {
+    const record = asRecord(entry);
+    if (!record) {
+      continue;
+    }
+    const id = pickString(
+      record.OrderID ?? record.orderID ?? record.orderId ?? record.id ?? record.ID
+    );
+    if (id) {
+      return id;
+    }
   }
   return undefined;
 }
 
+function extractProviderResponse(payload) {
+  const candidate = asRecord(payload);
+  if (!candidate) {
+    throw new Error("Billit response did not include a JSON object");
+  }
+
+  const nested =
+    asRecord(candidate.data) ??
+    asRecord(candidate.payload) ??
+    asRecord(candidate.result) ??
+    asRecord(candidate.response);
+
+  const orderRecord =
+    asRecord(candidate.order) ??
+    asRecord(candidate.Order) ??
+    (nested && (asRecord(nested.order) ?? asRecord(nested.Order)));
+
+  const providerId =
+    pickString(candidate.OrderID ?? candidate.orderID ?? candidate.orderId) ??
+    pickString(orderRecord?.OrderID ?? orderRecord?.orderId) ??
+    pickString(nested?.OrderID ?? nested?.orderId) ??
+    pickString(candidate.providerId) ??
+    pickString(candidate.id) ??
+    pickString(orderRecord?.Id) ??
+    pickString(nested?.id) ??
+    extractOrderIdFromList(candidate.orders) ??
+    extractOrderIdFromList(nested?.orders);
+
+  if (!providerId) {
+    throw new Error("Billit response did not include an order identifier");
+  }
+
+  const status =
+    pickString(candidate.status ?? candidate.Status) ??
+    pickString(orderRecord?.status ?? orderRecord?.Status) ??
+    pickString(nested?.status ?? nested?.Status) ??
+    extractDocumentDeliveryStatus(candidate) ??
+    extractDocumentDeliveryStatus(orderRecord) ??
+    extractDocumentDeliveryStatus(nested);
+
+  const message =
+    pickString(candidate.message ?? candidate.Message ?? candidate.detail ?? candidate.Detail) ??
+    pickFirstError(candidate.errors ?? candidate.Errors) ??
+    pickFirstError(orderRecord?.Errors ?? orderRecord?.errors) ??
+    pickFirstError(nested?.Errors ?? nested?.errors);
+
+  return {
+    providerId,
+    status,
+    message
+  };
+}
+
+function pickFirstError(value) {
+  if (!value) {
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const record = asRecord(entry);
+      if (record) {
+        const message = pickString(
+          record.Description ??
+            record.description ??
+            record.Detail ??
+            record.detail ??
+            record.Message ??
+            record.message
+        );
+        if (message) {
+          return message;
+        }
+      }
+      const text = pickString(entry);
+      if (text) {
+        return text;
+      }
+    }
+    return undefined;
+  }
+  const record = asRecord(value);
+  if (record) {
+    return pickString(
+      record.Description ?? record.description ?? record.Detail ?? record.detail ?? record.Message ?? record.message
+    );
+  }
+  return pickString(value);
+}
+
+function extractDocumentDeliveryStatus(payload) {
+  const record = asRecord(payload);
+  if (!record) {
+    return undefined;
+  }
+
+  const details =
+    asRecord(record.CurrentDocumentDeliveryDetails ?? record.currentDocumentDeliveryDetails) ??
+    asRecord(record.DocumentDeliveryDetails ?? record.documentDeliveryDetails);
+
+  if (details) {
+    return (
+      pickString(
+        details.DocumentDeliveryStatus ??
+          details.documentDeliveryStatus ??
+          details.Status ??
+          details.status
+      ) ?? (details.IsDocumentDelivered ? "Delivered" : undefined)
+    );
+  }
+
+  const fallbacks = ["order", "Order", "data", "payload", "result", "response"];
+  for (const key of fallbacks) {
+    const nested = record[key];
+    if (nested) {
+      const status = extractDocumentDeliveryStatus(nested);
+      if (status) {
+        return status;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 function mapProviderSendStatus(status) {
-  const normalized = status?.trim().toLowerCase();
+  const normalized = status ? String(status).trim().toLowerCase() : "";
   if (!normalized) {
     return "queued";
   }
@@ -431,7 +938,7 @@ function mapProviderSendStatus(status) {
 }
 
 function mapProviderDeliveryStatus(status) {
-  const normalized = status?.trim().toLowerCase();
+  const normalized = status ? String(status).trim().toLowerCase() : "";
   if (!normalized) {
     return "queued";
   }
@@ -450,10 +957,102 @@ function mapProviderDeliveryStatus(status) {
   return "sent";
 }
 
+function pruneEmpty(input) {
+  if (!input || typeof input !== "object") {
+    return input;
+  }
+  const output = Array.isArray(input) ? [] : {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        continue;
+      }
+      output[key] = trimmed;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      const pruned = value
+        .map((entry) => pruneEmpty(entry))
+        .filter((entry) => entry !== undefined && entry !== null);
+      if (pruned.length === 0) {
+        continue;
+      }
+      output[key] = pruned;
+      continue;
+    }
+    if (typeof value === "object") {
+      const nested = pruneEmpty(value);
+      if (Object.keys(nested).length === 0) {
+        continue;
+      }
+      output[key] = nested;
+      continue;
+    }
+    output[key] = value;
+  }
+  return output;
+}
+
+function toIsoDate(value) {
+  if (!value) {
+    return undefined;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function sanitizeUrl(url) {
+  try {
+    const parsed = new URL(url);
+    parsed.username = "";
+    parsed.password = "";
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+function redactHeaders(headers) {
+  const sanitized = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value !== "string") {
+      sanitized[key] = value;
+      continue;
+    }
+    const lower = key.toLowerCase();
+    if (lower === "apikey" || lower === "api-key") {
+      sanitized[key] = "***present***";
+    } else if (lower === "authorization") {
+      const [scheme] = value.split(/\s+/, 1);
+      sanitized[key] = `${scheme ?? "Bearer"} ***present***`;
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
+function buildIdempotencyKey(config, orderNumber) {
+  const parts = [config.registrationId, orderNumber];
+  const raw = parts
+    .filter(Boolean)
+    .join(":")
+    .replace(/\s+/g, "-")
+    .slice(0, 255);
+  return raw || randomUUID();
 }

@@ -7,8 +7,13 @@ import { billitAdapter, resetBillitAuthCache } from 'src/apadapters/billit.js';
 import { orderToInvoiceXml } from 'src/peppol/convert.js';
 
 const sandboxFlag = (process.env.BILLIT_SANDBOX ?? '').trim().toLowerCase() === 'true';
-const hasRequiredSecrets = ['BILLIT_CLIENT_ID', 'BILLIT_CLIENT_SECRET', 'BILLIT_REDIRECT_URI', 'AP_BASE_URL']
+const hasBaseUrl = (process.env.AP_BASE_URL ?? '').trim().length > 0;
+const hasRegistration = ['AP_REGISTRATION_ID', 'BILLIT_REGISTRATION_ID', 'AP_PARTY_ID']
+  .some((key) => (process.env[key] ?? '').trim().length > 0);
+const hasApiKey = (process.env.AP_API_KEY ?? '').trim().length > 0;
+const hasOauthSecrets = ['BILLIT_CLIENT_ID', 'BILLIT_CLIENT_SECRET', 'BILLIT_REDIRECT_URI']
   .every((key) => (process.env[key] ?? '').trim().length > 0);
+const hasRequiredSecrets = hasBaseUrl && hasRegistration && (hasApiKey || hasOauthSecrets);
 
 if (!sandboxFlag || !hasRequiredSecrets) {
   describe.skip('billit sandbox contract', () => {
@@ -37,6 +42,19 @@ if (!sandboxFlag || !hasRequiredSecrets) {
     return value;
   };
 
+  const resolveRegistrationId = (): string => {
+    const candidates = [
+      (process.env.AP_REGISTRATION_ID ?? '').trim(),
+      (process.env.BILLIT_REGISTRATION_ID ?? '').trim(),
+      (process.env.AP_PARTY_ID ?? '').trim()
+    ];
+    const registration = candidates.find((value) => value.length > 0);
+    if (!registration) {
+      throw new Error('Missing required Billit sandbox env: AP_REGISTRATION_ID (or BILLIT_REGISTRATION_ID/AP_PARTY_ID)');
+    }
+    return registration;
+  };
+
   describe('billit sandbox contract', () => {
     const originalFetch = globalThis.fetch;
 
@@ -48,6 +66,7 @@ if (!sandboxFlag || !hasRequiredSecrets) {
       captureEnv('AP_CLIENT_ID', requireTrimmed('BILLIT_CLIENT_ID'));
       captureEnv('AP_CLIENT_SECRET', requireTrimmed('BILLIT_CLIENT_SECRET'));
       captureEnv('AP_API_KEY', (process.env.AP_API_KEY ?? 'sandbox-placeholder-key').trim() || 'sandbox-placeholder-key');
+      captureEnv('AP_REGISTRATION_ID', resolveRegistrationId());
     });
 
     afterAll(() => {
@@ -71,7 +90,7 @@ if (!sandboxFlag || !hasRequiredSecrets) {
 
       const fetchMock = vi.fn(async () =>
         new Response(
-          JSON.stringify({ providerId: 'billit-123', status: 'received', message: 'accepted' }),
+          JSON.stringify({ OrderID: 'billit-123', status: 'received', message: 'accepted' }),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
@@ -80,22 +99,41 @@ if (!sandboxFlag || !hasRequiredSecrets) {
       );
       vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
 
-      const result = await billitAdapter.send({ tenant: 'sandbox', invoiceId: order.orderNumber, ublXml });
+      const result = await billitAdapter.send({
+        tenant: 'sandbox',
+        invoiceId: order.orderNumber,
+        ublXml,
+        order
+      });
 
       expect(result.providerId).toBe('billit-123');
       expect(result.status).toBe('queued');
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [requestUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      const normalizedBase = (process.env.AP_BASE_URL ?? '').replace(/\/+$/, '');
-      expect(requestUrl).toBe(normalizedBase + '/api/invoices');
+      const baseUrl = requireTrimmed('AP_BASE_URL').replace(/\/+$/, '').replace(/\/api\/?$/i, '');
+      expect(requestUrl.startsWith(baseUrl)).toBe(true);
+      const url = new URL(requestUrl);
+      expect(url.pathname).toMatch(/\/v1\/(commands\/send|einvoices\/registrations\/[^/]+\/commands\/send)/);
       expect(init?.method).toBe('POST');
-      expect(init?.headers).toMatchObject({
-        Authorization: expect.stringMatching(/^(Bearer|ApiKey)\s.+/),
-        'Content-Type': 'application/xml',
-        Accept: 'application/json'
-      });
-      expect(init?.body).toBe(ublXml);
+      const headers = init?.headers as Record<string, string> | undefined;
+      expect(headers?.ApiKey ?? headers?.Authorization).toMatch(/.+/);
+      expect(headers?.['Content-Type'] ?? headers?.['content-type']).toBe('application/json');
+      expect(headers?.Accept ?? headers?.accept).toBe('application/json');
+      const body = init?.body as string | undefined;
+      expect(body).toBeDefined();
+      if (body) {
+        const payload = JSON.parse(body) as Record<string, unknown>;
+        const registrationId = resolveRegistrationId();
+        expect(payload.registrationId).toBe(registrationId);
+        expect(payload.transportType).toBeDefined();
+        const documents = payload.documents as unknown[];
+        expect(Array.isArray(documents)).toBe(true);
+        const [document] = documents ?? [];
+        const docRecord = document as Record<string, unknown>;
+        expect(docRecord?.invoiceNumber).toBe(order.orderNumber);
+        expect(Array.isArray(docRecord?.lines)).toBe(true);
+      }
     });
   });
 }
