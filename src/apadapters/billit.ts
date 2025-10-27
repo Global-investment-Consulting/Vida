@@ -2,12 +2,7 @@ import { randomUUID } from "node:crypto";
 import process from "node:process";
 
 import type { Order } from "../peppol/convert.js";
-import {
-  type ApAdapter,
-  type ApDeliveryStatus,
-  type ApSendParams,
-  type ApSendResult
-} from "./types.js";
+import type { ApAdapter, ApDeliveryStatus, ApSendParams, ApSendResult } from "./types.js";
 
 type BillitEnvironment = "sandbox" | "production";
 
@@ -505,19 +500,6 @@ function pickString(value: unknown): string | undefined {
   return undefined;
 }
 
-function pickNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-  return undefined;
-}
-
 async function parseJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) {
@@ -548,17 +530,6 @@ async function safeReadBody(response: Response, parsed?: unknown): Promise<strin
   } catch (error) {
     return `failed to read body: ${(error as Error)?.message ?? "unknown error"}`;
   }
-}
-
-function toIsoDate(input: Date | string | number | undefined): string | undefined {
-  if (!input) {
-    return undefined;
-  }
-  const date = input instanceof Date ? input : new Date(input);
-  if (Number.isNaN(date.getTime())) {
-    return undefined;
-  }
-  return date.toISOString().slice(0, 10);
 }
 
 function toAmount(minor: number, minorUnit: number): number {
@@ -657,14 +628,17 @@ function buildBillitSendPayload(
     lines
   });
 
-  const payload: Record<string, unknown> = pruneEmpty({
-    registrationId,
+  const payload: {
+    registrationId?: string;
+    transportType: string;
+    documents: Array<Record<string, unknown>>;
+  } = {
     transportType: config.transportType ?? "Peppol",
     documents: [document]
-  });
+  };
 
-  if (!payload.documents || payload.documents.length === 0) {
-    payload.documents = [document];
+  if (registrationId) {
+    payload.registrationId = registrationId;
   }
 
   return payload;
