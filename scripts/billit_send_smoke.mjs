@@ -52,9 +52,6 @@ async function run() {
       "X-Request-ID": requestId,
       ...auth.headers
     };
-    if (config.apiKey) {
-      requestHeaders.Authorization = `Bearer ${config.apiKey}`;
-    }
 
     let registrationForBody = config.registrationId;
     let targetPath = "/v1/commands/send";

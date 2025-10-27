@@ -1135,9 +1135,6 @@ export const billitAdapter: ApAdapter = {
       "X-Request-ID": requestId,
       ...auth.headers
     };
-    if (config.apiKey) {
-      baseHeaders.Authorization = `Bearer ${config.apiKey}`;
-    }
     const configuredRegistration = config.registrationId?.trim() || undefined;
     const makeBody = (registration?: string) =>
       JSON.stringify(buildBillitSendPayload(order, config, invoiceId, registration));
