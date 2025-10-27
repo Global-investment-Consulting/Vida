@@ -243,7 +243,8 @@ function resolveConfig() {
 async function resolveAuthHeaders(config) {
   if (config.apiKey) {
     const headers = {
-      ApiKey: config.apiKey
+      ApiKey: config.apiKey,
+      Authorization: `Bearer ${config.apiKey}`
     };
     if (config.partyId) {
       headers.PartyID = config.partyId;

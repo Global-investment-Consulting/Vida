@@ -202,6 +202,7 @@ async function resolveAuthHeaders(config: BillitBaseConfig): Promise<AuthHeaders
   const headers: Record<string, string> = {};
   if (config.apiKey) {
     headers.ApiKey = config.apiKey;
+    headers.Authorization = `Bearer ${config.apiKey}`;
     appendPartyHeaders(headers, config);
     return { headers, mode: "api-key" };
   }
