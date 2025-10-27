@@ -462,6 +462,25 @@ function mapBillitTotals(totals, minorUnit) {
   });
 }
 
+function extractRegistrationCompany(entry) {
+  if (!entry) {
+    return undefined;
+  }
+  const companies = asArray(entry.Companies ?? entry.companies);
+  const company = companies.length > 0 ? asRecord(companies[0]) : undefined;
+  if (!company) {
+    return undefined;
+  }
+  const details = asRecord(company.CompanyDetails ?? company.companyDetails);
+  if (!details) {
+    return undefined;
+  }
+  return pruneEmpty({
+    name: pickString(details.CompanyName ?? details.companyName),
+    vatNumber: pickString(details.TaxIdentifier ?? details.taxIdentifier)
+  });
+}
+
 function normalizeLines(linesInput, defaultVatRate, minorUnit) {
   const lines = Array.isArray(linesInput) ? linesInput : [];
   return lines.map((line, index) => {
@@ -515,13 +534,19 @@ function buildBillitPayload(order, config, registrationId) {
     });
   });
 
+  const registrationCompany = extractRegistrationCompany(config.registrationEntry ?? cachedRegistration?.entry);
+  const sellerDetails = mapBillitParty(order.supplier);
+  if (registrationCompany) {
+    Object.assign(sellerDetails, registrationCompany);
+  }
+
   const document = pruneEmpty({
     invoiceNumber: order.orderNumber,
     currency: order.currency,
     issueDate: formatIsoDate(order.issueDate),
     dueDate: formatIsoDate(order.dueDate),
     buyer: mapBillitParty(order.buyer),
-    seller: mapBillitParty(order.supplier),
+    seller: sellerDetails,
     totals: mapBillitTotals(order.totals, minorUnit),
     lines
   });
