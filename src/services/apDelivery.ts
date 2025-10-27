@@ -3,6 +3,7 @@ import { type ApAdapter, type ApDeliveryStatus } from "../apadapters/types.js";
 import { resolveApAdapterName } from "../config.js";
 import { setInvoiceStatus } from "../history/invoiceStatus.js";
 import { getStorage } from "../storage/index.js";
+import type { Order } from "../peppol/convert.js";
 import {
   incrementApSendAttempts,
   incrementApSendFail,
@@ -44,7 +45,7 @@ type SendParams = {
   requestId: string;
   adapterName?: string;
   logger?: Pick<typeof console, "info" | "error">;
-  order?: import("../peppol/convert.js").Order;
+  order?: Order;
 };
 
 export async function sendWithRetry(params: SendParams): Promise<void> {
