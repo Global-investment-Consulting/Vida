@@ -1,0 +1,5 @@
+Build Docker image (main)	UNKNOWN STEP	2025-10-26T22:16:02.2988919Z #14 [builder 7/9] COPY build.env ./
+Build Docker image (main)	UNKNOWN STEP	2025-10-26T22:16:02.2989989Z #14 ERROR: failed to calculate checksum of ref q898g0oxg892b5rfzy7gezca6::vjo94362coat7f767imei9ty1: "/build.env": not found
+Build Docker image (main)	UNKNOWN STEP	2025-10-26T22:16:02.2990931Z 
+Build Docker image (main)	UNKNOWN STEP	2025-10-26T22:16:02.2991635Z #8 [builder 1/9] FROM docker.io/library/node:20-alpine@sha256:6178e78b972f79c335df281f4b7674a2d85071aae2af020ffa39f0a770265435
+Build Docker image (main)	UNKNOWN STEP	2025-10-26T22:16:02.2993075Z #8 sha256:2d35ebdb57d9971fea0cac1582aa78935adf8058b2cc32db163c98822e5dfa1b 0B / 3.80MB 0.0s

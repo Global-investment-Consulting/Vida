@@ -65,6 +65,8 @@ jobs:
       DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE || format('{0}/vida', secrets.DOCKERHUB_USERNAME) }}
     steps:
       - uses: actions/checkout@v4
+      - name: Generate build.env
+        run: bash scripts/make_build_env.sh
       - uses: docker/setup-buildx-action@v3
       - name: Login to Docker Hub
         if: ${{ env.DOCKER_PUSH == 'true' || env.DOCKER_PUSH == true }}
