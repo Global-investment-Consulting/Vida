@@ -845,7 +845,9 @@ type BillitSendParams = {
 
 export const billitAdapter: ApAdapter = {
   name: ADAPTER_NAME,
-  async send({ tenant, invoiceId, ublXml: _ignored, order }: BillitSendParams): Promise<ApSendResult> {
+  async send(params: BillitSendParams): Promise<ApSendResult> {
+    const { tenant, invoiceId, ublXml: _ignored } = params;
+    const order = params.order;
     if (!order) {
       throw new Error("Billit adapter requires order details to build the JSON payload");
     }
