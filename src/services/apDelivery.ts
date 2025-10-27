@@ -44,6 +44,7 @@ type SendParams = {
   requestId: string;
   adapterName?: string;
   logger?: Pick<typeof console, "info" | "error">;
+  order?: import("../peppol/convert.js").Order;
 };
 
 export async function sendWithRetry(params: SendParams): Promise<void> {
