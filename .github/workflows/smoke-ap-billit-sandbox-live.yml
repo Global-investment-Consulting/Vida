@@ -80,7 +80,7 @@ jobs:
         run: node scripts/billit_send_smoke.mjs
         continue-on-error: true
       - name: Upload artifact (always, even on failure)
-        if: always()
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: billit-sandbox-live.json
