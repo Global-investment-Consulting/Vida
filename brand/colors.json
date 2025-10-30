@@ -1,0 +1,26 @@
+{
+  "primaryBlue": {
+    "role": "trust",
+    "hex": "#2563EB"
+  },
+  "neutralSlate": {
+    "role": "text",
+    "hex": "#0F172A"
+  },
+  "background": {
+    "role": "surface",
+    "hex": "#F8FAFC"
+  },
+  "accentGreen": {
+    "role": "success",
+    "hex": "#22C55E"
+  },
+  "warningAmber": {
+    "role": "warning",
+    "hex": "#F59E0B"
+  },
+  "errorRed": {
+    "role": "error",
+    "hex": "#EF4444"
+  }
+}

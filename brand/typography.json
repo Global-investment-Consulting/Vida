@@ -1,0 +1,11 @@
+{
+  "primary": {
+    "family": "Inter",
+    "source": "https://fonts.google.com/specimen/Inter",
+    "weights": [400, 600, 700]
+  },
+  "headlineAlternates": {
+    "families": ["Satoshi", "DM Sans"],
+    "weights": [600, 700]
+  }
+}
