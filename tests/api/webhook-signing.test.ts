@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { app } from "src/server.js";
 import { getInvoiceStatus, resetInvoiceStatusCache } from "src/history/invoiceStatus.js";
 import { resetReplayGuard } from "src/services/replayGuard.js";
-import { renderMetrics, resetMetrics } from "src/metrics.js";
+import { flushMetricsTick, renderMetrics, resetMetrics } from "src/metrics.js";
 import { resetStorage } from "src/storage/index.js";
 
 const API_KEY = "webhook-test-key";
@@ -82,9 +82,10 @@ describe("AP webhook signing and replay protection", () => {
     expect(record?.status).toBe("delivered");
     expect(record?.attempts).toBe(2);
 
-    const metrics = renderMetrics();
-    expect(metrics).toContain("ap_webhook_ok_total 1");
-    expect(metrics).toMatch(/ap_webhook_latency_ms_count 1/);
+    await flushMetricsTick();
+    const metrics = await renderMetrics();
+    expect(metrics).toMatch(/ap_webhook_ok_total\s+1(\.0+)?/);
+    expect(metrics).toMatch(/ap_webhook_latency_ms_count\s+1(\.0+)?/);
   });
 
   it("rejects an invalid signature", async () => {
@@ -105,8 +106,9 @@ describe("AP webhook signing and replay protection", () => {
       .send(signed.body)
       .expect(401);
 
-    const metrics = renderMetrics();
-    expect(metrics).toContain("ap_webhook_fail_total 1");
+    await flushMetricsTick();
+    const metrics = await renderMetrics();
+    expect(metrics).toMatch(/ap_webhook_fail_total\s+1(\.0+)?/);
   });
 
   it("rejects an event with an old timestamp", async () => {

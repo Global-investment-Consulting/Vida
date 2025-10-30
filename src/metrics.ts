@@ -1,3 +1,4 @@
+import { setImmediate as setImmediateAsync } from "node:timers/promises";
 import { getInvoiceStatusSnapshot } from "./history/invoiceStatus.js";
 import { getStorage } from "./storage/index.js";
 
@@ -141,7 +142,7 @@ export function observeApWebhookLatency(durationMs: number): void {
   }
 }
 
-export async function renderMetrics(): Promise<string> {
+async function collectMetricsSnapshot(): Promise<string> {
   const lines: string[] = [];
   for (const counter of counters.values()) {
     lines.push(`# HELP ${counter.name} ${counter.help}`);
@@ -173,6 +174,22 @@ export async function renderMetrics(): Promise<string> {
     lines.push(`${gauge.name} ${value}`);
   }
   return lines.join("\n") + "\n";
+}
+
+const register = {
+  metrics: () => collectMetricsSnapshot()
+};
+
+export async function renderMetrics(): Promise<string> {
+  const metricsResult = register.metrics();
+  if (typeof metricsResult === "string") {
+    return metricsResult;
+  }
+  return await metricsResult;
+}
+
+export async function flushMetricsTick(): Promise<void> {
+  await setImmediateAsync();
 }
 
 export function resetMetrics(): void {

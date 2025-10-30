@@ -7,7 +7,7 @@ import { app } from "src/server.js";
 import { listInvoiceStatuses, resetInvoiceStatusCache } from "src/history/invoiceStatus.js";
 import { resetRateLimitBuckets } from "src/middleware/rateLimiter.js";
 import { resetIdempotencyCache } from "src/services/idempotencyCache.js";
-import { renderMetrics, resetMetrics } from "src/metrics.js";
+import { flushMetricsTick, renderMetrics, resetMetrics } from "src/metrics.js";
 import { getStorage, resetStorage } from "src/storage/index.js";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
@@ -114,11 +114,12 @@ describe("AP send retries and DLQ", () => {
     expect(stats.isFile()).toBe(true);
     createdFiles.push(expectedInvoicePath);
 
-    const metrics = renderMetrics();
-    expect(metrics).toContain("ap_send_attempts_total 5");
-    expect(metrics).toContain("ap_send_fail_total 1");
-    expect(metrics).toContain("ap_send_success_total 0");
-    expect(metrics).toMatch(/ap_queue_current 0/);
+    await flushMetricsTick();
+    const metrics = await renderMetrics();
+    expect(metrics).toMatch(/ap_send_attempts_total\s+5(\.0+)?/);
+    expect(metrics).toMatch(/ap_send_fail_total\s+1(\.0+)?/);
+    expect(metrics).toMatch(/ap_send_success_total\s+0(\.0+)?/);
+    expect(metrics).toMatch(/ap_queue_current\s+0(\.0+)?/);
 
     const backend = (process.env.VIDA_STORAGE_BACKEND ?? "file").toLowerCase();
     if (backend === "prisma") {
