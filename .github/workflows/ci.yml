@@ -29,8 +29,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
+      - name: Verify Node toolchain
+        run: node scripts/verify-node.mjs
       - run: npm ci
       - run: npm run lint -- --max-warnings=0
         if: matrix.backend == 'file'
@@ -123,7 +125,10 @@ jobs:
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
+
+      - name: Verify Node toolchain
+        run: node scripts/verify-node.mjs
 
       - name: Install
         run: npm ci
