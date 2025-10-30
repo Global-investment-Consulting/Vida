@@ -15,21 +15,20 @@ jobs:
         run: |
           set -Eeuo pipefail
           curl -sS "$METRICS_URL" | tee metrics.txt
-          FAILS="$(grep -E 'ap_send_fail_total [1-9]' metrics.txt || true)"
-          DLQ="$(grep -E 'dlq' metrics.txt || true)"
 
-          if [[ -n "${FAILS}${DLQ}" ]]; then
+          POSITIVE_LINES="$(grep -E '^(ap_send_fail_total|dlq_(items|retry)_total)[[:space:]]+([1-9][0-9]*)(\.|$)' metrics.txt || true)"
+
+          if [[ -n "${POSITIVE_LINES}" ]]; then
             {
-              echo "FAILS<<EOF"
-              echo "${FAILS:-none}"
-              echo "EOF"
-              echo "DLQ<<EOF"
-              echo "${DLQ:-none}"
+              echo "POSITIVE_LINES<<EOF"
+              echo "${POSITIVE_LINES}"
               echo "EOF"
             } >> "$GITHUB_ENV"
-            echo "::error::Detected AP send failures or DLQ activity"
+            echo "::error::Detected AP send failures or DLQ items > 0"
             exit 1
           fi
+
+          echo "DLQ/AP failure counters are zero — OK"
 
       - name: Open or update DLQ issue
         if: failure()
