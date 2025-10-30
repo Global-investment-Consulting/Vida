@@ -1,4 +1,6 @@
+import { setImmediate as setImmediateAsync } from "node:timers/promises";
 import { getInvoiceStatusSnapshot } from "./history/invoiceStatus.js";
+import { getStorage } from "./storage/index.js";
 
 type CounterName =
   | "invoices_created_total"
@@ -6,7 +8,9 @@ type CounterName =
   | "ap_send_success_total"
   | "ap_send_fail_total"
   | "ap_webhook_ok_total"
-  | "ap_webhook_fail_total";
+  | "ap_webhook_fail_total"
+  | "dlq_retry_total"
+  | "dlq_retry_fail_total";
 
 type Counter = {
   name: CounterName;
@@ -30,13 +34,21 @@ const invoicesCreatedCounter = defineCounter("invoices_created_total", "Total nu
 const apSendAttemptsCounter = defineCounter("ap_send_attempts_total", "Total number of Access Point send attempts");
 const apSendSuccessCounter = defineCounter("ap_send_success_total", "Total number of successful Access Point sends");
 const apSendFailCounter = defineCounter("ap_send_fail_total", "Total number of failed Access Point sends");
-const apWebhookOkCounter = defineCounter("ap_webhook_ok_total", "Total number of successful AP status webhooks processed");
-const apWebhookFailCounter = defineCounter("ap_webhook_fail_total", "Total number of failed AP status webhooks processed");
+const apWebhookOkCounter = defineCounter(
+  "ap_webhook_ok_total",
+  "Total number of successful AP status webhooks processed"
+);
+const apWebhookFailCounter = defineCounter(
+  "ap_webhook_fail_total",
+  "Total number of failed AP status webhooks processed"
+);
+const dlqRetryCounter = defineCounter("dlq_retry_total", "Total number of DLQ items retried successfully");
+const dlqRetryFailCounter = defineCounter("dlq_retry_fail_total", "Total number of DLQ retry attempts that failed");
 
 type Gauge = {
   name: string;
   help: string;
-  collect: () => number;
+  collect: () => number | Promise<number>;
 };
 
 const gauges: Gauge[] = [
@@ -46,6 +58,23 @@ const gauges: Gauge[] = [
     collect: () => {
       const pendingStatuses = new Set(["queued", "sent"]);
       return getInvoiceStatusSnapshot().filter((record) => pendingStatuses.has(record.status)).length;
+    }
+  },
+  {
+    name: "dlq_items_total",
+    help: "Current number of DLQ items awaiting retry",
+    collect: async () => {
+      const storage = getStorage();
+      if (typeof storage.dlq.count === "function") {
+        try {
+          return await storage.dlq.count();
+        } catch (error) {
+          console.warn("[metrics] Failed to collect DLQ count", error);
+          return 0;
+        }
+      }
+      const items = await storage.dlq.list({ limit: 1000 });
+      return items.length;
     }
   }
 ];
@@ -92,6 +121,14 @@ export function incrementApWebhookFail(amount = 1): void {
   apWebhookFailCounter.value += amount;
 }
 
+export function incrementDlqRetrySuccess(amount = 1): void {
+  dlqRetryCounter.value += amount;
+}
+
+export function incrementDlqRetryFail(amount = 1): void {
+  dlqRetryFailCounter.value += amount;
+}
+
 export function observeApWebhookLatency(durationMs: number): void {
   if (!Number.isFinite(durationMs) || durationMs < 0) {
     return;
@@ -105,7 +142,7 @@ export function observeApWebhookLatency(durationMs: number): void {
   }
 }
 
-export function renderMetrics(): string {
+async function collectMetricsSnapshot(): Promise<string> {
   const lines: string[] = [];
   for (const counter of counters.values()) {
     lines.push(`# HELP ${counter.name} ${counter.help}`);
@@ -125,11 +162,34 @@ export function renderMetrics(): string {
   lines.push(`${apWebhookLatencyHistogram.name}_sum ${apWebhookLatencyHistogram.sum}`);
   lines.push(`${apWebhookLatencyHistogram.name}_count ${apWebhookLatencyHistogram.count}`);
   for (const gauge of gauges) {
+    let value: number;
+    try {
+      value = await gauge.collect();
+    } catch (error) {
+      console.warn(`[metrics] Failed to collect gauge ${gauge.name}`, error);
+      value = 0;
+    }
     lines.push(`# HELP ${gauge.name} ${gauge.help}`);
     lines.push(`# TYPE ${gauge.name} gauge`);
-    lines.push(`${gauge.name} ${gauge.collect()}`);
+    lines.push(`${gauge.name} ${value}`);
   }
   return lines.join("\n") + "\n";
+}
+
+const register = {
+  metrics: () => collectMetricsSnapshot()
+};
+
+export async function renderMetrics(): Promise<string> {
+  const metricsResult = register.metrics();
+  if (typeof metricsResult === "string") {
+    return metricsResult;
+  }
+  return await metricsResult;
+}
+
+export async function flushMetricsTick(): Promise<void> {
+  await setImmediateAsync();
 }
 
 export function resetMetrics(): void {

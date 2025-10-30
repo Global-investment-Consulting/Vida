@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetMockAdapter, mockAdapter } from "src/apadapters/mock.js";
 import { app } from "src/server.js";
 import { getInvoiceStatus, resetInvoiceStatusCache, setInvoiceStatus } from "src/history/invoiceStatus.js";
-import { renderMetrics, resetMetrics } from "src/metrics.js";
+import { flushMetricsTick, renderMetrics, resetMetrics } from "src/metrics.js";
 import { resetReplayGuard } from "src/services/replayGuard.js";
 import { resetStorage } from "src/storage/index.js";
 
@@ -118,8 +118,9 @@ describe("AP status routes", () => {
     expect(updated?.status).toBe("delivered");
     expect(updated?.attempts).toBe(3);
 
-    const metrics = renderMetrics();
-    expect(metrics).toContain("ap_webhook_ok_total 1");
+    await flushMetricsTick();
+    const metrics = await renderMetrics();
+    expect(metrics).toMatch(/ap_webhook_ok_total\s+1(\.0+)?/);
   });
 
   it("refreshes queued delivery status via adapter polling", async () => {

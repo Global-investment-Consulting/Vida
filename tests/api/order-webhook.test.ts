@@ -10,7 +10,7 @@ import { listInvoiceStatuses, resetInvoiceStatusCache } from "src/history/invoic
 import * as validation from "src/validation/ubl.js";
 import { resetRateLimitBuckets } from "src/middleware/rateLimiter.js";
 import { resetIdempotencyCache } from "src/services/idempotencyCache.js";
-import { renderMetrics, resetMetrics } from "src/metrics.js";
+import { flushMetricsTick, renderMetrics, resetMetrics } from "src/metrics.js";
 import { resetStorage } from "src/storage/index.js";
 
 const shopifyFixturePath = path.resolve(__dirname, "../connectors/fixtures/shopify-order.json");
@@ -190,11 +190,13 @@ describe("POST /webhook/order-created", () => {
       attempts: 1
     });
 
-    const metricsOutput = renderMetrics();
-    expect(metricsOutput).toContain("ap_send_attempts_total 1");
-    expect(metricsOutput).toContain("ap_send_success_total 1");
+    await flushMetricsTick();
+    const metricsOutput = await renderMetrics();
+    expect(metricsOutput).toMatch(/ap_send_attempts_total\s+1(\.0+)?/);
+    expect(metricsOutput).toMatch(/ap_send_success_total\s+1(\.0+)?/);
     const pendingCount = statuses.filter((status) => status.status === "queued" || status.status === "sent").length;
-    expect(metricsOutput).toContain(`ap_queue_current ${pendingCount}`);
+    const pendingPattern = new RegExp(`ap_queue_current\\s+${pendingCount}(?:\\.0+)?`);
+    expect(metricsOutput).toMatch(pendingPattern);
 
     expect(recordHistorySpy).toHaveBeenCalledWith(
       expect.objectContaining({

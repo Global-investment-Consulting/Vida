@@ -28,6 +28,7 @@ export type InvoiceStatusValue = {
 };
 
 export type DlqItem = {
+  id?: string;
   tenant: string;
   invoiceId: string;
   error: string;
@@ -58,6 +59,8 @@ export interface StatusStore {
 
 export interface DlqStore {
   append(item: DlqItem): Promise<void>;
+  list(options?: { tenant?: string; limit?: number }): Promise<DlqItem[]>;
+  remove(id: string): Promise<boolean>;
   count?(): Promise<number>;
 }
 

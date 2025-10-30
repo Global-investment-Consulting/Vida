@@ -27,6 +27,17 @@ const normalizeCsv = (value) =>
 
 const resolveDir = (value, fallback) => (value ? path.resolve(value) : fallback);
 
+const normalizeAdapterName = (value) => {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+  return trimmed.toLowerCase();
+};
+
 export const VIDA_API_KEYS = normalizeCsv(process.env.VIDA_API_KEYS);
 export const PORT = normalizeNumber(process.env.PORT, 3001);
 export const NODE_ENV = process.env.NODE_ENV ?? "development";
@@ -58,7 +69,9 @@ export const resolveDlqPath = () =>
     ? path.resolve(process.env.VIDA_DLQ_PATH)
     : path.resolve(process.cwd(), "data", "dlq.jsonl");
 export const resolveApAdapterName = () =>
-  (process.env.VIDA_AP_ADAPTER ?? "mock").trim().toLowerCase();
+  normalizeAdapterName(process.env.STAGING_AP_ADAPTER) ??
+  normalizeAdapterName(process.env.VIDA_AP_ADAPTER) ??
+  "mock";
 export const isApSendOnCreateEnabled = () =>
   normalizeBoolean(process.env.VIDA_AP_SEND_ON_CREATE, false);
 export const resolveApWebhookSecret = () => {
