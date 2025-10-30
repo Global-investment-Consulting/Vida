@@ -13,35 +13,61 @@ jobs:
     steps:
       - id: check
         env:
+          STAGING_AP_ADAPTER: ${{ vars.STAGING_AP_ADAPTER || 'mock' }}
           BILLIT_SANDBOX: ${{ vars.BILLIT_SANDBOX }}
           AP_BASE_URL: ${{ secrets.AP_BASE_URL }}
           AP_CLIENT_ID: ${{ secrets.AP_CLIENT_ID }}
           AP_CLIENT_SECRET: ${{ secrets.AP_CLIENT_SECRET }}
           AP_API_KEY: ${{ secrets.AP_API_KEY }}
         run: |
-          if [ "${BILLIT_SANDBOX}" = "true" ] && \
-             [ -n "${AP_BASE_URL}" ] && [ -n "${AP_CLIENT_ID}" ] && \
-             [ -n "${AP_CLIENT_SECRET}" ] && [ -n "${AP_API_KEY}" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
+          adapter="${STAGING_AP_ADAPTER:-mock}"
+          if [ "${adapter}" != "billit" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "note=Skipped: STAGING_AP_ADAPTER=${adapter}" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          if [ "${BILLIT_SANDBOX}" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "note=Skipped: BILLIT_SANDBOX flag disabled" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          missing=()
+          if [ -z "${AP_BASE_URL:-}" ]; then
+            missing+=("AP_BASE_URL")
+          fi
+          if [ -z "${AP_API_KEY:-}" ] && { [ -z "${AP_CLIENT_ID:-}" ] || [ -z "${AP_CLIENT_SECRET:-}" ]; }; then
+            missing+=("AP_API_KEY or AP_CLIENT_ID/AP_CLIENT_SECRET")
+          fi
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "note=Skipped: missing ${missing[*]}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          echo "note=Running sandbox Billit smoke" >> "$GITHUB_OUTPUT"
 
   smoke:
     needs: gate
     if: ${{ needs.gate.outputs.enabled == 'true' }}
     runs-on: ubuntu-latest
     env:
-      BILLIT_SANDBOX:   ${{ vars.BILLIT_SANDBOX }}
-      AP_BASE_URL:      ${{ secrets.AP_BASE_URL }}
-      AP_CLIENT_ID:     ${{ secrets.AP_CLIENT_ID }}
-      AP_CLIENT_SECRET: ${{ secrets.AP_CLIENT_SECRET }}
-      AP_API_KEY:       ${{ secrets.AP_API_KEY }}
+      STAGING_AP_ADAPTER: ${{ vars.STAGING_AP_ADAPTER || 'mock' }}
+      BILLIT_SANDBOX:     ${{ vars.BILLIT_SANDBOX }}
+      AP_BASE_URL:        ${{ secrets.AP_BASE_URL }}
+      AP_CLIENT_ID:       ${{ secrets.AP_CLIENT_ID }}
+      AP_CLIENT_SECRET:   ${{ secrets.AP_CLIENT_SECRET }}
+      AP_API_KEY:         ${{ secrets.AP_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
+      - name: Verify Node toolchain
+        run: node scripts/verify-node.mjs
       - run: npm ci
       - name: Build minimal invoice (fixture)
         run: |
