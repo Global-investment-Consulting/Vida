@@ -1,7 +1,8 @@
-import process from "node:process";
 import { billitAdapter } from "./billit.js";
+import { banqupAdapter } from "./banqup.js";
 import { mockAdapter } from "./mock.js";
 import { type ApAdapter } from "./types.js";
+import { resolveApAdapterName } from "../config.js";
 
 type AdapterFactory = () => ApAdapter;
 
@@ -18,12 +19,13 @@ const mockErrorAdapter: ApAdapter = {
 const registry = new Map<string, AdapterFactory>([
   ["mock", () => mockAdapter],
   ["mock_error", () => mockErrorAdapter],
+  ["banqup", () => banqupAdapter],
   ["billit", () => billitAdapter]
 ]);
 
 export function getAdapter(name?: string): ApAdapter {
-  const requested = name?.trim().toLowerCase() || process.env.VIDA_AP_ADAPTER?.toLowerCase() || "mock";
-  const factory = registry.get(requested) ?? registry.get("mock");
+  const requestedName = name?.trim().toLowerCase() || resolveApAdapterName();
+  const factory = registry.get(requestedName) ?? registry.get("mock");
   if (!factory) {
     return mockAdapter;
   }
