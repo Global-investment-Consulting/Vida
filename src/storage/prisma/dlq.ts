@@ -1,4 +1,5 @@
-import type { PrismaClient, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import type { DlqItem, DlqStore } from "../types.js";
 
 function normalizeTenant(tenant: string): string {
@@ -21,10 +22,8 @@ function serializePayload(payload: DlqItem["payload"]): Prisma.DlqCreateInput["p
   if (payload === undefined || payload === null) {
     return null;
   }
-  const url = process.env.DATABASE_URL ?? "";
-  const isSqlite = url.startsWith("file:") || url.startsWith("sqlite:");
-  const serialized = isSqlite ? JSON.stringify(payload) : payload;
-  return serialized as Prisma.DlqCreateInput["payload"];
+  const serialized = typeof payload === "string" ? payload : JSON.stringify(payload);
+  return serialized;
 }
 
 export function createPrismaDlqStore(client: PrismaClient): DlqStore {
@@ -42,6 +41,42 @@ export function createPrismaDlqStore(client: PrismaClient): DlqStore {
     },
     async count(): Promise<number> {
       return client.dlq.count();
+    },
+    async list(options) {
+      const records = await client.dlq.findMany({
+        where: options?.tenant ? { tenant: normalizeTenant(options.tenant) } : undefined,
+        orderBy: { ts: "desc" },
+        take: options?.limit && options.limit > 0 ? options.limit : undefined
+      });
+      return records.map((record) => {
+        let parsedPayload: unknown;
+        if (record.payload) {
+          try {
+            parsedPayload = JSON.parse(record.payload);
+          } catch {
+            parsedPayload = record.payload;
+          }
+        }
+        return {
+          id: record.id,
+          tenant: record.tenant,
+          invoiceId: record.invoiceId,
+          error: record.error,
+          payload: parsedPayload,
+          ts: record.ts.toISOString()
+        } satisfies DlqItem;
+      });
+    },
+    async remove(id) {
+      try {
+        await client.dlq.delete({ where: { id } });
+        return true;
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+          return false;
+        }
+        throw error;
+      }
     }
   };
 }

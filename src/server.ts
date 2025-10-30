@@ -33,6 +33,7 @@ import {
   observeApWebhookLatency,
   renderMetrics
 } from "./metrics.js";
+import { getStorage } from "./storage/index.js";
 import type { ApDeliveryStatus } from "./apadapters/types.js";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
@@ -342,7 +343,8 @@ app.post(
             tenant: tenantId,
             invoiceId,
             ublXml: xml,
-            requestId
+            requestId,
+            order
           });
           const deliveryStatus = await getInvoiceStatus(tenantId, invoiceId);
           peppolStatus = deliveryStatus?.status;
@@ -688,9 +690,49 @@ app.get("/history", requireApiKey, async (req: Request, res: Response) => {
   }
 });
 
-app.get("/metrics", (_req, res: Response) => {
+app.get("/ops/dlq", requireApiKey, async (req: Request, res: Response) => {
+  const storage = getStorage();
+  if (typeof storage.dlq.list !== "function") {
+    res.status(501).json({ ok: false, error: "DLQ listing not supported in this storage backend." });
+    return;
+  }
+
+  const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+  const parsedLimit = typeof rawLimit === "string" ? Number.parseInt(rawLimit, 10) : undefined;
+  const limit = Number.isFinite(parsedLimit) && (parsedLimit ?? 0) > 0 ? parsedLimit : undefined;
+  const rawTenant = Array.isArray(req.query.tenant) ? req.query.tenant[0] : req.query.tenant;
+  const tenant = typeof rawTenant === "string" && rawTenant.trim().length > 0 ? rawTenant.trim() : undefined;
+
+  try {
+    const items = await storage.dlq.list({
+      tenant,
+      limit
+    });
+    res.json({ items });
+  } catch (error) {
+    console.error("[ops/dlq] failed to list entries", error);
+    res.status(500).json({ ok: false, error: "failed to load DLQ entries" });
+  }
+});
+
+app.post("/ops/dlq/:id/retry", requireApiKey, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  console.info(`[ops/dlq] retry placeholder invoked for id=${id}`);
+  res.status(202).json({
+    ok: false,
+    message: "DLQ retry placeholder: implementation pending"
+  });
+});
+
+app.get("/metrics", async (_req, res: Response) => {
   res.type("text/plain; version=0.0.4");
-  res.send(renderMetrics());
+  try {
+    const body = await renderMetrics();
+    res.send(body);
+  } catch (error) {
+    console.error("[metrics] failed to render", error);
+    res.status(500).send("# metrics temporarily unavailable\n");
+  }
 });
 
 const HOST = "0.0.0.0";

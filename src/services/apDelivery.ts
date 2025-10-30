@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getAdapter } from "../apadapters/index.js";
 import { type ApAdapter, type ApDeliveryStatus } from "../apadapters/types.js";
 import { resolveApAdapterName } from "../config.js";
@@ -30,6 +31,7 @@ async function appendDlq(entry: {
 }): Promise<void> {
   const storage = getStorage();
   await storage.dlq.append({
+    id: randomUUID(),
     tenant: entry.tenant?.trim() && entry.tenant.trim().length > 0 ? entry.tenant.trim() : "__default__",
     invoiceId: entry.invoiceId,
     error: entry.error,
@@ -107,7 +109,14 @@ export async function sendWithRetry(params: SendParams): Promise<void> {
         await appendDlq({
           tenant,
           invoiceId,
-          error: lastError
+          error: lastError,
+          payload: {
+            adapter: adapter.name,
+            invoiceId,
+            tenant,
+            ublXml,
+            order
+          }
         });
         throw error instanceof Error ? error : new Error(lastError);
       }
