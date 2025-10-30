@@ -21,6 +21,7 @@ jobs:
         shell: bash
         env:
           CONFIRM: ${{ inputs.confirm }}
+          STAGING_AP_ADAPTER: ${{ vars.STAGING_AP_ADAPTER || 'mock' }}
           BILLIT_SANDBOX: ${{ vars.BILLIT_SANDBOX }}
           SB_URL: ${{ secrets.AP_BASE_URL }}
           SB_ID: ${{ secrets.AP_CLIENT_ID }}
@@ -29,6 +30,10 @@ jobs:
         run: |
           set -Eeuo pipefail
           ok=true
+          if [ "${STAGING_AP_ADAPTER:-mock}" != "billit" ]; then
+            echo "STAGING_AP_ADAPTER must be billit"
+            ok=false
+          fi
           if [ "${CONFIRM:-}" != "YES_I_UNDERSTAND" ]; then
             echo "confirm input not acknowledged"
             ok=false
@@ -54,6 +59,7 @@ jobs:
     env:
       # Selectors and document settings
       AP_ENV:               live
+      STAGING_AP_ADAPTER:   ${{ vars.STAGING_AP_ADAPTER || 'mock' }}
       BILLIT_RX_SCHEME:     ${{ vars.BILLIT_RX_SCHEME }}
       BILLIT_RX_VALUE:      ${{ vars.BILLIT_RX_VALUE }}
       BILLIT_DOC_TYPE:      ${{ vars.BILLIT_DOC_TYPE }}
@@ -69,7 +75,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
+      - name: Verify Node toolchain
+        run: node scripts/verify-node.mjs
       - run: npm ci
       - name: Build minimal invoice
         run: |
