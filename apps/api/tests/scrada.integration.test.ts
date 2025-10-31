@@ -76,14 +76,14 @@ function buildInvoice() {
     }
   } as Record<string, unknown>;
 
-  if (participantId) {
+  if (receiverScheme && receiverValue) {
+    buyer.peppolScheme = receiverScheme;
+    buyer.peppolId = receiverValue;
+    buyer.schemeId = receiverScheme;
+    buyer.endpointId = `${receiverScheme}:${receiverValue}`;
+    buyer.participantId = `${receiverScheme}:${receiverValue}`;
+  } else if (participantId) {
     buyer.peppolId = participantId;
-    if (receiverScheme) {
-      buyer.schemeId = receiverScheme;
-    }
-    if (receiverValue) {
-      buyer.endpointId = receiverValue;
-    }
   }
 
   const seller = {
