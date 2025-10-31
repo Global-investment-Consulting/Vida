@@ -51,9 +51,6 @@ jobs:
       - name: Build API
         run: npm run build
 
-      - name: Run integration tests
-        run: npm test -- --run
-
       - name: Wait for Scrada participant readiness
         id: scrada_participant
         env:
@@ -63,6 +60,9 @@ jobs:
           node apps/api/scripts/scrada-wait-participant.mjs --participant "${{ env.SCRADA_PARTICIPANT_ID }}" > scrada-participant-output.json
           cat scrada-participant-output.json
           echo "participant_exists=$(jq -r '.exists // empty' scrada-participant-output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Run integration tests
+        run: npm test -- --run
 
       - name: Send Scrada sales invoice smoke
         id: scrada_send
