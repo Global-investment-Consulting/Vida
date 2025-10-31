@@ -25,6 +25,7 @@
     "test": "vitest run",
     "test:ci": "vitest run --reporter=dot --silent",
     "scrada:doc-check": "node scripts/scrada-doc-check.mjs",
+    "scrada:wait-participant": "node scripts/scrada-wait-participant.mjs",
     "scrada:send": "node scripts/scrada-send.mjs",
     "scrada:status": "node scripts/scrada-status.mjs",
     "scrada:webhook-sim": "node scripts/scrada-webhook-sim.mjs",

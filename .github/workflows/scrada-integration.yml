@@ -20,6 +20,9 @@ jobs:
       SCRADA_WEBHOOK_SECRET: ${{ secrets.SCRADA_WEBHOOK_SECRET }}
       SCRADA_API_BASE: ${{ vars.SCRADA_API_BASE }}
       SCRADA_LANGUAGE: ${{ vars.SCRADA_LANGUAGE }}
+      SCRADA_TEST_RECEIVER_SCHEME: ${{ vars.SCRADA_TEST_RECEIVER_SCHEME }}
+      SCRADA_TEST_RECEIVER_ID: ${{ vars.SCRADA_TEST_RECEIVER_ID }}
+      SCRADA_PARTICIPANT_ID: ${{ format('{0}:{1}', vars.SCRADA_TEST_RECEIVER_SCHEME, vars.SCRADA_TEST_RECEIVER_ID) }}
       ARCHIVE_BUCKET: ${{ vars.ARCHIVE_BUCKET }}
       STAGING_WEBHOOK_URL: ${{ vars.STAGING_WEBHOOK_URL }}
     steps:
@@ -36,6 +39,7 @@ jobs:
         run: |
           echo "::add-mask::${SCRADA_API_KEY}"
           echo "::add-mask::${SCRADA_API_PASSWORD}"
+          echo "::add-mask::${SCRADA_COMPANY_ID}"
           echo "::add-mask::${SCRADA_WEBHOOK_SECRET}"
 
       - name: Install dependencies
@@ -50,11 +54,23 @@ jobs:
       - name: Run integration tests
         run: npm test -- --run
 
-      - name: Send Scrada sales invoice smoke
-        id: scrada_send
+      - name: Wait for Scrada participant readiness
+        id: scrada_participant
+        env:
+          SCRADA_PARTICIPANT_ID: ${{ env.SCRADA_PARTICIPANT_ID }}
         run: |
           set -euo pipefail
-          npm run --workspace @vida/api scrada:send > scrada-send-output.json
+          node apps/api/scripts/scrada-wait-participant.mjs --participant "${{ env.SCRADA_PARTICIPANT_ID }}" > scrada-participant-output.json
+          cat scrada-participant-output.json
+          echo "participant_exists=$(jq -r '.exists // empty' scrada-participant-output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Send Scrada sales invoice smoke
+        id: scrada_send
+        env:
+          SCRADA_PARTICIPANT_ID: ${{ env.SCRADA_PARTICIPANT_ID }}
+        run: |
+          set -euo pipefail
+          node apps/api/scripts/scrada-send.mjs > scrada-send-output.json
           cat scrada-send-output.json
           echo "document_id=$(jq -r '.documentId' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
           echo "external_reference=$(jq -r '.externalReference' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
@@ -64,10 +80,11 @@ jobs:
         id: scrada_status
         run: |
           set -euo pipefail
-          npm run --workspace @vida/api scrada:status -- "${{ steps.scrada_send.outputs.document_id }}" --save-ubl | tee scrada-status-log.json
+          node apps/api/scripts/scrada-status.mjs "${{ steps.scrada_send.outputs.document_id }}" --save-ubl | tee scrada-status-log.json
           jq -s '.' scrada-status-log.json > scrada-status-output.json
           cat scrada-status-output.json
           echo "status=$(jq -r '.[0].status // empty' scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+          echo "classification=$(jq -r '.[0].classification // empty' scrada-status-output.json)" >> "$GITHUB_OUTPUT"
           echo "archive_driver=$(jq -r '.[1].driver // empty' scrada-status-output.json)" >> "$GITHUB_OUTPUT"
           echo "archive_location=$(jq -r '.[1].location // empty' scrada-status-output.json)" >> "$GITHUB_OUTPUT"
           echo "archive_key=$(jq -r '.[1].key // empty' scrada-status-output.json)" >> "$GITHUB_OUTPUT"
@@ -86,7 +103,7 @@ jobs:
           if [ -z "$STATUS" ]; then
             STATUS="DELIVERED"
           fi
-          npm run --workspace @vida/api scrada:webhook-sim -- \
+          node apps/api/scripts/scrada-webhook-sim.mjs \
             --document-id "${{ steps.scrada_send.outputs.document_id }}" \
             --external-reference "${{ steps.scrada_send.outputs.external_reference }}" \
             --status "$STATUS"
