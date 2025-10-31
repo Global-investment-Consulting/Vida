@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>VIDA MVP</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="card">
+    <h1>VIDA MVP</h1>
+
+    <form id="create-form">
+      <input id="buyer" placeholder="Buyer name" value="Persist Co" />
+      <input id="country" placeholder="Country" value="BE" />
+      <input id="currency" placeholder="Currency" value="EUR" />
+      <input id="line" placeholder="Line name" value="Service" />
+      <input id="qty" type="number" placeholder="Qty" value="1" />
+      <input id="price" type="number" placeholder="Price" value="50" />
+      <button id="btn-create" type="submit">Create</button>
+    </form>
+
+    <div class="bar">
+      <input id="q" placeholder="search (e.g. persist)" />
+      <button id="btn-refresh" type="button">Refresh</button>
+    </div>
+
+    <textarea id="log" rows="6" spellcheck="false"></textarea>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Number</th><th>Status</th><th>Buyer</th><th>Gross</th><th>XML</th><th>PDF</th><th>Pay</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

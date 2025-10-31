@@ -1,0 +1,47 @@
+{
+  "id": 8921,
+  "number": "1002",
+  "date_created": "2025-01-22T11:30:00Z",
+  "currency": "EUR",
+  "billing": {
+    "first_name": "Grace",
+    "last_name": "Hopper",
+    "email": "grace@example.com",
+    "address_1": "24 Cobol Street",
+    "address_2": "Floor 3",
+    "city": "New York",
+    "postcode": "10001",
+    "country": "US"
+  },
+  "line_items": [
+    {
+      "id": 1,
+      "name": "Implementation Package",
+      "quantity": 1,
+      "price": "500.00",
+      "subtotal": "500.00",
+      "total": "500.00",
+      "taxes": [
+        {
+          "rate_percent": "21.0",
+          "total": "105.00"
+        }
+      ],
+      "sku": "IMPL-500"
+    },
+    {
+      "id": 2,
+      "name": "Support Retainer",
+      "quantity": 12,
+      "price": "45.00",
+      "subtotal": "540.00",
+      "total": "480.00",
+      "taxes": [
+        {
+          "rate_percent": "6.0",
+          "total": "28.80"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "orderNumber": "BILLIT-TEST-001",
+  "currency": "EUR",
+  "issueDate": "2025-01-01T00:00:00.000Z",
+  "buyer": {
+    "name": "Sandbox Buyer BV",
+    "vatId": "BE0123456789"
+  },
+  "supplier": {
+    "name": "Sandbox Supplier BV",
+    "vatId": "BE0987654321"
+  },
+  "lines": [
+    {
+      "description": "Sandbox subscription",
+      "quantity": 1,
+      "unitPriceMinor": 1000,
+      "vatRate": 21
+    }
+  ]
+}
