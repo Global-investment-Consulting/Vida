@@ -29,19 +29,36 @@ function buildInvoice() {
   const vatAmount = Number((netAmount * (vatRate / 100)).toFixed(2));
   const grossAmount = Number((netAmount + vatAmount).toFixed(2));
 
-  const receiverId =
-    process.env.SCRADA_TEST_RECEIVER_ID ??
-    process.env.SCRADA_RECEIVER_PEPPOL_ID ??
-    (process.env.BILLIT_RX_SCHEME && process.env.BILLIT_RX_VALUE
-      ? `${process.env.BILLIT_RX_SCHEME}:${process.env.BILLIT_RX_VALUE}`
-      : undefined) ??
-    process.env.SCRADA_COMPANY_ID ??
+  const explicitParticipant = process.env.SCRADA_PARTICIPANT_ID?.trim();
+  const receiverSchemeVar = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
+  const receiverIdVar = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
+  const combinedReceiver =
+    receiverSchemeVar && receiverIdVar ? `${receiverSchemeVar}:${receiverIdVar}` : undefined;
+  const billitReceiver =
+    process.env.BILLIT_RX_SCHEME && process.env.BILLIT_RX_VALUE
+      ? `${process.env.BILLIT_RX_SCHEME}:${process.env.BILLIT_RX_VALUE}`.trim()
+      : undefined;
+
+  const normalizedReceiverId =
+    (explicitParticipant && explicitParticipant.length > 0 && explicitParticipant) ??
+    (combinedReceiver && combinedReceiver.length > 0 && combinedReceiver) ??
+    (process.env.SCRADA_RECEIVER_PEPPOL_ID?.trim() || undefined) ??
+    billitReceiver ??
+    process.env.SCRADA_COMPANY_ID?.trim() ??
     "";
 
-  const [receiverScheme, receiverValue] =
-    typeof receiverId === "string" && receiverId.includes(":")
-      ? receiverId.split(":", 2)
-      : [undefined, receiverId];
+  let receiverScheme: string | undefined;
+  let receiverValue: string | undefined;
+
+  if (normalizedReceiverId.includes(":")) {
+    [receiverScheme, receiverValue] = normalizedReceiverId.split(":", 2);
+  } else {
+    receiverScheme = receiverSchemeVar;
+    receiverValue = normalizedReceiverId;
+  }
+
+  const participantId =
+    receiverScheme && receiverValue ? `${receiverScheme}:${receiverValue}` : receiverValue ?? "";
 
   const buyer = {
     name: "Integration Buyer",
@@ -59,12 +76,14 @@ function buildInvoice() {
     }
   } as Record<string, unknown>;
 
-  if (receiverValue && receiverValue.length > 0) {
-    buyer.peppolId = receiverId;
+  if (participantId) {
+    buyer.peppolId = participantId;
     if (receiverScheme) {
       buyer.schemeId = receiverScheme;
     }
-    buyer.endpointId = receiverValue;
+    if (receiverValue) {
+      buyer.endpointId = receiverValue;
+    }
   }
 
   const seller = {
