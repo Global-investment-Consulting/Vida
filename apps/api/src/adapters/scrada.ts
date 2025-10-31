@@ -153,15 +153,18 @@ export async function lookupParticipantById(peppolId: string): Promise<ScradaPar
   }
   try {
     const response = await getScradaClient().get(
-      companyPath(`peppol/participantLookup/${encodeURIComponent(trimmed)}`)
+      companyPath("peppol/participantLookup"),
+      {
+        params: { peppolID: trimmed }
+      }
     );
 
-  const body = response.data as ScradaParticipantLookupResponse | boolean;
-  const normalized = normalizeLookupResponse(body);
-  const exists =
-    typeof normalized.exists === "boolean"
-      ? normalized.exists
-      : Array.isArray(normalized.participants) && normalized.participants.length > 0;
+    const body = response.data as ScradaParticipantLookupResponse | boolean;
+    const normalized = normalizeLookupResponse(body);
+    const exists =
+      typeof normalized.exists === "boolean"
+        ? normalized.exists
+        : Array.isArray(normalized.participants) && normalized.participants.length > 0;
 
     return {
       peppolId: trimmed,
