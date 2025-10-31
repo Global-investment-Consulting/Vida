@@ -1,0 +1,72 @@
+{
+  "profileId": "urn:fdc:peppol.eu:poacc:billing:3",
+  "customizationId": "urn:fdc:peppol.eu:poacc:billing:3:01:1.0",
+  "id": "SCRADA-EXAMPLE-0001",
+  "issueDate": "2025-01-01",
+  "dueDate": "2025-01-15",
+  "currency": "EUR",
+  "buyer": {
+    "name": "Example Buyer BV",
+    "peppolId": "0088:123456789",
+    "address": {
+      "streetName": "Buyerstraat",
+      "buildingNumber": "10",
+      "postalZone": "1000",
+      "cityName": "Brussels",
+      "countryCode": "BE"
+    },
+    "contact": {
+      "name": "Buyer Finance",
+      "email": "ap@example-buyer.test"
+    }
+  },
+  "seller": {
+    "name": "Vida Integration Test",
+    "vatNumber": "BE0123456789",
+    "address": {
+      "streetName": "Rue de Sample",
+      "buildingNumber": "1",
+      "postalZone": "9000",
+      "cityName": "Ghent",
+      "countryCode": "BE"
+    },
+    "contact": {
+      "name": "Vida Finance",
+      "email": "billing@vida.example"
+    }
+  },
+  "totals": {
+    "lineExtensionAmount": { "currency": "EUR", "value": 100 },
+    "taxExclusiveAmount": { "currency": "EUR", "value": 100 },
+    "taxInclusiveAmount": { "currency": "EUR", "value": 121 },
+    "payableAmount": { "currency": "EUR", "value": 121 },
+    "taxTotals": [
+      {
+        "rate": 21,
+        "taxableAmount": { "currency": "EUR", "value": 100 },
+        "taxAmount": { "currency": "EUR", "value": 21 }
+      }
+    ]
+  },
+  "lines": [
+    {
+      "id": "1",
+      "description": "Integration smoke test service",
+      "quantity": 1,
+      "unitCode": "DAY",
+      "unitPrice": { "currency": "EUR", "value": 100 },
+      "lineExtensionAmount": { "currency": "EUR", "value": 100 },
+      "vat": {
+        "rate": 21,
+        "taxableAmount": { "currency": "EUR", "value": 100 },
+        "taxAmount": { "currency": "EUR", "value": 21 }
+      }
+    }
+  ],
+  "paymentTerms": {
+    "note": "Payment due 14 days after invoice date",
+    "paymentDueDate": "2025-01-15",
+    "paymentId": "VIDA-INVOICE-0001"
+  },
+  "externalReference": "SCRADA-EXAMPLE-0001"
+}

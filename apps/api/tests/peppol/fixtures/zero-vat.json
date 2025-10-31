@@ -1,0 +1,36 @@
+{
+  "invoiceNumber": "INV-3000",
+  "issueDate": "2025-02-01",
+  "currency": "EUR",
+  "defaultVatRate": 0,
+  "supplier": {
+    "name": "Example Supplier NV",
+    "registrationName": "Example Supplier NV",
+    "vatId": "BE0987654321",
+    "endpoint": {
+      "id": "1234567890123",
+      "scheme": "0088"
+    },
+    "address": {
+      "countryCode": "BE"
+    }
+  },
+  "buyer": {
+    "name": "Buyer BV",
+    "vatId": "NL123456789B01",
+    "address": {
+      "countryCode": "NL"
+    }
+  },
+  "meta": {
+    "taxExemptionReason": "Intra-Community supply — reverse charge"
+  },
+  "lines": [
+    {
+      "description": "Intra-community supply",
+      "quantity": 2,
+      "unitPriceMinor": 15000,
+      "vatRate": 0
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+name: Scrada Integration
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - "feat/*"
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      RUN_SCRADA_INTEGRATION: "true"
+      SCRADA_API_KEY: ${{ secrets.SCRADA_API_KEY }}
+      SCRADA_API_PASSWORD: ${{ secrets.SCRADA_API_PASSWORD }}
+      SCRADA_COMPANY_ID: ${{ secrets.SCRADA_COMPANY_ID }}
+      SCRADA_WEBHOOK_SECRET: ${{ secrets.SCRADA_WEBHOOK_SECRET }}
+      SCRADA_API_BASE: ${{ vars.SCRADA_API_BASE }}
+      SCRADA_LANGUAGE: ${{ vars.SCRADA_LANGUAGE }}
+      ARCHIVE_BUCKET: ${{ vars.ARCHIVE_BUCKET }}
+      STAGING_WEBHOOK_URL: ${{ vars.STAGING_WEBHOOK_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20.19
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.0"
+          cache: "npm"
+
+      - name: Mask Scrada secrets
+        run: |
+          echo "::add-mask::${SCRADA_API_KEY}"
+          echo "::add-mask::${SCRADA_API_PASSWORD}"
+          echo "::add-mask::${SCRADA_WEBHOOK_SECRET}"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Scrada API documentation drift check
+        run: npm run --workspace @vida/api scrada:doc-check
+
+      - name: Build API
+        run: npm run build
+
+      - name: Run integration tests
+        run: npm test -- --run
+
+      - name: Send Scrada sales invoice smoke
+        id: scrada_send
+        run: |
+          set -euo pipefail
+          npm run --workspace @vida/api scrada:send > scrada-send-output.json
+          cat scrada-send-output.json
+          echo "document_id=$(jq -r '.documentId' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "external_reference=$(jq -r '.externalReference' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "participant_lookup=$(jq -r '.participantLookup.exists // empty' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Poll Scrada document status and archive UBL
+        id: scrada_status
+        run: |
+          set -euo pipefail
+          npm run --workspace @vida/api scrada:status -- "${{ steps.scrada_send.outputs.document_id }}" --save-ubl | tee scrada-status-log.json
+          jq -s '.' scrada-status-log.json > scrada-status-output.json
+          cat scrada-status-output.json
+          echo "status=$(jq -r '.[0].status // empty' scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+          echo "archive_driver=$(jq -r '.[1].driver // empty' scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+          echo "archive_location=$(jq -r '.[1].location // empty' scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+          echo "archive_key=$(jq -r '.[1].key // empty' scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload archived UBL artifact
+        if: steps.scrada_status.outputs.archive_driver == 'local' && steps.scrada_status.outputs.archive_location != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrada-ubl
+          path: ${{ steps.scrada_status.outputs.archive_location }}
+
+      - name: Simulate signed webhook to staging
+        run: |
+          set -euo pipefail
+          STATUS="${{ steps.scrada_status.outputs.status }}"
+          if [ -z "$STATUS" ]; then
+            STATUS="DELIVERED"
+          fi
+          npm run --workspace @vida/api scrada:webhook-sim -- \
+            --document-id "${{ steps.scrada_send.outputs.document_id }}" \
+            --external-reference "${{ steps.scrada_send.outputs.external_reference }}" \
+            --status "$STATUS"

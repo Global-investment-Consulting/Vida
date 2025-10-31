@@ -1,0 +1,88 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Invoice {
+  id           String   @id @default(cuid())
+  number       String   @unique
+  status       String             // "SENT" | "PAID"
+  currency     String
+  buyerName    String
+  buyerCountry String
+  vatRate      Decimal  @default(0)
+  net          Decimal
+  tax          Decimal
+  gross        Decimal
+  issuedAt     DateTime @default(now())   // <-- added
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lines     LineItem[]
+  payments  Payment[]
+}
+
+model LineItem {
+  id        String  @id @default(cuid())
+  invoiceId String
+  name      String
+  qty       Int
+  price     Decimal
+
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  amount        Decimal
+  paymentMethod String
+  paidAt        DateTime @default(now())
+
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model IdempotencyKey {
+  id        String   @id @default(cuid())
+  scope     String   // "create" | "pay"
+  key       String   @unique
+  targetId  String
+  createdAt DateTime @default(now())
+}
+
+model InvoiceHistory {
+  id        String   @id @default(cuid())
+  tenant    String
+  invoiceId String
+  payload   String
+  ts        DateTime @default(now())
+
+  @@index([tenant, ts])
+}
+
+model InvoiceStatus {
+  id         String   @id @default(cuid())
+  tenant     String
+  invoiceId  String
+  status     String
+  providerId String?
+  attempts   Int      @default(0)
+  lastError  String?
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tenant, invoiceId])
+}
+
+model Dlq {
+  id        String   @id @default(cuid())
+  tenant    String
+  invoiceId String
+  error     String
+  payload   String?
+  ts        DateTime @default(now())
+}

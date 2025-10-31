@@ -1,0 +1,90 @@
+{
+  "info": {
+    "name": "Vida Invoice API",
+    "description": "Collection for testing the Vida invoice webhook and supporting endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create Invoice (Webhook)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-api-key",
+            "value": "{{apiKey}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "demo-{{timestamp}}"
+          }
+        ],
+        "url": "{{baseUrl}}/webhook/order-created",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source\": \"shopify\",\n  \"supplier\": {\n    \"name\": \"Supplier BV\",\n    \"vatId\": \"BE0123456789\"\n  },\n  \"payload\": {\n    \"orderNumber\": \"INV-1001\",\n    \"currency\": \"EUR\",\n    \"issueDate\": \"2025-01-01\",\n    \"buyer\": { \"name\": \"Buyer NV\" },\n    \"lines\": [\n      { \"description\": \"Consulting\", \"quantity\": 1, \"unitPriceMinor\": 12500, \"vatRate\": 21 }\n    ]\n  }\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Invoice XML",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-api-key",
+            "value": "{{apiKey}}"
+          }
+        ],
+        "url": "{{baseUrl}}/invoice/{{invoiceId}}"
+      },
+      "response": []
+    },
+    {
+      "name": "History",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-api-key",
+            "value": "{{apiKey}}"
+          }
+        ],
+        "url": "{{baseUrl}}/history?limit=20"
+      },
+      "response": []
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/_health"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001"
+    },
+    {
+      "key": "apiKey",
+      "value": "replace-with-api-key"
+    },
+    {
+      "key": "invoiceId",
+      "value": "invoice_..."
+    },
+    {
+      "key": "timestamp",
+      "value": "{{$timestamp}}"
+    }
+  ]
+}
