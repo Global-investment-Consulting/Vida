@@ -1,0 +1,3 @@
+/.github/workflows/**                 @Samcogtz
+/packages/adapters/**/secrets.*       @Samcogtz
+/infra/**                             @Samcogtz
