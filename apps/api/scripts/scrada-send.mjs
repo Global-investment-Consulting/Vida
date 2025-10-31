@@ -93,6 +93,14 @@ function resolveParticipantId(invoice, override) {
     return override.trim();
   }
   const buyer = invoice?.buyer ?? {};
+  if (
+    typeof buyer.peppolScheme === "string" &&
+    buyer.peppolScheme.trim().length > 0 &&
+    typeof buyer.peppolId === "string" &&
+    buyer.peppolId.trim().length > 0
+  ) {
+    return `${buyer.peppolScheme.trim()}:${buyer.peppolId.trim()}`;
+  }
   const candidates = [
     buyer.peppolId,
     buyer.peppolID,
@@ -178,9 +186,39 @@ async function main() {
     const sample = await loadSampleInvoice(args.input);
     const invoice = applyDynamicFields(sample);
 
-    if (args.participant) {
-      const buyer = ensureBuyer(invoice);
-      buyer.peppolId = args.participant.trim();
+    const buyer = ensureBuyer(invoice);
+    const envScheme = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
+    const envReceiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
+    if (args.participant && args.participant.trim().length > 0) {
+      const participant = args.participant.trim();
+      buyer.peppolId = participant;
+      if (participant.includes(":")) {
+        const [schemePart, valuePart] = participant.split(":", 2);
+        if (schemePart && valuePart) {
+          buyer.peppolScheme = schemePart;
+          if (!buyer.schemeId || buyer.schemeId.trim().length === 0) {
+            buyer.schemeId = schemePart;
+          }
+          if (!buyer.endpointId) {
+            buyer.endpointId = valuePart;
+          }
+          if (!buyer.participantId) {
+            buyer.participantId = participant;
+          }
+        }
+      }
+    } else if (envScheme && envReceiverId) {
+      buyer.peppolScheme = envScheme;
+      buyer.peppolId = envReceiverId;
+      if (typeof buyer.schemeId !== "string" || buyer.schemeId.trim().length === 0) {
+        buyer.schemeId = envScheme;
+      }
+      if (typeof buyer.endpointId !== "string" || buyer.endpointId.trim().length === 0) {
+        buyer.endpointId = envReceiverId;
+      }
+      if (typeof buyer.participantId !== "string" || buyer.participantId.trim().length === 0) {
+        buyer.participantId = `${envScheme}:${envReceiverId}`;
+      }
     }
 
     const participantId = resolveParticipantId(invoice, args.participant);

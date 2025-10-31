@@ -176,6 +176,55 @@ export async function lookupParticipantById(peppolId: string): Promise<ScradaPar
   }
 }
 
+export async function lookupPartyBySchemeValue(
+  scheme: string,
+  value: string,
+  options: { countryCode?: string } = {}
+): Promise<ScradaParticipantLookupResult> {
+  const trimmedScheme = scheme.trim();
+  const trimmedValue = value.trim();
+  if (!trimmedScheme) {
+    throw new Error("[scrada] participant scheme is required for party lookup");
+  }
+  if (!trimmedValue) {
+    throw new Error("[scrada] participant value is required for party lookup");
+  }
+  const countryCode = options.countryCode?.trim() || "BE";
+  try {
+    const response = await getScradaClient().post(
+      companyPath("peppol/partyLookup"),
+      {
+        countryCode,
+        identifiers: [
+          {
+            scheme: trimmedScheme,
+            value: trimmedValue
+          }
+        ]
+      }
+    );
+
+    const payload = response.data as ScradaParticipantLookupResponse | boolean | undefined;
+    const normalized = payload ? normalizeLookupResponse(payload) : { exists: true };
+    let exists: boolean;
+    if (typeof normalized.exists === "boolean") {
+      exists = normalized.exists;
+    } else if (Array.isArray(normalized.participants)) {
+      exists = normalized.participants.length > 0;
+    } else {
+      exists = true;
+    }
+
+    return {
+      peppolId: `${trimmedScheme}:${trimmedValue}`,
+      exists,
+      response: normalized
+    };
+  } catch (error) {
+    throw wrapAxiosError(error, "party lookup");
+  }
+}
+
 export async function registerForInbound(input: RegisterCompanyInput): Promise<void> {
   try {
     await getScradaClient().post("/peppol/inbound/register", {

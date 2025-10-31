@@ -14,7 +14,7 @@ async function loadAdapter() {
   }
 }
 
-const { lookupParticipantById } = await loadAdapter();
+const { lookupParticipantById, lookupPartyBySchemeValue } = await loadAdapter();
 
 const DEFAULT_RETRY_MINUTES = [2, 4, 8, 16];
 
@@ -122,7 +122,16 @@ function extractStatus(error) {
   return null;
 }
 
-function buildSummary({ participantId, exists, attempts, elapsedMs, response, lastError }) {
+function buildSummary({
+  participantId,
+  exists,
+  attempts,
+  elapsedMs,
+  response,
+  lastError,
+  method,
+  skipped
+}) {
   return {
     participantId,
     exists,
@@ -130,6 +139,8 @@ function buildSummary({ participantId, exists, attempts, elapsedMs, response, la
     elapsedSeconds: Math.round(elapsedMs / 1000),
     timestamp: new Date().toISOString(),
     response,
+    method: method ?? null,
+    skipped: Boolean(skipped),
     lastError: lastError ? { message: lastError.message, status: extractStatus(lastError) } : null
   };
 }
@@ -137,11 +148,35 @@ function buildSummary({ participantId, exists, attempts, elapsedMs, response, la
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const participantId = resolveParticipantId(args);
+  const skipPref = (process.env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT ?? "").trim().toLowerCase() === "true";
   const start = Date.now();
+
+  if (skipPref) {
+    console.warn("[scrada-wait-participant] Preflight skip enabled via SCRADA_SKIP_PARTICIPANT_PREFLIGHT.");
+    const summary = buildSummary({
+      participantId,
+      exists: true,
+      attempts: 0,
+      elapsedMs: Date.now() - start,
+      response: null,
+      lastError: null,
+      method: "skipped",
+      skipped: true
+    });
+    console.log(JSON.stringify(summary, null, 2));
+    return;
+  }
   const maxAttempts = DEFAULT_RETRY_MINUTES.length + 1;
   let attempts = 0;
   let lastError = null;
-  let lastResponse = null;
+  let lastParticipantResponse = null;
+  let lastPartyResponse = null;
+  const scheme = args.scheme?.trim() || process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
+  const receiverValue = args.receiverId?.trim() || process.env.SCRADA_TEST_RECEIVER_ID?.trim();
+  const composedResponses = () => ({
+    participantLookup: lastParticipantResponse,
+    partyLookup: lastPartyResponse
+  });
 
   for (let i = 0; i < maxAttempts; i += 1) {
     if (i > 0) {
@@ -157,7 +192,7 @@ async function main() {
 
     try {
       const result = await lookupParticipantById(participantId);
-      lastResponse = result.response ?? null;
+      lastParticipantResponse = result.response ?? null;
 
       if (result.exists) {
         const summary = buildSummary({
@@ -165,14 +200,16 @@ async function main() {
           exists: true,
           attempts,
           elapsedMs: Date.now() - start,
-          response: lastResponse,
-          lastError
+          response: composedResponses(),
+          lastError,
+          method: "participantLookup",
+          skipped: false
         });
         console.log(JSON.stringify(summary, null, 2));
         return;
       }
 
-      lastError = new Error("Participant not found in response");
+      lastError = new Error("Participant not found in participantLookup response");
       console.error(
         `[scrada-wait-participant] Participant ${participantId} not found (attempt ${attempts}).`
       );
@@ -190,6 +227,46 @@ async function main() {
         throw lastError;
       }
     }
+
+    if (scheme && receiverValue) {
+      try {
+        const partyResult = await lookupPartyBySchemeValue(scheme, receiverValue, {
+          countryCode: "BE"
+        });
+        lastPartyResponse = partyResult.response ?? null;
+        if (partyResult.exists) {
+          const summary = buildSummary({
+            participantId: partyResult.peppolId,
+            exists: true,
+            attempts,
+            elapsedMs: Date.now() - start,
+            response: composedResponses(),
+            lastError,
+            method: "partyLookup",
+            skipped: false
+          });
+          console.log(JSON.stringify(summary, null, 2));
+          return;
+        }
+        lastError = new Error("Participant not found in partyLookup response");
+        console.error(
+          `[scrada-wait-participant] Party lookup did not resolve participant ${scheme}:${receiverValue} on attempt ${attempts}.`
+        );
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const status = extractStatus(lastError);
+        if (status === 400 || status === 404) {
+          console.error(
+            `[scrada-wait-participant] Party lookup for ${scheme}:${receiverValue} returned HTTP ${status} on attempt ${attempts}.`
+          );
+        } else {
+          console.error(
+            `[scrada-wait-participant] Party lookup failed with non-retryable error: ${lastError.message}`
+          );
+          throw lastError;
+        }
+      }
+    }
   }
 
   const elapsed = Date.now() - start;
@@ -203,8 +280,10 @@ async function main() {
     exists: false,
     attempts,
     elapsedMs: elapsed,
-    response: lastResponse,
-    lastError
+    response: composedResponses(),
+    lastError,
+    method: null,
+    skipped: false
   });
   console.log(JSON.stringify(summary, null, 2));
   process.exit(1);
