@@ -191,11 +191,11 @@ async function main() {
     const envReceiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
     if (args.participant && args.participant.trim().length > 0) {
       const participant = args.participant.trim();
-      buyer.peppolId = participant;
       if (participant.includes(":")) {
         const [schemePart, valuePart] = participant.split(":", 2);
         if (schemePart && valuePart) {
           buyer.peppolScheme = schemePart;
+          buyer.peppolId = valuePart;
           if (!buyer.schemeId || buyer.schemeId.trim().length === 0) {
             buyer.schemeId = schemePart;
           }
@@ -203,8 +203,15 @@ async function main() {
             buyer.endpointId = `${schemePart}:${valuePart}`;
           }
           if (!buyer.participantId) {
-            buyer.participantId = participant;
+            buyer.participantId = `${schemePart}:${valuePart}`;
           }
+        } else {
+          buyer.peppolId = participant;
+        }
+      } else {
+        buyer.peppolId = participant;
+        if (!buyer.participantId) {
+          buyer.participantId = participant;
         }
       }
     } else if (envScheme && envReceiverId) {
