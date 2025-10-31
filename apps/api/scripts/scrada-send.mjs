@@ -200,7 +200,7 @@ async function main() {
             buyer.schemeId = schemePart;
           }
           if (!buyer.endpointId) {
-            buyer.endpointId = valuePart;
+            buyer.endpointId = `${schemePart}:${valuePart}`;
           }
           if (!buyer.participantId) {
             buyer.participantId = participant;
@@ -214,7 +214,7 @@ async function main() {
         buyer.schemeId = envScheme;
       }
       if (typeof buyer.endpointId !== "string" || buyer.endpointId.trim().length === 0) {
-        buyer.endpointId = envReceiverId;
+        buyer.endpointId = `${envScheme}:${envReceiverId}`;
       }
       if (typeof buyer.participantId !== "string" || buyer.participantId.trim().length === 0) {
         buyer.participantId = `${envScheme}:${envReceiverId}`;

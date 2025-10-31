@@ -125,7 +125,7 @@ describe("scrada adapter", () => {
       }
     });
     expect(getMock).toHaveBeenCalledWith(
-      "/peppol/participantLookup",
+      "/company/company-001/peppol/participantLookup",
       expect.objectContaining({
         params: { peppolID: "0088:123456789" }
       })
