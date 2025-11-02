@@ -20,7 +20,12 @@ export interface ScradaParty extends UnknownRecord {
   vatNumber?: string;
   companyRegistrationNumber?: string;
   peppolId?: string;
+  peppolScheme?: string;
   schemeId?: string;
+  endpointScheme?: string;
+  endpointValue?: string;
+  endpointId?: string;
+  endpointID?: string;
   address: ScradaAddress;
   contact?: ScradaContact;
 }
@@ -35,6 +40,7 @@ export interface ScradaVatDetail extends UnknownRecord {
   taxableAmount: ScradaAmount;
   taxAmount: ScradaAmount;
   exemptionReasonCode?: string;
+  taxCategoryCode?: string;
 }
 
 export interface ScradaInvoiceLine extends UnknownRecord {
@@ -55,6 +61,12 @@ export interface ScradaInvoiceTotals extends UnknownRecord {
   payableAmount: ScradaAmount;
   lineExtensionAmount: ScradaAmount;
   taxTotals: ScradaVatDetail[];
+  legalMonetaryTotal?: {
+    lineExtensionAmount: ScradaAmount;
+    taxExclusiveAmount: ScradaAmount;
+    taxInclusiveAmount: ScradaAmount;
+    payableAmount: ScradaAmount;
+  };
 }
 
 export interface ScradaPaymentTerms extends UnknownRecord {
@@ -72,6 +84,7 @@ export interface ScradaSalesInvoice extends UnknownRecord {
   issueDate: string;
   dueDate?: string;
   currency: string;
+  invoiceTypeCode?: string;
   buyer: ScradaParty;
   seller: ScradaParty;
   totals: ScradaInvoiceTotals;
