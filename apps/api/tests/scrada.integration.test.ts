@@ -200,17 +200,30 @@ describeIfEnabled("Scrada integration", () => {
         senderValue
       });
 
-      if (!preparedInvoice.buyer?.peppolId) {
+      const buyerEndpointScheme =
+        (preparedInvoice.buyer?.endpointScheme as string | undefined) ??
+        (preparedInvoice.buyer?.peppolScheme as string | undefined) ??
+        (preparedInvoice.buyer?.schemeId as string | undefined);
+      const buyerEndpointValue =
+        (preparedInvoice.buyer?.endpointValue as string | undefined) ??
+        (preparedInvoice.buyer?.peppolId as string | undefined);
+
+      const participantId =
+        buyerEndpointScheme && buyerEndpointValue
+          ? `${buyerEndpointScheme}:${buyerEndpointValue}`
+          : buyerEndpointValue;
+
+      if (!participantId) {
         throw new Error(
           "SCRADA_TEST_RECEIVER_ID (or SCRADA_COMPANY_ID including scheme) must be configured to run the integration test"
         );
       }
 
       try {
-        const lookup = await lookupParticipantById(preparedInvoice.buyer.peppolId as string);
+        const lookup = await lookupParticipantById(participantId);
         // eslint-disable-next-line no-console
         console.log(
-          `[scrada-integration] participant ${preparedInvoice.buyer.peppolId} lookup exists=${lookup.exists}`
+          `[scrada-integration] participant ${participantId} lookup exists=${lookup.exists}`
         );
       } catch (lookupError) {
         // eslint-disable-next-line no-console
@@ -262,6 +275,8 @@ describeIfEnabled("Scrada integration", () => {
                 : JSON.stringify(ublDirect.response.data, null, 2)
             );
           }
+          // eslint-disable-next-line no-console
+          console.error("[scrada-integration] sendUbl error", ublError);
           throw ublError;
         }
       }
