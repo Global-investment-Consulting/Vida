@@ -12,7 +12,9 @@ import type {
   ScradaOutboundInfo,
   ScradaParticipantLookupResponse,
   ScradaParticipantLookupResult,
-  ScradaSalesInvoice
+  ScradaSalesInvoice,
+  ScradaParty,
+  ScradaParticipantSummary
 } from "../types/scrada.js";
 
 dotenv.config();
@@ -222,12 +224,200 @@ function extractResponseData(error: unknown): unknown {
   return null;
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function parseEndpoint(input: string | undefined): { scheme?: string; value?: string } {
+  if (!isNonEmptyString(input)) {
+    return {};
+  }
+  const trimmed = input.trim();
+  if (trimmed.includes(":")) {
+    const [scheme, value] = trimmed.split(":", 2);
+    return {
+      scheme: scheme?.trim() || undefined,
+      value: value?.trim() || undefined
+    };
+  }
+  return { value: trimmed };
+}
+
+function resolveEndpointFromParty(
+  party: ScradaParty | undefined,
+  fallback: { scheme?: string; value?: string }
+): { scheme?: string; value?: string } {
+  if (!party) {
+    return { ...fallback };
+  }
+  const candidates = [
+    party.endpointId,
+    party.endpointID,
+    party.participantId,
+    party.participantID,
+    party.peppolId,
+    party.peppolID,
+    party.endpointValue
+  ];
+  for (const candidate of candidates) {
+    const parsed = parseEndpoint(candidate as string | undefined);
+    if (parsed.scheme && parsed.value) {
+      return parsed;
+    }
+  }
+  const parsedFallback = parseEndpoint(fallback.value && fallback.scheme ? `${fallback.scheme}:${fallback.value}` : fallback.value);
+  return {
+    scheme: fallback.scheme ?? parsedFallback.scheme,
+    value: fallback.value ?? parsedFallback.value
+  };
+}
+
+function sanitizeVat(value: string | undefined): string | undefined {
+  if (!isNonEmptyString(value)) {
+    return undefined;
+  }
+  const trimmed = value.trim().toUpperCase();
+  if (/^[A-Z]{2}\d{8,12}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const digits = trimmed.replace(/\D+/g, "");
+  if (digits.length === 10) {
+    return `BE${digits}`;
+  }
+  if (digits.length === 9) {
+    return `BE0${digits}`;
+  }
+  return undefined;
+}
+
+function collectVatCandidates(input: unknown, bucket: Set<string>): void {
+  if (!input) {
+    return;
+  }
+  if (typeof input === "string") {
+    const candidate = sanitizeVat(input);
+    if (candidate) {
+      bucket.add(candidate);
+    }
+    return;
+  }
+  if (Array.isArray(input)) {
+    for (const entry of input) {
+      collectVatCandidates(entry, bucket);
+    }
+    return;
+  }
+  if (typeof input === "object") {
+    for (const value of Object.values(input as Record<string, unknown>)) {
+      collectVatCandidates(value, bucket);
+    }
+  }
+}
+
+function extractVatFromParticipant(summary: ScradaParticipantSummary | undefined): string | undefined {
+  if (!summary) {
+    return undefined;
+  }
+  const bucket = new Set<string>();
+  collectVatCandidates(summary.identifiers, bucket);
+  collectVatCandidates(summary.info, bucket);
+  collectVatCandidates(summary.participantId, bucket);
+  collectVatCandidates(summary.participantScheme, bucket);
+  return bucket.values().next().value;
+}
+
+async function fetchVatFromLookup(
+  scheme: string,
+  value: string,
+  countryCode: string | undefined
+): Promise<string | undefined> {
+  try {
+    const result = await lookupPartyBySchemeValue(scheme, value, {
+      countryCode
+    });
+    const summary = result.response?.participants?.[0];
+    return extractVatFromParticipant(summary);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[scrada-adapter] Failed to fetch VAT from party lookup (${scheme}:${value}): ${message}`);
+    return undefined;
+  }
+}
+
+async function enrichInvoicePartiesForScrada(
+  invoice: ScradaSalesInvoice,
+  opts: SendSalesInvoiceOptions
+): Promise<ScradaSalesInvoice> {
+  const enriched: ScradaSalesInvoice = structuredClone(invoice);
+  const buyer = enriched.buyer as ScradaParty;
+  const seller = enriched.seller as ScradaParty;
+
+  const receiverFallback = {
+    scheme: opts.ublOptions?.receiverScheme ?? process.env.SCRADA_TEST_RECEIVER_SCHEME ?? undefined,
+    value:
+      opts.ublOptions?.receiverValue ??
+      process.env.SCRADA_TEST_RECEIVER_ID ??
+      process.env.SCRADA_PARTICIPANT_ID ??
+      undefined
+  };
+  const senderFallback = {
+    scheme: opts.ublOptions?.senderScheme ?? process.env.SCRADA_SUPPLIER_SCHEME ?? process.env.SCRADA_SENDER_SCHEME ?? undefined,
+    value: opts.ublOptions?.senderValue ?? process.env.SCRADA_SUPPLIER_ID ?? process.env.SCRADA_SENDER_ID ?? undefined
+  };
+
+  const receiverVatOverride =
+    sanitizeVat(opts.ublOptions?.receiverVat) ?? sanitizeVat(process.env.SCRADA_TEST_RECEIVER_VAT);
+  const senderVatOverride =
+    sanitizeVat(opts.ublOptions?.senderVat) ??
+    sanitizeVat(process.env.SCRADA_SUPPLIER_VAT) ??
+    sanitizeVat(process.env.SCRADA_SENDER_VAT);
+
+  if (receiverVatOverride) {
+    buyer.vatNumber = receiverVatOverride;
+  }
+  if (senderVatOverride) {
+    seller.vatNumber = senderVatOverride;
+  }
+
+  const buyerEndpoint = resolveEndpointFromParty(buyer, receiverFallback);
+  const buyerCountry =
+    (buyer.address?.countryCode as string | undefined)?.trim() || process.env.SCRADA_BUYER_COUNTRY || "BE";
+  if ((!sanitizeVat(buyer.vatNumber) || buyer.vatNumber === receiverVatOverride) && buyerEndpoint.scheme && buyerEndpoint.value) {
+    const vat = await fetchVatFromLookup(buyerEndpoint.scheme, buyerEndpoint.value, buyerCountry);
+    if (vat) {
+      buyer.vatNumber = vat;
+    }
+  }
+  if (!buyer.companyRegistrationNumber && buyerEndpoint.value) {
+    buyer.companyRegistrationNumber = buyerEndpoint.value;
+  }
+
+  const sellerEndpoint = resolveEndpointFromParty(seller, senderFallback);
+  const sellerCountry =
+    (seller.address?.countryCode as string | undefined)?.trim() || process.env.SCRADA_SUPPLIER_COUNTRY || "BE";
+  if (!sanitizeVat(seller.vatNumber) && senderVatOverride) {
+    seller.vatNumber = senderVatOverride;
+  }
+  if ((!sanitizeVat(seller.vatNumber) || seller.vatNumber === senderVatOverride) && sellerEndpoint.scheme && sellerEndpoint.value) {
+    const vat = await fetchVatFromLookup(sellerEndpoint.scheme, sellerEndpoint.value, sellerCountry);
+    if (vat) {
+      seller.vatNumber = vat;
+    }
+  }
+  if (!seller.companyRegistrationNumber && sellerEndpoint.value) {
+    seller.companyRegistrationNumber = sellerEndpoint.value;
+  }
+
+  return enriched;
+}
+
 export async function sendSalesInvoiceJson(
   payload: ScradaSalesInvoice,
   opts: SendSalesInvoiceOptions = {}
 ): Promise<SendSalesInvoiceResult> {
   const endpoint = companyPath("peppol/outbound/salesInvoice");
-  const requestBody = withExternalReference(payload, opts.externalReference);
+  const enrichedPayload = await enrichInvoicePartiesForScrada(payload, opts);
+  const requestBody = withExternalReference(enrichedPayload, opts.externalReference);
   const artifacts = await resolveArtifactPaths(requestBody, opts.artifactDir);
   await writeJsonFile(artifacts.json, requestBody);
 
