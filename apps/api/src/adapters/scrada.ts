@@ -28,6 +28,17 @@ function companyPath(path: string): string {
   return `/company/${companyId}/${normalizedPath}`;
 }
 
+function serializeParams(params: Record<string, unknown>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    search.append(key, String(value));
+  }
+  return search.toString();
+}
+
 function extractDocumentId(payload: unknown): string {
   if (typeof payload === "string" && payload.trim().length > 0) {
     return payload.trim();
@@ -152,12 +163,12 @@ export async function lookupParticipantById(peppolId: string): Promise<ScradaPar
     throw new Error("[scrada] peppolId is required");
   }
   try {
-    const response = await getScradaClient().get(
-      companyPath("peppol/participantLookup"),
-      {
-        params: { peppolID: trimmed }
+    const response = await getScradaClient().get("/peppol/participantLookup", {
+      params: { peppolID: trimmed },
+      paramsSerializer: {
+        serialize: serializeParams
       }
-    );
+    });
 
     const body = response.data as ScradaParticipantLookupResponse | boolean;
     const normalized = normalizeLookupResponse(body);
@@ -191,18 +202,15 @@ export async function lookupPartyBySchemeValue(
   }
   const countryCode = options.countryCode?.trim() || "BE";
   try {
-    const response = await getScradaClient().post(
-      companyPath("peppol/partyLookup"),
-      {
-        countryCode,
-        identifiers: [
-          {
-            scheme: trimmedScheme,
-            value: trimmedValue
-          }
-        ]
-      }
-    );
+    const response = await getScradaClient().post("/peppol/partyLookup", {
+      countryCode,
+      identifiers: [
+        {
+          scheme: trimmedScheme,
+          value: trimmedValue
+        }
+      ]
+    });
 
     const payload = response.data as ScradaParticipantLookupResponse | boolean | undefined;
     const normalized = payload ? normalizeLookupResponse(payload) : { exists: true };

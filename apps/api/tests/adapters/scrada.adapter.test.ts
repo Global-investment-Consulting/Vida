@@ -125,10 +125,32 @@ describe("scrada adapter", () => {
       }
     });
     expect(getMock).toHaveBeenCalledWith(
-      "/company/company-001/peppol/participantLookup",
+      "/peppol/participantLookup",
       expect.objectContaining({
-        params: { peppolID: "0088:123456789" }
+        params: { peppolID: "0088:123456789" },
+        paramsSerializer: expect.objectContaining({
+          serialize: expect.any(Function)
+        })
       })
     );
+  });
+
+  it("performs party lookup without company scope", async () => {
+    postMock.mockResolvedValueOnce({ data: { exists: true } });
+    const { lookupPartyBySchemeValue } = await import("../../src/adapters/scrada.ts");
+
+    await expect(lookupPartyBySchemeValue("0208", "0755799452")).resolves.toMatchObject({
+      peppolId: "0208:0755799452",
+      exists: true
+    });
+    expect(postMock).toHaveBeenCalledWith("/peppol/partyLookup", {
+      countryCode: "BE",
+      identifiers: [
+        {
+          scheme: "0208",
+          value: "0755799452"
+        }
+      ]
+    });
   });
 });
