@@ -41,6 +41,59 @@ interface EndpointSummary {
   id?: string;
 }
 
+function normalizeDigits(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const digits = value.replace(/\D+/g, "");
+  return digits.length > 0 ? digits : undefined;
+}
+
+function deriveVatNumberFromIdentifier(
+  scheme: string | undefined,
+  value: string | undefined
+): string | undefined {
+  const trimmedScheme = scheme?.trim();
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) {
+    return undefined;
+  }
+  if (/^BE\d{8,12}$/i.test(trimmedValue)) {
+    return trimmedValue.toUpperCase();
+  }
+  const digits = normalizeDigits(trimmedValue);
+  if (!digits) {
+    return undefined;
+  }
+  if (trimmedScheme === "0208" || trimmedScheme === "9956") {
+    if (digits.length === 10) {
+      return `BE${digits}`;
+    }
+  }
+  if (digits.length === 10 && trimmedValue.startsWith("BE")) {
+    return `BE${digits}`;
+  }
+  return undefined;
+}
+
+function applyPartyIdentifiers(
+  party: ScradaParty,
+  endpoint: EndpointSummary,
+  defaults: { vat: string }
+): void {
+  const derivedVat = deriveVatNumberFromIdentifier(endpoint.scheme, endpoint.value);
+  if (derivedVat) {
+    party.vatNumber = derivedVat;
+  } else if (!party.vatNumber || party.vatNumber === DEFAULT_BUYER_VAT || party.vatNumber === DEFAULT_SELLER_VAT) {
+    party.vatNumber = defaults.vat;
+  }
+
+  const registration = endpoint.value?.trim();
+  if (registration && !party.companyRegistrationNumber) {
+    party.companyRegistrationNumber = registration;
+  }
+}
+
 function ensureBuyer(invoice: ScradaSalesInvoice): ScradaParty {
   if (!invoice.buyer || typeof invoice.buyer !== "object") {
     invoice.buyer = {
@@ -699,14 +752,17 @@ export function prepareScradaInvoice(
   const buyer = ensureBuyer(cloned);
   const seller = ensureSeller(cloned);
 
-  ensurePartyEndpoint(buyer, {
+  const buyerEndpoint = ensurePartyEndpoint(buyer, {
     scheme: options.receiverScheme,
     value: options.receiverValue
   });
-  ensurePartyEndpoint(seller, {
+  const sellerEndpoint = ensurePartyEndpoint(seller, {
     scheme: options.senderScheme,
     value: options.senderValue
   });
+
+  applyPartyIdentifiers(buyer, buyerEndpoint, { vat: DEFAULT_BUYER_VAT });
+  applyPartyIdentifiers(seller, sellerEndpoint, { vat: DEFAULT_SELLER_VAT });
 
   ensureTotals(cloned);
   return cloned;
