@@ -824,13 +824,20 @@ export function prepareScradaInvoice(
   });
 
   applyPartyIdentifiers(buyer, buyerEndpoint, {
-    vat: options.receiverVat?.trim() || DEFAULT_BUYER_VAT,
+    vat: options.receiverVat?.trim(),
     enterprise: options.receiverValue ?? buyerEndpoint.value
   });
   applyPartyIdentifiers(seller, sellerEndpoint, {
-    vat: options.senderVat?.trim() || DEFAULT_SELLER_VAT,
+    vat: options.senderVat?.trim(),
     enterprise: options.senderValue ?? sellerEndpoint.value
   });
+
+  if (!buyer.vatNumber) {
+    buyer.vatNumber = normalizeBelgianVatNumber(DEFAULT_BUYER_VAT) ?? DEFAULT_BUYER_VAT;
+  }
+  if (!seller.vatNumber) {
+    seller.vatNumber = normalizeBelgianVatNumber(DEFAULT_SELLER_VAT) ?? DEFAULT_SELLER_VAT;
+  }
 
   ensureTotals(cloned);
   cloned.buyerVat = (buyer.vatNumber as string | undefined) ?? cloned.buyerVat;
