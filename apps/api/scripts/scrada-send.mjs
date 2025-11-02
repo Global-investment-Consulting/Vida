@@ -291,6 +291,16 @@ async function main() {
 
     const envScheme = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
     const envReceiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
+    const rawSenderScheme = process.env.SCRADA_SENDER_SCHEME?.trim();
+    const rawSenderValue = process.env.SCRADA_SENDER_ID?.trim();
+    const companyIdEnv = process.env.SCRADA_COMPANY_ID?.trim();
+    let senderScheme = rawSenderScheme;
+    let senderValue = rawSenderValue;
+    if ((!senderScheme || !senderValue) && companyIdEnv && companyIdEnv.includes(":")) {
+      const [companyScheme, companyValue] = companyIdEnv.split(":", 2);
+      senderScheme = senderScheme || companyScheme;
+      senderValue = senderValue || companyValue;
+    }
 
     if (args.participant && args.participant.trim().length > 0) {
       const participant = args.participant.trim();
@@ -320,8 +330,8 @@ async function main() {
     const preparedInvoice = prepareScradaInvoice(invoice, {
       receiverScheme: envScheme,
       receiverValue: envReceiverId,
-      senderScheme: process.env.SCRADA_SENDER_SCHEME?.trim(),
-      senderValue: process.env.SCRADA_SENDER_ID?.trim()
+      senderScheme,
+      senderValue
     });
 
     const participantId = resolveParticipantId(preparedInvoice, args.participant);
@@ -366,8 +376,8 @@ async function main() {
         const ublPayload = buildBis30Ubl(preparedInvoice, {
           receiverScheme: envScheme,
           receiverValue: envReceiverId,
-          senderScheme: process.env.SCRADA_SENDER_SCHEME?.trim(),
-          senderValue: process.env.SCRADA_SENDER_ID?.trim()
+          senderScheme,
+          senderValue
         });
         await writeFile(ublArtifactPath, `${ublPayload}\n`, "utf8");
 

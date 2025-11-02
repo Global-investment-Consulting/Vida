@@ -183,11 +183,21 @@ describeIfEnabled("Scrada integration", () => {
       const invoice = buildInvoice();
       const envScheme = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
       const envReceiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
+      const rawSenderScheme = process.env.SCRADA_SENDER_SCHEME?.trim();
+      const rawSenderValue = process.env.SCRADA_SENDER_ID?.trim();
+      const companyIdEnv = process.env.SCRADA_COMPANY_ID?.trim();
+      let senderScheme = rawSenderScheme;
+      let senderValue = rawSenderValue;
+      if ((!senderScheme || !senderValue) && companyIdEnv && companyIdEnv.includes(":")) {
+        const [companyScheme, companyValue] = companyIdEnv.split(":", 2);
+        senderScheme = senderScheme || companyScheme;
+        senderValue = senderValue || companyValue;
+      }
       const preparedInvoice = prepareScradaInvoice(invoice, {
         receiverScheme: envScheme,
         receiverValue: envReceiverId,
-        senderScheme: process.env.SCRADA_SENDER_SCHEME?.trim(),
-        senderValue: process.env.SCRADA_SENDER_ID?.trim()
+        senderScheme,
+        senderValue
       });
 
       if (!preparedInvoice.buyer?.peppolId) {
@@ -233,8 +243,8 @@ describeIfEnabled("Scrada integration", () => {
         const ublXml = buildBis30Ubl(preparedInvoice, {
           receiverScheme: envScheme,
           receiverValue: envReceiverId,
-          senderScheme: process.env.SCRADA_SENDER_SCHEME?.trim(),
-          senderValue: process.env.SCRADA_SENDER_ID?.trim()
+          senderScheme,
+          senderValue
         });
         const result = await sendUbl(ublXml, { externalReference: preparedInvoice.id });
         documentId = result.documentId;
