@@ -491,11 +491,6 @@ function buildPartyXml(party: ScradaParty, role: string): string {
       `<cbc:CompanyID schemeID="0208">${xmlEscape(enterpriseNumber)}</cbc:CompanyID>`
     );
   }
-  if (party.vatNumber) {
-    legalEntityParts.push(
-      `<cbc:CompanyID schemeID="VAT">${xmlEscape(party.vatNumber)}</cbc:CompanyID>`
-    );
-  }
   const legalEntityXml = `<cac:PartyLegalEntity>${legalEntityParts.join("")}</cac:PartyLegalEntity>`;
   const identificationXml = party.vatNumber
     ? `<cac:PartyIdentification><cbc:ID>${xmlEscape(party.vatNumber)}</cbc:ID></cac:PartyIdentification>`
