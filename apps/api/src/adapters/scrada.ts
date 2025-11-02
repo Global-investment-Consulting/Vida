@@ -290,6 +290,20 @@ function sanitizeVat(value: string | undefined): string | undefined {
   return undefined;
 }
 
+function sanitizeEnterprise(value: string | undefined): string | undefined {
+  if (!isNonEmptyString(value)) {
+    return undefined;
+  }
+  const digits = value.replace(/\D+/g, "");
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return digits;
+  }
+  if (digits.length === 9) {
+    return `0${digits}`;
+  }
+  return undefined;
+}
+
 function collectVatCandidates(input: unknown, bucket: Set<string>): void {
   if (!input) {
     return;
@@ -389,7 +403,10 @@ async function enrichInvoicePartiesForScrada(
     }
   }
   if (!buyer.companyRegistrationNumber && buyerEndpoint.value) {
-    buyer.companyRegistrationNumber = buyerEndpoint.value;
+    const enterprise = sanitizeEnterprise(buyerEndpoint.value);
+    if (enterprise) {
+      buyer.companyRegistrationNumber = enterprise;
+    }
   }
   const normalizedBuyerVat = sanitizeVat(buyer.vatNumber);
   if (normalizedBuyerVat) {
@@ -409,7 +426,10 @@ async function enrichInvoicePartiesForScrada(
     }
   }
   if (!seller.companyRegistrationNumber && sellerEndpoint.value) {
-    seller.companyRegistrationNumber = sellerEndpoint.value;
+    const enterprise = sanitizeEnterprise(sellerEndpoint.value);
+    if (enterprise) {
+      seller.companyRegistrationNumber = enterprise;
+    }
   }
   const normalizedSellerVat = sanitizeVat(seller.vatNumber);
   if (normalizedSellerVat) {

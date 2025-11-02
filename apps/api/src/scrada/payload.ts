@@ -78,21 +78,66 @@ function deriveVatNumberFromIdentifier(
   return undefined;
 }
 
+function digitsOnly(input?: string): string {
+  if (typeof input !== "string") {
+    return "";
+  }
+  return input.replace(/\D+/g, "");
+}
+
+function normalizeEnterpriseNumber(input?: string): string | undefined {
+  const digits = digitsOnly(input);
+  if (digits.length === 10) {
+    return digits.startsWith("0") ? digits : undefined;
+  }
+  if (digits.length === 9) {
+    return `0${digits}`;
+  }
+  return undefined;
+}
+
+function normalizeBelgianVatNumber(input?: string): string | undefined {
+  const digits = digitsOnly(input);
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return `BE${digits}`;
+  }
+  if (digits.length === 9) {
+    return `BE0${digits}`;
+  }
+  if (/^BE0\d{9}$/i.test((input ?? "").trim())) {
+    return (input ?? "").trim().toUpperCase();
+  }
+  return undefined;
+}
+
+function normalizeVatFromEnterprise(input?: string): string | undefined {
+  const enterprise = normalizeEnterpriseNumber(input);
+  return enterprise ? `BE${enterprise}` : undefined;
+}
+
 function applyPartyIdentifiers(
   party: ScradaParty,
   endpoint: EndpointSummary,
-  defaults: { vat: string }
+  defaults: { vat?: string; enterprise?: string }
 ): void {
-  const derivedVat = deriveVatNumberFromIdentifier(endpoint.scheme, endpoint.value);
-  if (derivedVat) {
-    party.vatNumber = derivedVat;
-  } else if (!party.vatNumber || party.vatNumber === DEFAULT_BUYER_VAT || party.vatNumber === DEFAULT_SELLER_VAT) {
-    party.vatNumber = defaults.vat;
+  const explicitVat = normalizeBelgianVatNumber(defaults.vat);
+  const existingEnterprise = normalizeEnterpriseNumber(party.companyRegistrationNumber as string | undefined);
+  const endpointEnterprise = normalizeEnterpriseNumber(endpoint.value);
+  const defaultEnterprise = normalizeEnterpriseNumber(defaults.enterprise);
+
+  const enterpriseNumber = existingEnterprise ?? endpointEnterprise ?? defaultEnterprise ?? undefined;
+  if (enterpriseNumber) {
+    party.companyRegistrationNumber = enterpriseNumber;
   }
 
-  const registration = endpoint.value?.trim();
-  if (registration && !party.companyRegistrationNumber) {
-    party.companyRegistrationNumber = registration;
+  const partyVat = normalizeBelgianVatNumber(party.vatNumber as string | undefined);
+  const derivedVat = deriveVatNumberFromIdentifier(endpoint.scheme, endpoint.value);
+  const derivedVatNormalized = normalizeBelgianVatNumber(derivedVat);
+  const enterpriseVat = enterpriseNumber ? normalizeVatFromEnterprise(enterpriseNumber) : undefined;
+  const fallbackVat = explicitVat ?? partyVat ?? derivedVatNormalized ?? enterpriseVat;
+
+  if (fallbackVat) {
+    party.vatNumber = fallbackVat;
   }
 }
 
@@ -404,11 +449,12 @@ function buildAddressXml(address: Record<string, unknown> | undefined): string {
 }
 
 function buildPartyTaxSchemeXml(vatNumber?: string): string {
-  if (!vatNumber) {
+  const normalized = normalizeBelgianVatNumber(vatNumber);
+  if (!normalized) {
     return "";
   }
   return `<cac:PartyTaxScheme>
-    <cbc:CompanyID schemeID="VAT">${xmlEscape(vatNumber)}</cbc:CompanyID>
+    <cbc:CompanyID schemeID="VAT">${xmlEscape(normalized)}</cbc:CompanyID>
     <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
   </cac:PartyTaxScheme>`;
 }
@@ -435,6 +481,16 @@ function buildPartyXml(party: ScradaParty, role: string): string {
   const contactXml = buildContactXml(party.contact as Record<string, unknown>);
   const registrationName = party.name || "Unknown party";
   const legalEntityParts = [`<cbc:RegistrationName>${xmlEscape(registrationName)}</cbc:RegistrationName>`];
+  const enterpriseNumber =
+    normalizeEnterpriseNumber(party.companyRegistrationNumber as string | undefined) ??
+    normalizeEnterpriseNumber(endpoint.value) ??
+    normalizeDigits(party.companyRegistrationNumber as string | undefined) ??
+    normalizeDigits(endpoint.value);
+  if (enterpriseNumber) {
+    legalEntityParts.push(
+      `<cbc:CompanyID schemeID="0208">${xmlEscape(enterpriseNumber)}</cbc:CompanyID>`
+    );
+  }
   if (party.vatNumber) {
     legalEntityParts.push(
       `<cbc:CompanyID schemeID="VAT">${xmlEscape(party.vatNumber)}</cbc:CompanyID>`
@@ -773,13 +829,17 @@ export function prepareScradaInvoice(
   });
 
   applyPartyIdentifiers(buyer, buyerEndpoint, {
-    vat: options.receiverVat?.trim() || DEFAULT_BUYER_VAT
+    vat: options.receiverVat?.trim() || DEFAULT_BUYER_VAT,
+    enterprise: options.receiverValue ?? buyerEndpoint.value
   });
   applyPartyIdentifiers(seller, sellerEndpoint, {
-    vat: options.senderVat?.trim() || DEFAULT_SELLER_VAT
+    vat: options.senderVat?.trim() || DEFAULT_SELLER_VAT,
+    enterprise: options.senderValue ?? sellerEndpoint.value
   });
 
   ensureTotals(cloned);
+  cloned.buyerVat = (buyer.vatNumber as string | undefined) ?? cloned.buyerVat;
+  cloned.sellerVat = (seller.vatNumber as string | undefined) ?? cloned.sellerVat;
   return cloned;
 }
 
@@ -883,6 +943,8 @@ export function jsonFromEnv(
   const partyOptions = derivePartyOptionsFromEnv(env, options.overrides ?? {});
   const prepared = prepareScradaInvoice(baseInvoice, partyOptions);
   ensurePaymentTerms(prepared, prepared.issueDate);
+  prepared.buyerVat = (prepared.buyer as ScradaParty).vatNumber as string | undefined;
+  prepared.sellerVat = (prepared.seller as ScradaParty).vatNumber as string | undefined;
 
   return prepared;
 }
