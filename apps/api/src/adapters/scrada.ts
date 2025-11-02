@@ -262,30 +262,41 @@ export async function sendSalesInvoiceJson(
     const maskValues = Array.isArray(opts.maskValues) ? opts.maskValues : [];
     const responseBody = extractResponseData(error);
     const maskedError = maskScradaErrorBody(responseBody, requestBody, maskValues);
+    const snippet = maskedError.length > 800 ? `${maskedError.slice(0, 800)}…` : maskedError;
+    console.warn(`[scrada-adapter] JSON payload rejected (HTTP 400): ${snippet}`);
     await writeFile(artifacts.error, `${maskedError}\n`, "utf8");
 
     const ublPayload = buildBis30Ubl(requestBody, opts.ublOptions);
     await writeFile(artifacts.ubl, `${ublPayload}\n`, "utf8");
 
-    const ublResult = await sendUbl(ublPayload, {
-      externalReference: requestBody.externalReference
-    });
+    try {
+      const ublResult = await sendUbl(ublPayload, {
+        externalReference: requestBody.externalReference
+      });
 
-    return {
-      documentId: ublResult.documentId,
-      deliveryPath: "ubl",
-      fallback: {
-        triggered: true,
-        status,
-        message: error instanceof Error ? error.message : String(error)
-      },
-      artifacts: {
-        json: relativeToCwd(artifacts.json),
-        error: relativeToCwd(artifacts.error),
-        ubl: relativeToCwd(artifacts.ubl)
-      },
-      externalReference: requestBody.externalReference
-    };
+      return {
+        documentId: ublResult.documentId,
+        deliveryPath: "ubl",
+        fallback: {
+          triggered: true,
+          status,
+          message: error instanceof Error ? error.message : String(error)
+        },
+        artifacts: {
+          json: relativeToCwd(artifacts.json),
+          error: relativeToCwd(artifacts.error),
+          ubl: relativeToCwd(artifacts.ubl)
+        },
+        externalReference: requestBody.externalReference
+      };
+    } catch (ublError) {
+      const ublBody = extractResponseData(ublError);
+      const maskedUblError = maskScradaErrorBody(ublBody, requestBody, maskValues);
+      const ublSnippet =
+        maskedUblError.length > 800 ? `${maskedUblError.slice(0, 800)}…` : maskedUblError;
+      console.error(`[scrada-adapter] UBL fallback rejected: ${ublSnippet}`);
+      throw wrapAxiosError(ublError, "send UBL document");
+    }
   }
 }
 
