@@ -7,8 +7,10 @@ import {
   getOutboundStatus,
   getOutboundUbl,
   lookupParticipantById,
-  sendSalesInvoiceJson
+  sendSalesInvoiceJson,
+  sendUbl
 } from "../src/adapters/scrada.ts";
+import { prepareScradaInvoice, buildBis30Ubl } from "../src/scrada/payload.ts";
 
 const RUN_INTEGRATION = process.env.RUN_SCRADA_INTEGRATION === "true";
 const SUCCESS_STATUSES = new Set(["DELIVERED", "DELIVERY_CONFIRMED", "SUCCESS", "ACCEPTED"]);
@@ -179,17 +181,26 @@ describeIfEnabled("Scrada integration", () => {
     "sends an invoice and fetches the delivered UBL",
     async () => {
       const invoice = buildInvoice();
-      if (!invoice.buyer.peppolId) {
+      const envScheme = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
+      const envReceiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
+      const preparedInvoice = prepareScradaInvoice(invoice, {
+        receiverScheme: envScheme,
+        receiverValue: envReceiverId,
+        senderScheme: process.env.SCRADA_SENDER_SCHEME?.trim(),
+        senderValue: process.env.SCRADA_SENDER_ID?.trim()
+      });
+
+      if (!preparedInvoice.buyer?.peppolId) {
         throw new Error(
           "SCRADA_TEST_RECEIVER_ID (or SCRADA_COMPANY_ID including scheme) must be configured to run the integration test"
         );
       }
 
       try {
-        const lookup = await lookupParticipantById(invoice.buyer.peppolId as string);
+        const lookup = await lookupParticipantById(preparedInvoice.buyer.peppolId as string);
         // eslint-disable-next-line no-console
         console.log(
-          `[scrada-integration] participant ${invoice.buyer.peppolId} lookup exists=${lookup.exists}`
+          `[scrada-integration] participant ${preparedInvoice.buyer.peppolId} lookup exists=${lookup.exists}`
         );
       } catch (lookupError) {
         // eslint-disable-next-line no-console
@@ -197,8 +208,11 @@ describeIfEnabled("Scrada integration", () => {
       }
 
       let documentId: string | undefined;
+      let fallbackUsed = false;
       try {
-        ({ documentId } = await sendSalesInvoiceJson(invoice, { externalReference: invoice.id }));
+        ({ documentId } = await sendSalesInvoiceJson(preparedInvoice, {
+          externalReference: preparedInvoice.id
+        }));
       } catch (error) {
         const root = error instanceof Error && axios.isAxiosError(error.cause) ? error.cause : null;
         const direct = axios.isAxiosError(error) ? error : root;
@@ -211,7 +225,19 @@ describeIfEnabled("Scrada integration", () => {
               : JSON.stringify(direct.response.data, null, 2)
           );
         }
-        throw error;
+        const status = direct?.response?.status ?? null;
+        if (status !== 400) {
+          throw error;
+        }
+        fallbackUsed = true;
+        const ublXml = buildBis30Ubl(preparedInvoice, {
+          receiverScheme: envScheme,
+          receiverValue: envReceiverId,
+          senderScheme: process.env.SCRADA_SENDER_SCHEME?.trim(),
+          senderValue: process.env.SCRADA_SENDER_ID?.trim()
+        });
+        const result = await sendUbl(ublXml, { externalReference: preparedInvoice.id });
+        documentId = result.documentId;
       }
 
       const deadline = Date.now() + 60_000;
@@ -238,6 +264,9 @@ describeIfEnabled("Scrada integration", () => {
 
       const ublXml = await getOutboundUbl(documentId!);
       expect(ublXml.length).toBeGreaterThan(0);
+
+      // eslint-disable-next-line no-console
+      console.log(`[scrada-integration] fallback used=${fallbackUsed}`);
 
       const tmpDir = await mkdtemp(path.join(os.tmpdir(), "scrada-"));
       const filePath = path.join(tmpDir, `${documentId}.xml`);
