@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import process from "node:process";
+
 import type {
   ScradaInvoiceLine,
   ScradaInvoiceTotals,
@@ -13,6 +16,25 @@ export interface PrepareOptions {
   senderValue?: string;
 }
 
+export type ScradaInvoiceSeed = Partial<ScradaSalesInvoice> & {
+  lines?: Array<Partial<ScradaInvoiceLine>>;
+};
+
+export interface JsonFromEnvOptions {
+  env?: NodeJS.ProcessEnv;
+  overrides?: PrepareOptions;
+}
+
+const DEFAULT_PROFILE_ID = "urn:fdc:peppol.eu:2017:poacc:billing:3.0";
+const DEFAULT_CUSTOMIZATION_ID = "urn:cen.eu:en16931:2017";
+const DEFAULT_CURRENCY = "EUR";
+const DEFAULT_VAT_RATE = 21;
+const DEFAULT_TAX_CATEGORY = "S";
+const DEFAULT_UNIT_CODE = "EA";
+const DEFAULT_BUYER_VAT = "BE0456123456";
+const DEFAULT_SELLER_VAT = "BE0123456789";
+const DEFAULT_PAYMENT_TERM_DAYS = 30;
+
 interface EndpointSummary {
   scheme?: string;
   value?: string;
@@ -23,6 +45,7 @@ function ensureBuyer(invoice: ScradaSalesInvoice): ScradaParty {
   if (!invoice.buyer || typeof invoice.buyer !== "object") {
     invoice.buyer = {
       name: "Unknown Buyer",
+      vatNumber: DEFAULT_BUYER_VAT,
       address: {
         streetName: "Unknown street",
         postalZone: "0000",
@@ -43,10 +66,16 @@ function ensureBuyer(invoice: ScradaSalesInvoice): ScradaParty {
       countryCode: "BE"
     };
   }
+  if (!buyer.address.countryCode) {
+    buyer.address.countryCode = "BE";
+  }
   if (!buyer.contact || typeof buyer.contact !== "object") {
     buyer.contact = {
       email: "ap@example.test"
     };
+  }
+  if (!buyer.vatNumber) {
+    buyer.vatNumber = DEFAULT_BUYER_VAT;
   }
   return buyer;
 }
@@ -55,7 +84,7 @@ function ensureSeller(invoice: ScradaSalesInvoice): ScradaParty {
   if (!invoice.seller || typeof invoice.seller !== "object") {
     invoice.seller = {
       name: "Vida Integration Seller",
-      vatNumber: "BE0123456789",
+      vatNumber: DEFAULT_SELLER_VAT,
       address: {
         streetName: "Sellerstraat",
         postalZone: "9000",
@@ -83,6 +112,9 @@ function ensureSeller(invoice: ScradaSalesInvoice): ScradaParty {
     seller.contact = {
       email: "billing@vida.example"
     };
+  }
+  if (!seller.vatNumber) {
+    seller.vatNumber = DEFAULT_SELLER_VAT;
   }
   return seller;
 }
@@ -206,20 +238,24 @@ function normaliseLine(
     roundCurrency(unitPrice * quantity);
   const net = roundCurrency(lineExtension);
 
+  const defaultRate =
+    typeof normalized.vat?.rate === "number" && Number.isFinite(normalized.vat.rate)
+      ? normalized.vat.rate
+      : DEFAULT_VAT_RATE;
   const vat: ScradaVatDetail = {
-    rate: typeof normalized.vat?.rate === "number" ? normalized.vat.rate : 21,
+    rate: defaultRate,
     taxableAmount: { currency, value: net },
     taxAmount: {
       currency,
       value:
         normalized.vat?.taxAmount?.value ??
-        roundCurrency((net * (normalized.vat?.rate ?? 21)) / 100)
+        roundCurrency((net * defaultRate) / 100)
     },
-    taxCategoryCode: normalized.vat?.taxCategoryCode ?? "S"
+    taxCategoryCode: normalized.vat?.taxCategoryCode ?? DEFAULT_TAX_CATEGORY
   };
 
   normalized.quantity = quantity;
-  normalized.unitCode = normalized.unitCode || "EA";
+  normalized.unitCode = normalized.unitCode || DEFAULT_UNIT_CODE;
   normalized.unitPrice = { currency, value: unitPrice };
   normalized.lineExtensionAmount = { currency, value: net };
   normalized.vat = vat;
@@ -250,8 +286,8 @@ function ensureTotals(invoice: ScradaSalesInvoice): ScradaInvoiceTotals {
 
   const taxTotals: ScradaVatDetail[] = [
     {
-      rate: 21,
-      taxCategoryCode: "S",
+      rate: DEFAULT_VAT_RATE,
+      taxCategoryCode: DEFAULT_TAX_CATEGORY,
       taxableAmount: { currency, value: taxExclusive },
       taxAmount: { currency, value: taxAmount }
     }
@@ -379,8 +415,9 @@ function buildInvoiceLineXml(line: ScradaInvoiceLine, currency: string): string 
     (line.unitPrice as Record<string, unknown> | undefined)?.value ??
     (line.unitPrice as unknown as number | undefined) ??
     0;
-  const vatRate = line.vat?.rate ?? 21;
-  const vatAmount = line.vat?.taxAmount?.value ?? roundCurrency((Number(lineAmount) * vatRate) / 100);
+  const vatRate = line.vat?.rate ?? DEFAULT_VAT_RATE;
+  const vatAmount =
+    line.vat?.taxAmount?.value ?? roundCurrency((Number(lineAmount) * vatRate) / 100);
 
   return `<cac:InvoiceLine>
     <cbc:ID>${xmlEscape(line.id || "1")}</cbc:ID>
@@ -389,7 +426,7 @@ function buildInvoiceLineXml(line: ScradaInvoiceLine, currency: string): string 
     <cac:Item>
       <cbc:Description>${xmlEscape(line.description || "Invoice line")}</cbc:Description>
       <cac:ClassifiedTaxCategory>
-        <cbc:ID>${xmlEscape(line.vat?.taxCategoryCode || "S")}</cbc:ID>
+        <cbc:ID>${xmlEscape(line.vat?.taxCategoryCode || DEFAULT_TAX_CATEGORY)}</cbc:ID>
         <cbc:Percent>${formatAmount(vatRate)}</cbc:Percent>
         <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
       </cac:ClassifiedTaxCategory>
@@ -413,8 +450,8 @@ function buildTaxTotalXml(totals: ScradaInvoiceTotals, currency: string): string
       <cbc:TaxableAmount currencyID="${xmlEscape(currency)}">${formatAmount(taxableAmount)}</cbc:TaxableAmount>
       <cbc:TaxAmount currencyID="${xmlEscape(currency)}">${formatAmount(taxAmount)}</cbc:TaxAmount>
       <cac:TaxCategory>
-        <cbc:ID>${xmlEscape(taxTotal.taxCategoryCode || "S")}</cbc:ID>
-        <cbc:Percent>${formatAmount(taxTotal.rate ?? 21)}</cbc:Percent>
+        <cbc:ID>${xmlEscape(taxTotal.taxCategoryCode || DEFAULT_TAX_CATEGORY)}</cbc:ID>
+        <cbc:Percent>${formatAmount(taxTotal.rate ?? DEFAULT_VAT_RATE)}</cbc:Percent>
         <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
       </cac:TaxCategory>
     </cac:TaxSubtotal>
@@ -439,21 +476,225 @@ function buildLegalMonetaryTotalXml(totals: ScradaInvoiceTotals, currency: strin
   </cac:LegalMonetaryTotal>`;
 }
 
+function isoDateString(offsetDays = 0): string {
+  const date = new Date();
+  if (Number.isFinite(offsetDays) && offsetDays !== 0) {
+    date.setUTCDate(date.getUTCDate() + offsetDays);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function addDaysToIsoDate(baseDate: string | undefined, offsetDays: number): string {
+  if (!baseDate || typeof baseDate !== "string") {
+    return isoDateString(offsetDays);
+  }
+  const date = new Date(baseDate);
+  if (Number.isNaN(date.getTime())) {
+    return isoDateString(offsetDays);
+  }
+  if (Number.isFinite(offsetDays) && offsetDays !== 0) {
+    date.setUTCDate(date.getUTCDate() + offsetDays);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function generateInvoiceId(seedId?: string): string {
+  if (seedId && seedId.trim().length > 0) {
+    return seedId.trim();
+  }
+  const datePart = isoDateString().replace(/-/g, "");
+  const suffix = randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
+  return `SCRADA-${datePart}-${suffix}`;
+}
+
+function createPlaceholderTotals(currency: string): ScradaInvoiceTotals {
+  const normalizedCurrency = (currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY;
+  const makeAmount = (value = 0) => ({ currency: normalizedCurrency, value });
+  return {
+    lineExtensionAmount: makeAmount(),
+    taxExclusiveAmount: makeAmount(),
+    taxInclusiveAmount: makeAmount(),
+    payableAmount: makeAmount(),
+    taxTotals: [
+      {
+        rate: DEFAULT_VAT_RATE,
+        taxCategoryCode: DEFAULT_TAX_CATEGORY,
+        taxableAmount: makeAmount(),
+        taxAmount: makeAmount()
+      }
+    ],
+    legalMonetaryTotal: {
+      lineExtensionAmount: makeAmount(),
+      taxExclusiveAmount: makeAmount(),
+      taxInclusiveAmount: makeAmount(),
+      payableAmount: makeAmount()
+    }
+  };
+}
+
+function extractAmountValue(value: unknown): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const parsed = Number.parseFloat(trimmed);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  if (typeof value === "object") {
+    const amountRecord = value as Record<string, unknown>;
+    if (typeof amountRecord.value === "number" || typeof amountRecord.value === "string") {
+      return extractAmountValue(amountRecord.value);
+    }
+  }
+  return undefined;
+}
+
+function buildLineFromSeed(
+  seed: Partial<ScradaInvoiceLine> | undefined,
+  currency: string,
+  index: number
+): ScradaInvoiceLine {
+  const normalizedCurrency = (currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY;
+  const id =
+    typeof seed?.id === "string" && seed.id.trim().length > 0 ? seed.id.trim() : String(index + 1);
+  const description =
+    typeof seed?.description === "string" && seed.description.trim().length > 0
+      ? seed.description.trim()
+      : "Integration smoke test line";
+  const quantityValue =
+    typeof seed?.quantity === "number" && Number.isFinite(seed.quantity) && seed.quantity > 0
+      ? seed.quantity
+      : 1;
+  const unitPriceValue = extractAmountValue(seed?.unitPrice) ?? 100;
+  const normalizedUnitPrice = roundCurrency(unitPriceValue);
+  const rawLineExtension = extractAmountValue(seed?.lineExtensionAmount);
+  const lineExtensionValue =
+    rawLineExtension !== undefined
+      ? roundCurrency(rawLineExtension)
+      : roundCurrency(normalizedUnitPrice * quantityValue);
+  const vatSeed = seed?.vat ?? {};
+  const vatRate =
+    typeof vatSeed.rate === "number" && Number.isFinite(vatSeed.rate)
+      ? vatSeed.rate
+      : DEFAULT_VAT_RATE;
+  const vatAmountValue =
+    extractAmountValue(vatSeed.taxAmount) ?? roundCurrency((lineExtensionValue * vatRate) / 100);
+
+  return {
+    id,
+    description,
+    quantity: quantityValue,
+    unitCode: seed?.unitCode ?? DEFAULT_UNIT_CODE,
+    unitPrice: { currency: normalizedCurrency, value: normalizedUnitPrice },
+    lineExtensionAmount: { currency: normalizedCurrency, value: lineExtensionValue },
+    vat: {
+      rate: vatRate,
+      taxCategoryCode: vatSeed.taxCategoryCode ?? DEFAULT_TAX_CATEGORY,
+      taxableAmount: { currency: normalizedCurrency, value: lineExtensionValue },
+      taxAmount: { currency: normalizedCurrency, value: vatAmountValue }
+    }
+  };
+}
+
+function ensurePaymentTerms(invoice: ScradaSalesInvoice, issueDate: string): void {
+  const paymentTermsRaw =
+    invoice.paymentTerms && typeof invoice.paymentTerms === "object"
+      ? (invoice.paymentTerms as Record<string, unknown>)
+      : {};
+  const dueDate = addDaysToIsoDate(issueDate, DEFAULT_PAYMENT_TERM_DAYS);
+  if (!invoice.dueDate) {
+    invoice.dueDate = dueDate;
+  }
+  if (!paymentTermsRaw.paymentDueDate) {
+    paymentTermsRaw.paymentDueDate = invoice.dueDate ?? dueDate;
+  }
+  if (!paymentTermsRaw.paymentId) {
+    paymentTermsRaw.paymentId = invoice.externalReference ?? invoice.id;
+  }
+  if (!paymentTermsRaw.paymentMeansCode) {
+    paymentTermsRaw.paymentMeansCode = "31";
+  }
+  if (!paymentTermsRaw.note) {
+    paymentTermsRaw.note = `Payment due ${DEFAULT_PAYMENT_TERM_DAYS} days after invoice date`;
+  }
+  invoice.paymentTerms = paymentTermsRaw as ScradaSalesInvoice["paymentTerms"];
+}
+
+function derivePartyOptionsFromEnv(
+  env: NodeJS.ProcessEnv,
+  overrides: PrepareOptions = {}
+): PrepareOptions {
+  const derived: PrepareOptions = { ...overrides };
+  const receiverSchemeEnv = env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
+  const receiverValueEnv = env.SCRADA_TEST_RECEIVER_ID?.trim();
+  const participantEnv = env.SCRADA_PARTICIPANT_ID?.trim();
+  const supplierSchemeEnv =
+    env.SCRADA_SUPPLIER_SCHEME?.trim() ?? env.SCRADA_SENDER_SCHEME?.trim();
+  const supplierValueEnv =
+    env.SCRADA_SUPPLIER_ID?.trim() ?? env.SCRADA_SENDER_ID?.trim();
+  const companyEnv = env.SCRADA_COMPANY_ID?.trim();
+
+  if (!derived.receiverScheme && receiverSchemeEnv) {
+    derived.receiverScheme = receiverSchemeEnv;
+  }
+  if (!derived.receiverValue && receiverValueEnv) {
+    derived.receiverValue = receiverValueEnv;
+  }
+  if ((!derived.receiverScheme || !derived.receiverValue) && receiverValueEnv?.includes(":")) {
+    const parsedInline = extractSchemeValue(receiverValueEnv);
+    derived.receiverScheme ??= parsedInline.scheme;
+    derived.receiverValue ??= parsedInline.value ?? receiverValueEnv;
+  }
+  if ((!derived.receiverScheme || !derived.receiverValue) && participantEnv) {
+    const parsedParticipant = extractSchemeValue(participantEnv);
+    derived.receiverScheme ??= parsedParticipant.scheme;
+    derived.receiverValue ??= parsedParticipant.value ?? participantEnv;
+  }
+
+  if (!derived.senderScheme && supplierSchemeEnv) {
+    derived.senderScheme = supplierSchemeEnv;
+  }
+  if (!derived.senderValue && supplierValueEnv) {
+    derived.senderValue = supplierValueEnv;
+  }
+
+  if (companyEnv) {
+    const companyParsed = extractSchemeValue(companyEnv);
+    if (!derived.senderScheme && companyParsed.scheme) {
+      derived.senderScheme = companyParsed.scheme;
+    }
+    if (!derived.senderValue && companyParsed.value) {
+      derived.senderValue = companyParsed.value;
+    }
+  }
+
+  return derived;
+}
+
 export function prepareScradaInvoice(
   invoice: ScradaSalesInvoice,
   options: PrepareOptions = {}
 ): ScradaSalesInvoice {
   const cloned: ScradaSalesInvoice = structuredClone(invoice);
   cloned.invoiceTypeCode = cloned.invoiceTypeCode || "380";
-  cloned.currency = (cloned.currency || "EUR").trim() || "EUR";
+  const normalizedCurrency = (cloned.currency || DEFAULT_CURRENCY).trim().toUpperCase();
+  cloned.currency = normalizedCurrency || DEFAULT_CURRENCY;
   cloned.issueDate = cloned.issueDate || new Date().toISOString().slice(0, 10);
-  const defaultCustomization = "urn:fdc:peppol.eu:poacc:billing:3:01:1.0";
-  const defaultProfile = "urn:fdc:peppol.eu:poacc:billing:3.0";
-  if (!cloned.customizationId || cloned.customizationId === "urn:fdc:peppol.eu:poacc:billing:3") {
-    cloned.customizationId = defaultCustomization;
+  if (
+    !cloned.customizationId ||
+    cloned.customizationId.startsWith("urn:fdc:peppol.eu:poacc:billing:3")
+  ) {
+    cloned.customizationId = DEFAULT_CUSTOMIZATION_ID;
   }
-  if (!cloned.profileId || cloned.profileId === "urn:fdc:peppol.eu:poacc:billing:3") {
-    cloned.profileId = defaultProfile;
+  if (!cloned.profileId || cloned.profileId.startsWith("urn:fdc:peppol.eu:poacc:billing:3")) {
+    cloned.profileId = DEFAULT_PROFILE_ID;
   }
   const buyer = ensureBuyer(cloned);
   const seller = ensureSeller(cloned);
@@ -528,4 +769,57 @@ export function buildBis30Ubl(
   ${paymentMeansXml}
   ${paymentTermsXml}
 </Invoice>`;
+}
+
+export function jsonFromEnv(
+  seed: ScradaInvoiceSeed = {},
+  options: JsonFromEnvOptions = {}
+): ScradaSalesInvoice {
+  const env = options.env ?? process.env;
+  const currency = (seed.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY;
+  const invoiceId = generateInvoiceId(seed.id);
+  const issueDate = seed.issueDate ?? isoDateString();
+  const dueDate = seed.dueDate ?? addDaysToIsoDate(issueDate, DEFAULT_PAYMENT_TERM_DAYS);
+
+  const seedLines = Array.isArray(seed.lines) && seed.lines.length > 0 ? seed.lines : [undefined];
+  const lines = seedLines.map((line, index) => buildLineFromSeed(line, currency, index));
+
+  const buyerSeed = seed.buyer ? structuredClone(seed.buyer) : {};
+  const sellerSeed = seed.seller ? structuredClone(seed.seller) : {};
+  const paymentTermsSeed =
+    seed.paymentTerms && typeof seed.paymentTerms === "object"
+      ? structuredClone(seed.paymentTerms)
+      : {};
+
+  const baseInvoice: ScradaSalesInvoice = {
+    profileId: seed.profileId,
+    customizationId: seed.customizationId,
+    id: invoiceId,
+    issueDate,
+    dueDate,
+    currency,
+    invoiceTypeCode: seed.invoiceTypeCode ?? "380",
+    buyer: buyerSeed as ScradaParty,
+    seller: sellerSeed as ScradaParty,
+    totals: (seed.totals as ScradaInvoiceTotals) ?? createPlaceholderTotals(currency),
+    lines,
+    paymentTerms: paymentTermsSeed as ScradaSalesInvoice["paymentTerms"],
+    orderReference: seed.orderReference,
+    externalReference: seed.externalReference ?? invoiceId,
+    note: seed.note
+  };
+
+  const partyOptions = derivePartyOptionsFromEnv(env, options.overrides ?? {});
+  const prepared = prepareScradaInvoice(baseInvoice, partyOptions);
+  ensurePaymentTerms(prepared, prepared.issueDate);
+
+  return prepared;
+}
+
+export function ublFromEnv(
+  seed: ScradaInvoiceSeed = {},
+  options: JsonFromEnvOptions = {}
+): string {
+  const invoice = jsonFromEnv(seed, options);
+  return buildBis30Ubl(invoice);
 }

@@ -1,7 +1,12 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import process from "node:process";
 import dotenv from "dotenv";
 import axios from "axios";
 import { getScradaClient } from "../lib/http.js";
+import { buildBis30Ubl } from "../scrada/payload.js";
+import type { PrepareOptions } from "../scrada/payload.js";
 import type {
   RegisterCompanyInput,
   ScradaOutboundInfo,
@@ -62,21 +67,225 @@ function withExternalReference<T extends object>(body: T, externalReference: str
   return Object.assign({}, body, { externalReference }) as T;
 }
 
+interface ArtifactPaths {
+  directory: string;
+  json: string;
+  error: string;
+  ubl: string;
+}
+
+export interface SendSalesInvoiceOptions {
+  externalReference?: string;
+  artifactDir?: string;
+  maskValues?: string[];
+  ublOptions?: PrepareOptions;
+}
+
+export interface SendSalesInvoiceResult {
+  documentId: string;
+  deliveryPath: "json" | "ubl";
+  fallback: {
+    triggered: boolean;
+    status: number | null;
+    message: string | null;
+  };
+  artifacts: {
+    json: string;
+    error: string | null;
+    ubl: string | null;
+  };
+  externalReference?: string;
+}
+
+function sanitizeArtifactSegment(value: string): string {
+  const sanitized = value.replace(/[^A-Za-z0-9_.-]/g, "_");
+  return sanitized.length > 0 ? sanitized.slice(0, 80) : `invoice-${Date.now()}`;
+}
+
+function relativeToCwd(filePath: string): string {
+  const relative = path.relative(process.cwd(), filePath);
+  return relative || filePath;
+}
+
+async function resolveArtifactPaths(
+  invoice: ScradaSalesInvoice,
+  artifactDir?: string
+): Promise<ArtifactPaths> {
+  const baseDir = artifactDir ? path.resolve(artifactDir) : path.resolve(process.cwd(), "scrada-artifacts");
+  const candidate = invoice.externalReference ?? invoice.id ?? `invoice-${Date.now()}`;
+  const segment = `${sanitizeArtifactSegment(candidate)}-${randomUUID().slice(0, 8)}`;
+  const directory = path.join(baseDir, segment);
+  await mkdir(directory, { recursive: true });
+  return {
+    directory,
+    json: path.join(directory, "json-sent.json"),
+    error: path.join(directory, "error-body.txt"),
+    ubl: path.join(directory, "ubl-sent.xml")
+  };
+}
+
+async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
+  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+function collectSensitiveValues(
+  invoice: ScradaSalesInvoice,
+  additional: string[] = []
+): string[] {
+  const collected = new Set(
+    [
+      process.env.SCRADA_API_KEY,
+      process.env.SCRADA_API_PASSWORD,
+      process.env.SCRADA_COMPANY_ID,
+      process.env.SCRADA_WEBHOOK_SECRET,
+      invoice?.seller?.vatNumber,
+      invoice?.buyer?.vatNumber,
+      invoice?.buyer?.endpointId as string | undefined,
+      invoice?.seller?.endpointId as string | undefined,
+      ...(additional ?? [])
+    ].filter((value): value is string => typeof value === "string" && value.length > 0)
+  );
+  return Array.from(collected);
+}
+
+function serializeErrorBody(body: unknown): string {
+  if (!body) {
+    return "";
+  }
+  if (typeof body === "string") {
+    return body;
+  }
+  if (body instanceof Uint8Array) {
+    try {
+      return Buffer.from(body).toString("utf8");
+    } catch {
+      return "[binary-response]";
+    }
+  }
+  try {
+    return JSON.stringify(body, null, 2);
+  } catch {
+    return String(body);
+  }
+}
+
+function maskScradaErrorBody(
+  rawBody: unknown,
+  invoice: ScradaSalesInvoice,
+  additionalMasks: string[] = []
+): string {
+  let masked = serializeErrorBody(rawBody);
+  for (const secret of collectSensitiveValues(invoice, additionalMasks)) {
+    masked = masked.split(secret).join("***");
+  }
+  return masked;
+}
+
+function extractHttpStatus(error: unknown): number | null {
+  if (!error) {
+    return null;
+  }
+  if (typeof (error as { status?: number }).status === "number") {
+    return (error as { status: number }).status;
+  }
+  if (axios.isAxiosError(error) && error.response) {
+    return error.response.status ?? null;
+  }
+  if (error instanceof Error && error.cause) {
+    return extractHttpStatus(error.cause);
+  }
+  if (typeof error === "object" && error && "response" in error) {
+    const response = (error as { response?: { status?: number } }).response;
+    if (response && typeof response.status === "number") {
+      return response.status;
+    }
+  }
+  return null;
+}
+
+function extractResponseData(error: unknown): unknown {
+  if (!error) {
+    return null;
+  }
+  if (axios.isAxiosError(error) && error.response) {
+    return error.response.data;
+  }
+  if (error instanceof Error && error.cause) {
+    return extractResponseData(error.cause);
+  }
+  if (typeof error === "object" && error && "response" in error) {
+    const response = (error as { response?: { data?: unknown } }).response;
+    if (response && "data" in response) {
+      return (response as { data?: unknown }).data;
+    }
+  }
+  return null;
+}
+
 export async function sendSalesInvoiceJson(
   payload: ScradaSalesInvoice,
-  opts?: { externalReference?: string }
-): Promise<{ documentId: string }> {
-  const path = companyPath("peppol/outbound/salesInvoice");
-  const requestBody = withExternalReference(payload, opts?.externalReference);
+  opts: SendSalesInvoiceOptions = {}
+): Promise<SendSalesInvoiceResult> {
+  const endpoint = companyPath("peppol/outbound/salesInvoice");
+  const requestBody = withExternalReference(payload, opts.externalReference);
+  const artifacts = await resolveArtifactPaths(requestBody, opts.artifactDir);
+  await writeJsonFile(artifacts.json, requestBody);
+
   try {
-    const response = await getScradaClient().post(path, requestBody, {
+    const response = await getScradaClient().post(endpoint, requestBody, {
       headers: {
         "Content-Type": "application/json"
       }
     });
-    return { documentId: extractDocumentId(response.data) };
+
+    return {
+      documentId: extractDocumentId(response.data),
+      deliveryPath: "json",
+      fallback: {
+        triggered: false,
+        status: null,
+        message: null
+      },
+      artifacts: {
+        json: relativeToCwd(artifacts.json),
+        error: null,
+        ubl: null
+      },
+      externalReference: requestBody.externalReference
+    };
   } catch (error) {
-    throw wrapAxiosError(error, "send sales invoice JSON");
+    const status = extractHttpStatus(error);
+    if (status !== 400) {
+      throw wrapAxiosError(error, "send sales invoice JSON");
+    }
+
+    const maskValues = Array.isArray(opts.maskValues) ? opts.maskValues : [];
+    const responseBody = extractResponseData(error);
+    const maskedError = maskScradaErrorBody(responseBody, requestBody, maskValues);
+    await writeFile(artifacts.error, `${maskedError}\n`, "utf8");
+
+    const ublPayload = buildBis30Ubl(requestBody, opts.ublOptions);
+    await writeFile(artifacts.ubl, `${ublPayload}\n`, "utf8");
+
+    const ublResult = await sendUbl(ublPayload, {
+      externalReference: requestBody.externalReference
+    });
+
+    return {
+      documentId: ublResult.documentId,
+      deliveryPath: "ubl",
+      fallback: {
+        triggered: true,
+        status,
+        message: error instanceof Error ? error.message : String(error)
+      },
+      artifacts: {
+        json: relativeToCwd(artifacts.json),
+        error: relativeToCwd(artifacts.error),
+        ubl: relativeToCwd(artifacts.ubl)
+      },
+      externalReference: requestBody.externalReference
+    };
   }
 }
 

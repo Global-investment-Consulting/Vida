@@ -2,15 +2,13 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import axios from "axios";
 import {
   getOutboundStatus,
   getOutboundUbl,
   lookupParticipantById,
-  sendSalesInvoiceJson,
-  sendUbl
+  sendSalesInvoiceJson
 } from "../src/adapters/scrada.ts";
-import { prepareScradaInvoice, buildBis30Ubl } from "../src/scrada/payload.ts";
+import { jsonFromEnv } from "../src/scrada/payload.ts";
 
 const RUN_INTEGRATION = process.env.RUN_SCRADA_INTEGRATION === "true";
 const SUCCESS_STATUSES = new Set(["DELIVERED", "DELIVERY_CONFIRMED", "SUCCESS", "ACCEPTED"]);
@@ -180,25 +178,8 @@ describeIfEnabled("Scrada integration", () => {
   it(
     "sends an invoice and fetches the delivered UBL",
     async () => {
-      const invoice = buildInvoice();
-      const envScheme = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
-      const envReceiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
-      const rawSenderScheme = process.env.SCRADA_SENDER_SCHEME?.trim();
-      const rawSenderValue = process.env.SCRADA_SENDER_ID?.trim();
-      const companyIdEnv = process.env.SCRADA_COMPANY_ID?.trim();
-      let senderScheme = rawSenderScheme;
-      let senderValue = rawSenderValue;
-      if ((!senderScheme || !senderValue) && companyIdEnv && companyIdEnv.includes(":")) {
-        const [companyScheme, companyValue] = companyIdEnv.split(":", 2);
-        senderScheme = senderScheme || companyScheme;
-        senderValue = senderValue || companyValue;
-      }
-      const preparedInvoice = prepareScradaInvoice(invoice, {
-        receiverScheme: envScheme,
-        receiverValue: envReceiverId,
-        senderScheme,
-        senderValue
-      });
+      const invoiceSeed = buildInvoice();
+      const preparedInvoice = jsonFromEnv(invoiceSeed);
 
       const buyerEndpointScheme =
         (preparedInvoice.buyer?.endpointScheme as string | undefined) ??
@@ -230,64 +211,11 @@ describeIfEnabled("Scrada integration", () => {
         console.warn("[scrada-integration] participant lookup failed:", lookupError);
       }
 
-      let documentId: string | undefined;
-      let fallbackUsed = false;
-      try {
-        ({ documentId } = await sendSalesInvoiceJson(preparedInvoice, {
-          externalReference: preparedInvoice.id
-        }));
-      } catch (error) {
-        const root = error instanceof Error && axios.isAxiosError(error.cause) ? error.cause : null;
-        const direct = axios.isAxiosError(error) ? error : root;
-        if (direct?.response?.data) {
-          // eslint-disable-next-line no-console
-          console.error(
-            "[scrada-integration] sendSalesInvoiceJson failure response:",
-            typeof direct.response.data === "string"
-              ? direct.response.data
-              : JSON.stringify(direct.response.data, null, 2)
-          );
-        }
-        const status = direct?.response?.status ?? null;
-        if (status !== 400) {
-          throw error;
-        }
-        fallbackUsed = true;
-        const ublXml = buildBis30Ubl(preparedInvoice, {
-          receiverScheme: envScheme,
-          receiverValue: envReceiverId,
-          senderScheme,
-          senderValue
-        });
-        try {
-          const result = await sendUbl(ublXml, { externalReference: preparedInvoice.id });
-          documentId = result.documentId;
-        } catch (ublError) {
-          const ublRoot =
-            ublError instanceof Error && axios.isAxiosError(ublError.cause) ? ublError.cause : null;
-          const ublDirect = axios.isAxiosError(ublError) ? ublError : ublRoot;
-          if (ublDirect?.response?.data !== undefined) {
-            const payload = ublDirect.response.data;
-            let serialized;
-            if (typeof payload === "string") {
-              serialized = payload;
-            } else if (payload instanceof Uint8Array) {
-              serialized = Buffer.from(payload).toString("utf8");
-            } else {
-              try {
-                serialized = JSON.stringify(payload, null, 2);
-              } catch {
-                serialized = String(payload);
-              }
-            }
-            // eslint-disable-next-line no-console
-            console.error("[scrada-integration] sendUbl failure response:", serialized);
-          }
-          // eslint-disable-next-line no-console
-          console.error("[scrada-integration] sendUbl error", ublError);
-          throw ublError;
-        }
-      }
+      const sendResult = await sendSalesInvoiceJson(preparedInvoice, {
+        externalReference: preparedInvoice.id
+      });
+      const documentId = sendResult.documentId;
+      const fallbackUsed = sendResult.fallback.triggered;
 
       const deadline = Date.now() + 60_000;
       let attempts = 0;
@@ -295,7 +223,7 @@ describeIfEnabled("Scrada integration", () => {
 
       while (Date.now() < deadline) {
         attempts += 1;
-        statusInfo = await getOutboundStatus(documentId!);
+        statusInfo = await getOutboundStatus(documentId);
         const normalizedStatus = statusInfo.status?.toUpperCase() ?? "";
 
         if (SUCCESS_STATUSES.has(normalizedStatus)) {
@@ -311,7 +239,7 @@ describeIfEnabled("Scrada integration", () => {
         throw new Error("Scrada status did not reach a terminal success state within timeout");
       }
 
-      const ublXml = await getOutboundUbl(documentId!);
+      const ublXml = await getOutboundUbl(documentId);
       expect(ublXml.length).toBeGreaterThan(0);
 
       // eslint-disable-next-line no-console

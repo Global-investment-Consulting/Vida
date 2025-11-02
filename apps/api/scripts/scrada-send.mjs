@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -30,9 +30,8 @@ async function loadPayloadHelpers() {
   }
 }
 
-const { sendSalesInvoiceJson, sendUbl, getOutboundStatus, lookupParticipantById } =
-  await loadAdapter();
-const { prepareScradaInvoice, buildBis30Ubl } = await loadPayloadHelpers();
+const { sendSalesInvoiceJson, getOutboundStatus, lookupParticipantById } = await loadAdapter();
+const { jsonFromEnv } = await loadPayloadHelpers();
 
 function isoDate(offsetDays = 0) {
   const date = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
@@ -195,144 +194,34 @@ async function runParticipantLookup(peppolId, skipLookup) {
   }
 }
 
-function collectSensitiveValues(invoice) {
-  const sensitive = [
-    process.env.SCRADA_API_KEY,
-    process.env.SCRADA_API_PASSWORD,
-    process.env.SCRADA_COMPANY_ID,
-    process.env.SCRADA_WEBHOOK_SECRET
-  ];
-  if (invoice?.seller?.vatNumber) {
-    sensitive.push(invoice.seller.vatNumber);
-  }
-  if (invoice?.buyer?.vatNumber) {
-    sensitive.push(invoice.buyer.vatNumber);
-  }
-  return sensitive.filter((value) => typeof value === "string" && value.length > 0);
-}
-
-function maskScradaErrorBody(rawBody, invoice) {
-  if (!rawBody) {
-    return "";
-  }
-  let serialized;
-  if (typeof rawBody === "string") {
-    serialized = rawBody;
-  } else {
-    try {
-      serialized = JSON.stringify(rawBody, null, 2);
-    } catch {
-      serialized = String(rawBody);
-    }
-  }
-  const sensitiveValues = collectSensitiveValues(invoice);
-  let masked = serialized;
-  for (const secret of sensitiveValues) {
-    masked = masked.split(secret).join("***");
-  }
-  return masked;
-}
-
-function extractHttpStatus(error) {
-  if (!error) {
-    return null;
-  }
-  if (typeof error === "object" && typeof error.status === "number") {
-    return error.status;
-  }
-  const cause = error.cause;
-  if (cause && typeof cause === "object") {
-    if (typeof cause.status === "number") {
-      return cause.status;
-    }
-    if (cause.response && typeof cause.response.status === "number") {
-      return cause.response.status;
-    }
-  }
-  if (error.response && typeof error.response.status === "number") {
-    return error.response.status;
-  }
-  return null;
-}
-
-function extractResponseData(error) {
-  if (!error || typeof error !== "object") {
-    return null;
-  }
-  const cause = error.cause;
-  if (cause && typeof cause === "object") {
-    if (cause.response && typeof cause.response === "object" && "data" in cause.response) {
-      return cause.response.data;
-    }
-  }
-  if (error.response && typeof error.response === "object" && "data" in error.response) {
-    return error.response.data;
-  }
-  return null;
-}
-
-async function ensureArtifactDir() {
-  const dir = path.resolve(process.cwd(), "scrada-artifacts");
-  await mkdir(dir, { recursive: true });
-  return dir;
-}
-
-async function writeJsonFile(filePath, value) {
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
   try {
     const sample = await loadSampleInvoice(args.input);
-    const invoice = applyDynamicFields(sample);
-    const buyer = invoice.buyer;
+    const invoiceSeed = applyDynamicFields(sample);
 
-    const envScheme = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
-    const envReceiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
-    const rawSenderScheme = process.env.SCRADA_SENDER_SCHEME?.trim();
-    const rawSenderValue = process.env.SCRADA_SENDER_ID?.trim();
-    const companyIdEnv = process.env.SCRADA_COMPANY_ID?.trim();
-    let senderScheme = rawSenderScheme;
-    let senderValue = rawSenderValue;
-    if ((!senderScheme || !senderValue) && companyIdEnv && companyIdEnv.includes(":")) {
-      const [companyScheme, companyValue] = companyIdEnv.split(":", 2);
-      senderScheme = senderScheme || companyScheme;
-      senderValue = senderValue || companyValue;
-    }
-
+    const envOverrides = { ...process.env };
     if (args.participant && args.participant.trim().length > 0) {
       const participant = args.participant.trim();
       if (participant.includes(":")) {
         const [schemePart, valuePart] = participant.split(":", 2);
         if (schemePart && valuePart) {
-          buyer.peppolScheme = schemePart;
-          buyer.peppolId = valuePart;
-          buyer.schemeId = schemePart;
-          buyer.endpointId = `${schemePart}:${valuePart}`;
-          buyer.participantId = `${schemePart}:${valuePart}`;
+          envOverrides.SCRADA_TEST_RECEIVER_SCHEME = schemePart;
+          envOverrides.SCRADA_TEST_RECEIVER_ID = valuePart;
+          envOverrides.SCRADA_PARTICIPANT_ID = `${schemePart}:${valuePart}`;
         } else {
-          buyer.peppolId = participant;
+          envOverrides.SCRADA_PARTICIPANT_ID = participant;
+          envOverrides.SCRADA_TEST_RECEIVER_ID = participant;
         }
       } else {
-        buyer.peppolId = participant;
-        buyer.participantId = participant;
+        envOverrides.SCRADA_PARTICIPANT_ID = participant;
+        envOverrides.SCRADA_TEST_RECEIVER_ID = participant;
       }
-    } else if (envScheme && envReceiverId) {
-      buyer.peppolScheme = envScheme;
-      buyer.peppolId = envReceiverId;
-      buyer.schemeId = envScheme;
-      buyer.endpointId = `${envScheme}:${envReceiverId}`;
-      buyer.participantId = `${envScheme}:${envReceiverId}`;
     }
 
-    const preparedInvoice = prepareScradaInvoice(invoice, {
-      receiverScheme: envScheme,
-      receiverValue: envReceiverId,
-      senderScheme,
-      senderValue
-    });
+    const preparedInvoice = jsonFromEnv(invoiceSeed, { env: envOverrides });
 
     const participantId = resolveParticipantId(preparedInvoice, args.participant);
     let lookupSummary = null;
@@ -342,61 +231,16 @@ async function main() {
       console.warn("[scrada-send] No participant identifier present on buyer; skipping lookup.");
     }
 
-    const artifactDir = await ensureArtifactDir();
-    const jsonArtifactPath = path.join(artifactDir, "scrada-sales-invoice.json");
-    const errorArtifactPath = path.join(artifactDir, "scrada-sales-invoice-error.json");
-    const ublArtifactPath = path.join(artifactDir, "scrada-sales-invoice.ubl.xml");
+    const artifactBase = path.resolve(process.cwd(), "scrada-artifacts");
+    const sendResult = await sendSalesInvoiceJson(preparedInvoice, {
+      externalReference: preparedInvoice.externalReference,
+      artifactDir: artifactBase
+    });
 
-    await writeJsonFile(jsonArtifactPath, preparedInvoice);
-
-    let deliveryPath = "json";
-    let sendResult = null;
-    let fallbackSummary = {
-      triggered: false,
-      status: null,
-      errorArtifact: null,
-      ublArtifact: null,
-      message: null
-    };
-
-    try {
-      sendResult = await sendSalesInvoiceJson(preparedInvoice, {
-        externalReference: preparedInvoice.externalReference
-      });
-    } catch (error) {
-      const status = extractHttpStatus(error);
-      if (status === 400) {
-        const responseBody = extractResponseData(error);
-        const maskedError = maskScradaErrorBody(responseBody, preparedInvoice);
-        await writeFile(errorArtifactPath, `${maskedError}\n`, "utf8");
-        console.warn(
-          "[scrada-send] JSON payload rejected with HTTP 400. Falling back to UBL document upload."
-        );
-
-        const ublPayload = buildBis30Ubl(preparedInvoice, {
-          receiverScheme: envScheme,
-          receiverValue: envReceiverId,
-          senderScheme,
-          senderValue
-        });
-        await writeFile(ublArtifactPath, `${ublPayload}\n`, "utf8");
-
-        const ublResult = await sendUbl(ublPayload, {
-          externalReference: preparedInvoice.externalReference
-        });
-
-        sendResult = ublResult;
-        deliveryPath = "ubl";
-        fallbackSummary = {
-          triggered: true,
-          status,
-          errorArtifact: path.relative(process.cwd(), errorArtifactPath),
-          ublArtifact: path.relative(process.cwd(), ublArtifactPath),
-          message: error instanceof Error ? error.message : String(error)
-        };
-      } else {
-        throw error;
-      }
+    if (sendResult.fallback.triggered) {
+      console.warn(
+        `[scrada-send] JSON payload rejected (HTTP ${sendResult.fallback.status ?? 400}). Falling back to ${sendResult.deliveryPath}.`
+      );
     }
 
     let status = "unknown";
@@ -409,19 +253,27 @@ async function main() {
       console.warn(`[scrada-send] Unable to fetch status immediately: ${reason}`);
     }
 
+    const fallbackDetails = {
+      triggered: sendResult.fallback.triggered,
+      status: sendResult.fallback.status,
+      errorArtifact: sendResult.fallback.triggered ? sendResult.artifacts.error : null,
+      ublArtifact: sendResult.fallback.triggered ? sendResult.artifacts.ubl : null,
+      message: sendResult.fallback.message
+    };
+
     const artifacts = {
-      json: path.relative(process.cwd(), jsonArtifactPath),
-      error: fallbackSummary.errorArtifact,
-      ubl: fallbackSummary.ublArtifact
+      json: sendResult.artifacts.json,
+      error: sendResult.artifacts.error,
+      ubl: sendResult.artifacts.ubl
     };
 
     const output = {
       invoiceId: preparedInvoice.id,
-      externalReference: preparedInvoice.externalReference,
+      externalReference: sendResult.externalReference ?? preparedInvoice.externalReference,
       documentId: sendResult.documentId,
       status,
-      deliveryPath,
-      fallback: fallbackSummary,
+      deliveryPath: sendResult.deliveryPath,
+      fallback: fallbackDetails,
       participantLookup: lookupSummary,
       artifacts,
       outboundInfo,

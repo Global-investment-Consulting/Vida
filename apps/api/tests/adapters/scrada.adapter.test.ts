@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 const postMock = vi.fn();
@@ -82,18 +85,90 @@ describe("scrada adapter", () => {
   });
 
   it("sends sales invoice JSON to the expected endpoint", async () => {
-    postMock.mockResolvedValue({ data: { documentId: "doc-abc" } });
+    postMock.mockResolvedValueOnce({ data: { documentId: "doc-abc" } });
     const { sendSalesInvoiceJson } = await import("../../src/adapters/scrada.ts");
     const invoice = buildMinimalInvoice();
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "scrada-adapter-"));
 
-    const result = await sendSalesInvoiceJson(invoice, { externalReference: "EXT-123" });
+    try {
+      const result = await sendSalesInvoiceJson(invoice, {
+        externalReference: "EXT-123",
+        artifactDir: tempDir
+      });
 
-    expect(postMock).toHaveBeenCalledTimes(1);
-    const [path, payload, config] = postMock.mock.calls[0];
-    expect(path).toBe("/company/company-001/peppol/outbound/salesInvoice");
-    expect(payload.externalReference).toBe("EXT-123");
-    expect(config?.headers?.["Content-Type"]).toBe("application/json");
-    expect(result).toEqual({ documentId: "doc-abc" });
+      expect(postMock).toHaveBeenCalledTimes(1);
+      const [requestPath, payload, config] = postMock.mock.calls[0];
+      expect(requestPath).toBe("/company/company-001/peppol/outbound/salesInvoice");
+      expect(payload.externalReference).toBe("EXT-123");
+      expect(config?.headers?.["Content-Type"]).toBe("application/json");
+
+      expect(result.documentId).toBe("doc-abc");
+      expect(result.deliveryPath).toBe("json");
+      expect(result.fallback.triggered).toBe(false);
+      expect(result.artifacts.error).toBeNull();
+      expect(result.artifacts.ubl).toBeNull();
+
+      const jsonFilePath = path.resolve(process.cwd(), result.artifacts.json);
+      const storedPayload = JSON.parse(await readFile(jsonFilePath, "utf8"));
+      expect(storedPayload.externalReference).toBe("EXT-123");
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to UBL when Scrada rejects the JSON payload", async () => {
+    const axiosError = new Error("Bad request");
+    Object.assign(axiosError, {
+      isAxiosError: true,
+      response: {
+        status: 400,
+        data: { message: "Invalid buyer VAT" }
+      }
+    });
+
+    postMock.mockRejectedValueOnce(axiosError);
+    postMock.mockResolvedValueOnce({ data: { documentId: "doc-ubl" } });
+
+    const { sendSalesInvoiceJson } = await import("../../src/adapters/scrada.ts");
+    const invoice = buildMinimalInvoice();
+    invoice.externalReference = "EXT-400";
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "scrada-adapter-"));
+
+    try {
+      const result = await sendSalesInvoiceJson(invoice, {
+        externalReference: "EXT-400",
+        artifactDir: tempDir
+      });
+
+      expect(postMock).toHaveBeenCalledTimes(2);
+
+      const [jsonPath, jsonPayload, jsonConfig] = postMock.mock.calls[0];
+      expect(jsonPath).toBe("/company/company-001/peppol/outbound/salesInvoice");
+      expect(jsonConfig?.headers?.["Content-Type"]).toBe("application/json");
+      expect(jsonPayload.externalReference).toBe("EXT-400");
+
+      const [ublPath, ublPayload, ublConfig] = postMock.mock.calls[1];
+      expect(ublPath).toBe("/company/company-001/peppol/outbound/document");
+      expect(ublConfig?.headers?.["Content-Type"]).toBe("application/xml");
+      expect(typeof ublPayload).toBe("string");
+
+      expect(result.documentId).toBe("doc-ubl");
+      expect(result.deliveryPath).toBe("ubl");
+      expect(result.fallback.triggered).toBe(true);
+      expect(result.fallback.status).toBe(400);
+      expect(result.artifacts.error).toBeTruthy();
+      expect(result.artifacts.ubl).toBeTruthy();
+
+      const errorFilePath = path.resolve(process.cwd(), result.artifacts.error);
+      const errorContents = await readFile(errorFilePath, "utf8");
+      expect(errorContents).toContain("Invalid buyer VAT");
+
+      const ublFilePath = path.resolve(process.cwd(), result.artifacts.ubl);
+      const ublContents = await readFile(ublFilePath, "utf8");
+      expect(ublContents).toContain("<Invoice");
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("fetches UBL content with trimmed document id", async () => {
