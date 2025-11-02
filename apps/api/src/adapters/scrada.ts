@@ -418,6 +418,12 @@ export async function sendSalesInvoiceJson(
   const endpoint = companyPath("peppol/outbound/salesInvoice");
   const enrichedPayload = await enrichInvoicePartiesForScrada(payload, opts);
   const requestBody = withExternalReference(enrichedPayload, opts.externalReference);
+  const buyerVat = (requestBody.buyer as ScradaParty | undefined)?.vatNumber || "";
+  const sellerVat = (requestBody.seller as ScradaParty | undefined)?.vatNumber || "";
+  console.info(
+    `[scrada-adapter] VAT snapshot buyerPrefixBE=${buyerVat.startsWith("BE")} buyerLen=${buyerVat.length} ` +
+      `sellerPrefixBE=${sellerVat.startsWith("BE")} sellerLen=${sellerVat.length}`
+  );
   const artifacts = await resolveArtifactPaths(requestBody, opts.artifactDir);
   await writeJsonFile(artifacts.json, requestBody);
 
