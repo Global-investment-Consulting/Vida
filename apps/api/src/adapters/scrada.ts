@@ -282,10 +282,10 @@ function sanitizeVat(value: string | undefined): string | undefined {
   }
   const digits = trimmed.replace(/\D+/g, "");
   if (digits.length === 10) {
-    return `BE${digits}`;
+    return digits;
   }
   if (digits.length === 9) {
-    return `BE0${digits}`;
+    return `0${digits}`;
   }
   return undefined;
 }
