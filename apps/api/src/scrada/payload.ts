@@ -317,7 +317,7 @@ function buildPartyTaxSchemeXml(vatNumber?: string): string {
     return "";
   }
   return `<cac:PartyTaxScheme>
-    <cbc:CompanyID schemeID="VA">${xmlEscape(vatNumber)}</cbc:CompanyID>
+    <cbc:CompanyID schemeID="VAT">${xmlEscape(vatNumber)}</cbc:CompanyID>
     <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
   </cac:PartyTaxScheme>`;
 }
@@ -445,9 +445,14 @@ export function prepareScradaInvoice(
   cloned.invoiceTypeCode = cloned.invoiceTypeCode || "380";
   cloned.currency = (cloned.currency || "EUR").trim() || "EUR";
   cloned.issueDate = cloned.issueDate || new Date().toISOString().slice(0, 10);
-  cloned.customizationId =
-    cloned.customizationId || "urn:fdc:peppol.eu:poacc:billing:3:01:1.0";
-  cloned.profileId = cloned.profileId || "urn:fdc:peppol.eu:poacc:billing:3.0";
+  const defaultCustomization = "urn:fdc:peppol.eu:poacc:billing:3:01:1.0";
+  const defaultProfile = "urn:fdc:peppol.eu:poacc:billing:3.0";
+  if (!cloned.customizationId || cloned.customizationId === "urn:fdc:peppol.eu:poacc:billing:3") {
+    cloned.customizationId = defaultCustomization;
+  }
+  if (!cloned.profileId || cloned.profileId === "urn:fdc:peppol.eu:poacc:billing:3") {
+    cloned.profileId = defaultProfile;
+  }
   const buyer = ensureBuyer(cloned);
   const seller = ensureSeller(cloned);
 
