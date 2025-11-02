@@ -246,8 +246,24 @@ describeIfEnabled("Scrada integration", () => {
           senderScheme,
           senderValue
         });
-        const result = await sendUbl(ublXml, { externalReference: preparedInvoice.id });
-        documentId = result.documentId;
+        try {
+          const result = await sendUbl(ublXml, { externalReference: preparedInvoice.id });
+          documentId = result.documentId;
+        } catch (ublError) {
+          const ublRoot =
+            ublError instanceof Error && axios.isAxiosError(ublError.cause) ? ublError.cause : null;
+          const ublDirect = axios.isAxiosError(ublError) ? ublError : ublRoot;
+          if (ublDirect?.response?.data) {
+            // eslint-disable-next-line no-console
+            console.error(
+              "[scrada-integration] sendUbl failure response:",
+              typeof ublDirect.response.data === "string"
+                ? ublDirect.response.data
+                : JSON.stringify(ublDirect.response.data, null, 2)
+            );
+          }
+          throw ublError;
+        }
       }
 
       const deadline = Date.now() + 60_000;
