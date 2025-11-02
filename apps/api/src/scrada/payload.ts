@@ -343,9 +343,11 @@ function buildPartyXml(party: ScradaParty, role: string): string {
   const taxXml = buildPartyTaxSchemeXml(party.vatNumber as string | undefined);
   const contactXml = buildContactXml(party.contact as Record<string, unknown>);
   const registrationName = party.name || "Unknown party";
-  const legalEntityXml = `<cac:PartyLegalEntity><cbc:RegistrationName>${xmlEscape(
-    registrationName
-  )}</cbc:RegistrationName></cac:PartyLegalEntity>`;
+  const legalEntityParts = [`<cbc:RegistrationName>${xmlEscape(registrationName)}</cbc:RegistrationName>`];
+  if (party.vatNumber) {
+    legalEntityParts.push(`<cbc:CompanyID>${xmlEscape(party.vatNumber)}</cbc:CompanyID>`);
+  }
+  const legalEntityXml = `<cac:PartyLegalEntity>${legalEntityParts.join("")}</cac:PartyLegalEntity>`;
   const identificationXml = party.vatNumber
     ? `<cac:PartyIdentification><cbc:ID>${xmlEscape(party.vatNumber)}</cbc:ID></cac:PartyIdentification>`
     : "";
@@ -503,6 +505,7 @@ export function buildBis30Ubl(
   ${prepared.dueDate ? `<cbc:DueDate>${xmlEscape(prepared.dueDate)}</cbc:DueDate>` : ""}
   <cbc:InvoiceTypeCode>${xmlEscape(prepared.invoiceTypeCode || "380")}</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>${xmlEscape(currency)}</cbc:DocumentCurrencyCode>
+  ${prepared.orderReference || prepared.externalReference ? `<cbc:BuyerReference>${xmlEscape(prepared.orderReference || prepared.externalReference || "")}</cbc:BuyerReference>` : ""}
   ${buildPartyXml(seller, "AccountingSupplierParty")}
   ${buildPartyXml(buyer, "AccountingCustomerParty")}
   ${taxTotalXml}
