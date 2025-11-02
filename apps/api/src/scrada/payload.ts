@@ -14,6 +14,8 @@ export interface PrepareOptions {
   receiverValue?: string;
   senderScheme?: string;
   senderValue?: string;
+  receiverVat?: string;
+  senderVat?: string;
 }
 
 export type ScradaInvoiceSeed = Partial<ScradaSalesInvoice> & {
@@ -692,6 +694,8 @@ function derivePartyOptionsFromEnv(
     env.SCRADA_SUPPLIER_SCHEME?.trim() ?? env.SCRADA_SENDER_SCHEME?.trim();
   const supplierValueEnv =
     env.SCRADA_SUPPLIER_ID?.trim() ?? env.SCRADA_SENDER_ID?.trim();
+  const receiverVatEnv = env.SCRADA_TEST_RECEIVER_VAT?.trim();
+  const supplierVatEnv = env.SCRADA_SUPPLIER_VAT?.trim() ?? env.SCRADA_SENDER_VAT?.trim();
   const companyEnv = env.SCRADA_COMPANY_ID?.trim();
 
   if (!derived.receiverScheme && receiverSchemeEnv) {
@@ -716,6 +720,13 @@ function derivePartyOptionsFromEnv(
   }
   if (!derived.senderValue && supplierValueEnv) {
     derived.senderValue = supplierValueEnv;
+  }
+
+  if (!derived.receiverVat && receiverVatEnv) {
+    derived.receiverVat = receiverVatEnv;
+  }
+  if (!derived.senderVat && supplierVatEnv) {
+    derived.senderVat = supplierVatEnv;
   }
 
   if (companyEnv) {
@@ -761,8 +772,12 @@ export function prepareScradaInvoice(
     value: options.senderValue
   });
 
-  applyPartyIdentifiers(buyer, buyerEndpoint, { vat: DEFAULT_BUYER_VAT });
-  applyPartyIdentifiers(seller, sellerEndpoint, { vat: DEFAULT_SELLER_VAT });
+  applyPartyIdentifiers(buyer, buyerEndpoint, {
+    vat: options.receiverVat?.trim() || DEFAULT_BUYER_VAT
+  });
+  applyPartyIdentifiers(seller, sellerEndpoint, {
+    vat: options.senderVat?.trim() || DEFAULT_SELLER_VAT
+  });
 
   ensureTotals(cloned);
   return cloned;
