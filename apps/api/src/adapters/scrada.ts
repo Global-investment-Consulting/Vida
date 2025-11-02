@@ -277,15 +277,15 @@ function sanitizeVat(value: string | undefined): string | undefined {
     return undefined;
   }
   const trimmed = value.trim().toUpperCase();
-  if (/^[A-Z]{2}\d{8,12}$/.test(trimmed)) {
-    return trimmed;
-  }
   const digits = trimmed.replace(/\D+/g, "");
   if (digits.length === 10) {
     return digits;
   }
   if (digits.length === 9) {
     return `0${digits}`;
+  }
+  if (/^[A-Z]{2}\d{8,12}$/.test(trimmed)) {
+    return trimmed;
   }
   return undefined;
 }
