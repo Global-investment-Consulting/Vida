@@ -266,14 +266,22 @@ describeIfEnabled("Scrada integration", () => {
           const ublRoot =
             ublError instanceof Error && axios.isAxiosError(ublError.cause) ? ublError.cause : null;
           const ublDirect = axios.isAxiosError(ublError) ? ublError : ublRoot;
-          if (ublDirect?.response?.data) {
+          if (ublDirect?.response?.data !== undefined) {
+            const payload = ublDirect.response.data;
+            let serialized;
+            if (typeof payload === "string") {
+              serialized = payload;
+            } else if (payload instanceof Uint8Array) {
+              serialized = Buffer.from(payload).toString("utf8");
+            } else {
+              try {
+                serialized = JSON.stringify(payload, null, 2);
+              } catch {
+                serialized = String(payload);
+              }
+            }
             // eslint-disable-next-line no-console
-            console.error(
-              "[scrada-integration] sendUbl failure response:",
-              typeof ublDirect.response.data === "string"
-                ? ublDirect.response.data
-                : JSON.stringify(ublDirect.response.data, null, 2)
-            );
+            console.error("[scrada-integration] sendUbl failure response:", serialized);
           }
           // eslint-disable-next-line no-console
           console.error("[scrada-integration] sendUbl error", ublError);
