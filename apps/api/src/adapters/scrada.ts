@@ -386,9 +386,11 @@ export async function sendSalesInvoiceJson(
   const requestBody = withExternalReference(enrichedPayload, opts.externalReference);
   const buyerVat = (requestBody.buyer as ScradaParty | undefined)?.vatNumber || "";
   const sellerVat = (requestBody.seller as ScradaParty | undefined)?.vatNumber || "";
+  const buyerVatSuffix = buyerVat.slice(-4);
+  const sellerVatSuffix = sellerVat.slice(-4);
   console.info(
     `[scrada-adapter] VAT snapshot buyerPrefixBE=${buyerVat.startsWith("BE")} buyerLen=${buyerVat.length} ` +
-      `sellerPrefixBE=${sellerVat.startsWith("BE")} sellerLen=${sellerVat.length}`
+      `buyerTail=${buyerVatSuffix} sellerPrefixBE=${sellerVat.startsWith("BE")} sellerLen=${sellerVat.length} sellerTail=${sellerVatSuffix}`
   );
   const artifacts = await resolveArtifactPaths(requestBody, opts.artifactDir);
   await writeJsonFile(artifacts.json, requestBody);
