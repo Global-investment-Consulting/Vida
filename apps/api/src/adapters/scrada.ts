@@ -335,6 +335,7 @@ async function enrichInvoicePartiesForScrada(
     buyer.vatNumber = receiverVatOverride;
   }
 
+  const buyerEndpoint = resolveEndpointFromParty(buyer, receiverFallback);
   const buyerEnterprise = sanitizeEnterprise(buyerEndpoint.value);
   if (!buyer.companyRegistrationNumber && buyerEnterprise) {
     buyer.companyRegistrationNumber = buyerEnterprise;
@@ -348,12 +349,6 @@ async function enrichInvoicePartiesForScrada(
 
   if (senderVatOverride) {
     seller.vatNumber = senderVatOverride;
-  }
-
-  const buyerEndpoint = resolveEndpointFromParty(buyer, receiverFallback);
-  const buyerDerivedEnterprise = sanitizeEnterprise(buyerEndpoint.value);
-  if (!buyer.companyRegistrationNumber && buyerDerivedEnterprise) {
-    buyer.companyRegistrationNumber = buyerDerivedEnterprise;
   }
   const normalizedBuyerVat = sanitizeVat(buyer.vatNumber);
   if (normalizedBuyerVat) {
