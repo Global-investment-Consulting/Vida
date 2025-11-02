@@ -345,7 +345,9 @@ function buildPartyXml(party: ScradaParty, role: string): string {
   const registrationName = party.name || "Unknown party";
   const legalEntityParts = [`<cbc:RegistrationName>${xmlEscape(registrationName)}</cbc:RegistrationName>`];
   if (party.vatNumber) {
-    legalEntityParts.push(`<cbc:CompanyID>${xmlEscape(party.vatNumber)}</cbc:CompanyID>`);
+    legalEntityParts.push(
+      `<cbc:CompanyID schemeID="VAT">${xmlEscape(party.vatNumber)}</cbc:CompanyID>`
+    );
   }
   const legalEntityXml = `<cac:PartyLegalEntity>${legalEntityParts.join("")}</cac:PartyLegalEntity>`;
   const identificationXml = party.vatNumber
@@ -500,14 +502,18 @@ export function buildBis30Ubl(
   </cac:PaymentTerms>`
       : "";
 
+  const paymentMeansXml =
+    paymentTerms && paymentTerms.paymentId
+      ? `<cac:PaymentMeans>
+    <cbc:PaymentMeansCode>31</cbc:PaymentMeansCode>
+    <cbc:PaymentID>${xmlEscape(paymentTerms.paymentId)}</cbc:PaymentID>
+  </cac:PaymentMeans>`
+      : "";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
-  <cbc:CustomizationID>${xmlEscape(
-    prepared.customizationId || "urn:fdc:peppol.eu:poacc:billing:3"
-  )}</cbc:CustomizationID>
-  <cbc:ProfileID>${xmlEscape(
-    prepared.profileId || "urn:fdc:peppol.eu:poacc:billing:3.0"
-  )}</cbc:ProfileID>
+  <cbc:CustomizationID>${xmlEscape(prepared.customizationId)}</cbc:CustomizationID>
+  <cbc:ProfileID>${xmlEscape(prepared.profileId)}</cbc:ProfileID>
   <cbc:ID>${xmlEscape(prepared.id)}</cbc:ID>
   <cbc:IssueDate>${xmlEscape(prepared.issueDate)}</cbc:IssueDate>
   ${prepared.dueDate ? `<cbc:DueDate>${xmlEscape(prepared.dueDate)}</cbc:DueDate>` : ""}
@@ -519,6 +525,7 @@ export function buildBis30Ubl(
   ${taxTotalXml}
   ${legalMonetaryXml}
   ${invoiceLinesXml}
+  ${paymentMeansXml}
   ${paymentTermsXml}
 </Invoice>`;
 }
