@@ -277,15 +277,15 @@ function sanitizeVat(value: string | undefined): string | undefined {
     return undefined;
   }
   const trimmed = value.trim().toUpperCase();
+  if (/^BE0\d{9}$/.test(trimmed)) {
+    return trimmed;
+  }
   const digits = trimmed.replace(/\D+/g, "");
-  if (digits.length === 10) {
-    return digits;
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return `BE${digits}`;
   }
   if (digits.length === 9) {
-    return `0${digits}`;
-  }
-  if (/^[A-Z]{2}\d{8,12}$/.test(trimmed)) {
-    return trimmed;
+    return `BE0${digits}`;
   }
   return undefined;
 }
@@ -415,6 +415,9 @@ async function enrichInvoicePartiesForScrada(
   if (normalizedSellerVat) {
     seller.vatNumber = normalizedSellerVat;
   }
+
+  enriched.buyerVat = buyer.vatNumber as string | undefined;
+  enriched.sellerVat = seller.vatNumber as string | undefined;
 
   return enriched;
 }
