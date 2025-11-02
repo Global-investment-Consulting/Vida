@@ -151,7 +151,7 @@ function ensurePartyEndpoint(
     scheme = "9956";
   }
   if (!value && typeof party.vatNumber === "string") {
-    value = party.vatNumber.replace(/^([A-Z]{2})/, "");
+    value = party.vatNumber.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   }
 
   if (scheme && value) {
