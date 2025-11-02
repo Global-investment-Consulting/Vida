@@ -492,8 +492,10 @@ function buildPartyXml(party: ScradaParty, role: string): string {
     );
   }
   const legalEntityXml = `<cac:PartyLegalEntity>${legalEntityParts.join("")}</cac:PartyLegalEntity>`;
-  const identificationXml = party.vatNumber
-    ? `<cac:PartyIdentification><cbc:ID>${xmlEscape(party.vatNumber)}</cbc:ID></cac:PartyIdentification>`
+  const identificationValue = enterpriseNumber ?? (party.vatNumber as string | undefined);
+  const identificationScheme = enterpriseNumber ? ` schemeID="0208"` : "";
+  const identificationXml = identificationValue
+    ? `<cac:PartyIdentification><cbc:ID${identificationScheme}>${xmlEscape(identificationValue)}</cbc:ID></cac:PartyIdentification>`
     : "";
 
   const endpointXml =
