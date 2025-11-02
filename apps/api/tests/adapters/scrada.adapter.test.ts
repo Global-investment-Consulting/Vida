@@ -85,6 +85,17 @@ describe("scrada adapter", () => {
   });
 
   it("sends sales invoice JSON to the expected endpoint", async () => {
+    postMock.mockResolvedValueOnce({
+      data: {
+        participants: [
+          {
+            identifiers: {
+              vatNumber: "0755799452"
+            }
+          }
+        ]
+      }
+    });
     postMock.mockResolvedValueOnce({ data: { documentId: "doc-abc" } });
     const { sendSalesInvoiceJson } = await import("../../src/adapters/scrada.ts");
     const invoice = buildMinimalInvoice();
@@ -96,8 +107,20 @@ describe("scrada adapter", () => {
         artifactDir: tempDir
       });
 
-      expect(postMock).toHaveBeenCalledTimes(1);
-      const [requestPath, payload, config] = postMock.mock.calls[0];
+      expect(postMock).toHaveBeenCalledTimes(2);
+      const [lookupPath, lookupBody] = postMock.mock.calls[0];
+      expect(lookupPath).toBe("/peppol/partyLookup");
+      expect(lookupBody).toMatchObject({
+        countryCode: "BE",
+        identifiers: [
+          {
+            scheme: "0208",
+            value: "0755799452"
+          }
+        ]
+      });
+
+      const [requestPath, payload, config] = postMock.mock.calls[1];
       expect(requestPath).toBe("/company/company-001/peppol/outbound/salesInvoice");
       expect(payload.externalReference).toBe("EXT-123");
       expect(config?.headers?.["Content-Type"]).toBe("application/json");
@@ -126,6 +149,17 @@ describe("scrada adapter", () => {
       }
     });
 
+    postMock.mockResolvedValueOnce({
+      data: {
+        participants: [
+          {
+            identifiers: {
+              vatNumber: "0755799452"
+            }
+          }
+        ]
+      }
+    });
     postMock.mockRejectedValueOnce(axiosError);
     postMock.mockResolvedValueOnce({ data: { documentId: "doc-ubl" } });
 
@@ -140,14 +174,25 @@ describe("scrada adapter", () => {
         artifactDir: tempDir
       });
 
-      expect(postMock).toHaveBeenCalledTimes(2);
+      expect(postMock).toHaveBeenCalledTimes(3);
 
-      const [jsonPath, jsonPayload, jsonConfig] = postMock.mock.calls[0];
+      const [lookupPath, lookupBody] = postMock.mock.calls[0];
+      expect(lookupPath).toBe("/peppol/partyLookup");
+      expect(lookupBody).toMatchObject({
+        identifiers: [
+          {
+            scheme: "0208",
+            value: "0755799452"
+          }
+        ]
+      });
+
+      const [jsonPath, jsonPayload, jsonConfig] = postMock.mock.calls[1];
       expect(jsonPath).toBe("/company/company-001/peppol/outbound/salesInvoice");
       expect(jsonConfig?.headers?.["Content-Type"]).toBe("application/json");
       expect(jsonPayload.externalReference).toBe("EXT-400");
 
-      const [ublPath, ublPayload, ublConfig] = postMock.mock.calls[1];
+      const [ublPath, ublPayload, ublConfig] = postMock.mock.calls[2];
       expect(ublPath).toBe("/company/company-001/peppol/outbound/document");
       expect(ublConfig?.headers?.["Content-Type"]).toBe("application/xml");
       expect(typeof ublPayload).toBe("string");
