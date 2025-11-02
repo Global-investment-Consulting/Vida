@@ -13,8 +13,7 @@ import type {
   ScradaParticipantLookupResponse,
   ScradaParticipantLookupResult,
   ScradaSalesInvoice,
-  ScradaParty,
-  ScradaParticipantSummary
+  ScradaParty
 } from "../types/scrada.js";
 
 dotenv.config();
@@ -304,60 +303,6 @@ function sanitizeEnterprise(value: string | undefined): string | undefined {
   return undefined;
 }
 
-function collectVatCandidates(input: unknown, bucket: Set<string>): void {
-  if (!input) {
-    return;
-  }
-  if (typeof input === "string") {
-    const candidate = sanitizeVat(input);
-    if (candidate) {
-      bucket.add(candidate);
-    }
-    return;
-  }
-  if (Array.isArray(input)) {
-    for (const entry of input) {
-      collectVatCandidates(entry, bucket);
-    }
-    return;
-  }
-  if (typeof input === "object") {
-    for (const value of Object.values(input as Record<string, unknown>)) {
-      collectVatCandidates(value, bucket);
-    }
-  }
-}
-
-function extractVatFromParticipant(summary: ScradaParticipantSummary | undefined): string | undefined {
-  if (!summary) {
-    return undefined;
-  }
-  const bucket = new Set<string>();
-  collectVatCandidates(summary.identifiers, bucket);
-  collectVatCandidates(summary.info, bucket);
-  collectVatCandidates(summary.participantId, bucket);
-  collectVatCandidates(summary.participantScheme, bucket);
-  return bucket.values().next().value;
-}
-
-async function fetchVatFromLookup(
-  scheme: string,
-  value: string,
-  countryCode: string | undefined
-): Promise<string | undefined> {
-  try {
-    const result = await lookupPartyBySchemeValue(scheme, value, {
-      countryCode
-    });
-    const summary = result.response?.participants?.[0];
-    return extractVatFromParticipant(summary);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[scrada-adapter] Failed to fetch VAT from party lookup (${scheme}:${value}): ${message}`);
-    return undefined;
-  }
-}
-
 async function enrichInvoicePartiesForScrada(
   invoice: ScradaSalesInvoice,
   opts: SendSalesInvoiceOptions
@@ -389,24 +334,26 @@ async function enrichInvoicePartiesForScrada(
   if (receiverVatOverride) {
     buyer.vatNumber = receiverVatOverride;
   }
+
+  const buyerEnterprise = sanitizeEnterprise(buyerEndpoint.value);
+  if (!buyer.companyRegistrationNumber && buyerEnterprise) {
+    buyer.companyRegistrationNumber = buyerEnterprise;
+  }
+  if (!receiverVatOverride && (!buyer.vatNumber || !sanitizeVat(buyer.vatNumber))) {
+    const derivedVat = sanitizeVat(buyerEnterprise ? `BE${buyerEnterprise}` : undefined);
+    if (derivedVat) {
+      buyer.vatNumber = derivedVat;
+    }
+  }
+
   if (senderVatOverride) {
     seller.vatNumber = senderVatOverride;
   }
 
   const buyerEndpoint = resolveEndpointFromParty(buyer, receiverFallback);
-  const buyerCountry =
-    (buyer.address?.countryCode as string | undefined)?.trim() || process.env.SCRADA_BUYER_COUNTRY || "BE";
-  if ((!sanitizeVat(buyer.vatNumber) || buyer.vatNumber === receiverVatOverride) && buyerEndpoint.scheme && buyerEndpoint.value) {
-    const vat = await fetchVatFromLookup(buyerEndpoint.scheme, buyerEndpoint.value, buyerCountry);
-    if (vat) {
-      buyer.vatNumber = vat;
-    }
-  }
-  if (!buyer.companyRegistrationNumber && buyerEndpoint.value) {
-    const enterprise = sanitizeEnterprise(buyerEndpoint.value);
-    if (enterprise) {
-      buyer.companyRegistrationNumber = enterprise;
-    }
+  const buyerDerivedEnterprise = sanitizeEnterprise(buyerEndpoint.value);
+  if (!buyer.companyRegistrationNumber && buyerDerivedEnterprise) {
+    buyer.companyRegistrationNumber = buyerDerivedEnterprise;
   }
   const normalizedBuyerVat = sanitizeVat(buyer.vatNumber);
   if (normalizedBuyerVat) {
@@ -414,22 +361,15 @@ async function enrichInvoicePartiesForScrada(
   }
 
   const sellerEndpoint = resolveEndpointFromParty(seller, senderFallback);
-  const sellerCountry =
-    (seller.address?.countryCode as string | undefined)?.trim() || process.env.SCRADA_SUPPLIER_COUNTRY || "BE";
-  if (!sanitizeVat(seller.vatNumber) && senderVatOverride) {
-    seller.vatNumber = senderVatOverride;
-  }
-  if ((!sanitizeVat(seller.vatNumber) || seller.vatNumber === senderVatOverride) && sellerEndpoint.scheme && sellerEndpoint.value) {
-    const vat = await fetchVatFromLookup(sellerEndpoint.scheme, sellerEndpoint.value, sellerCountry);
-    if (vat) {
-      seller.vatNumber = vat;
+  const sellerEnterprise = sanitizeEnterprise(sellerEndpoint.value);
+  if (!senderVatOverride && (!seller.vatNumber || !sanitizeVat(seller.vatNumber))) {
+    const derivedVat = sanitizeVat(sellerEnterprise ? `BE${sellerEnterprise}` : undefined);
+    if (derivedVat) {
+      seller.vatNumber = derivedVat;
     }
   }
-  if (!seller.companyRegistrationNumber && sellerEndpoint.value) {
-    const enterprise = sanitizeEnterprise(sellerEndpoint.value);
-    if (enterprise) {
-      seller.companyRegistrationNumber = enterprise;
-    }
+  if (!seller.companyRegistrationNumber && sellerEnterprise) {
+    seller.companyRegistrationNumber = sellerEnterprise;
   }
   const normalizedSellerVat = sanitizeVat(seller.vatNumber);
   if (normalizedSellerVat) {
