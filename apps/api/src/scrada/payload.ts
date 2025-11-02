@@ -342,6 +342,13 @@ function buildPartyXml(party: ScradaParty, role: string): string {
   const addressXml = buildAddressXml(party.address as Record<string, unknown>);
   const taxXml = buildPartyTaxSchemeXml(party.vatNumber as string | undefined);
   const contactXml = buildContactXml(party.contact as Record<string, unknown>);
+  const registrationName = party.name || "Unknown party";
+  const legalEntityXml = `<cac:PartyLegalEntity><cbc:RegistrationName>${xmlEscape(
+    registrationName
+  )}</cbc:RegistrationName></cac:PartyLegalEntity>`;
+  const identificationXml = party.vatNumber
+    ? `<cac:PartyIdentification><cbc:ID>${xmlEscape(party.vatNumber)}</cbc:ID></cac:PartyIdentification>`
+    : "";
 
   const endpointXml =
     endpoint.scheme && endpoint.value
@@ -352,8 +359,10 @@ function buildPartyXml(party: ScradaParty, role: string): string {
     <cac:Party>
       ${endpointXml}
       <cac:PartyName><cbc:Name>${xmlEscape(party.name || "Unknown party")}</cbc:Name></cac:PartyName>
+      ${identificationXml}
       ${addressXml}
       ${taxXml}
+      ${legalEntityXml}
       ${contactXml}
     </cac:Party>
   </cac:${role}>`;
