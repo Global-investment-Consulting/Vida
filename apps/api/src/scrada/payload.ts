@@ -445,6 +445,9 @@ export function prepareScradaInvoice(
   cloned.invoiceTypeCode = cloned.invoiceTypeCode || "380";
   cloned.currency = (cloned.currency || "EUR").trim() || "EUR";
   cloned.issueDate = cloned.issueDate || new Date().toISOString().slice(0, 10);
+  cloned.customizationId =
+    cloned.customizationId || "urn:fdc:peppol.eu:poacc:billing:3:01:1.0";
+  cloned.profileId = cloned.profileId || "urn:fdc:peppol.eu:poacc:billing:3.0";
   const buyer = ensureBuyer(cloned);
   const seller = ensureSeller(cloned);
 
