@@ -73,15 +73,22 @@ function buildMinimalInvoice() {
 }
 
 describe("scrada adapter", () => {
+  let originalCompanyId: string | undefined;
+
   beforeEach(() => {
     vi.resetModules();
     postMock.mockReset();
     getMock.mockReset();
+    originalCompanyId = process.env.SCRADA_COMPANY_ID;
     process.env.SCRADA_COMPANY_ID = "company-001";
   });
 
   afterEach(() => {
-    delete process.env.SCRADA_COMPANY_ID;
+    if (originalCompanyId !== undefined) {
+      process.env.SCRADA_COMPANY_ID = originalCompanyId;
+    } else {
+      delete process.env.SCRADA_COMPANY_ID;
+    }
   });
 
   it("sends sales invoice JSON to the expected endpoint", async () => {
