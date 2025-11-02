@@ -43,6 +43,29 @@ jobs:
           echo "::add-mask::${SCRADA_COMPANY_ID}"
           echo "::add-mask::${SCRADA_WEBHOOK_SECRET}"
 
+      - name: Check Scrada environment keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_vars=(
+            SCRADA_API_KEY
+            SCRADA_API_PASSWORD
+            SCRADA_COMPANY_ID
+            SCRADA_WEBHOOK_SECRET
+            SCRADA_API_BASE
+            SCRADA_LANGUAGE
+            SCRADA_TEST_RECEIVER_SCHEME
+            SCRADA_TEST_RECEIVER_ID
+          )
+          for var_name in "${required_vars[@]}"; do
+            if [ -n "${!var_name:-}" ]; then
+              echo "${var_name}=OK"
+            else
+              echo "::error title=Missing environment::Required variable ${var_name} is not set."
+              exit 1
+            fi
+          done
+
       - name: Install dependencies
         run: npm ci
 
@@ -76,6 +99,34 @@ jobs:
           echo "document_id=$(jq -r '.documentId' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
           echo "external_reference=$(jq -r '.externalReference' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
           echo "participant_lookup=$(jq -r '.participantLookup.exists // empty' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "delivery_path=$(jq -r '.deliveryPath // \"\"' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "json_artifact=$(jq -r '.artifacts.json // \"\"' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "error_artifact=$(jq -r '.artifacts.error // \"\"' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "ubl_artifact=$(jq -r '.artifacts.ubl // \"\"' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "fallback_triggered=$(jq -r '.fallback.triggered // false' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "fallback_status=$(jq -r '.fallback.status // \"\"' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "fallback_message=$(jq -r '.fallback.message // \"\"' scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Scrada sales invoice JSON payload
+        if: steps.scrada_send.outputs.json_artifact != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrada-sales-invoice-json
+          path: ${{ steps.scrada_send.outputs.json_artifact }}
+
+      - name: Upload Scrada JSON error payload
+        if: steps.scrada_send.outputs.error_artifact != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrada-sales-invoice-error
+          path: ${{ steps.scrada_send.outputs.error_artifact }}
+
+      - name: Upload Scrada fallback UBL payload
+        if: steps.scrada_send.outputs.ubl_artifact != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrada-fallback-ubl
+          path: ${{ steps.scrada_send.outputs.ubl_artifact }}
 
       - name: Poll Scrada document status and archive UBL
         id: scrada_status
