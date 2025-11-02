@@ -579,7 +579,7 @@ function buildLineFromSeed(
     rawLineExtension !== undefined
       ? roundCurrency(rawLineExtension)
       : roundCurrency(normalizedUnitPrice * quantityValue);
-  const vatSeed = seed?.vat ?? {};
+  const vatSeed = (seed?.vat ?? {}) as Partial<ScradaVatDetail>;
   const vatRate =
     typeof vatSeed.rate === "number" && Number.isFinite(vatSeed.rate)
       ? vatSeed.rate
