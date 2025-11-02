@@ -391,6 +391,10 @@ async function enrichInvoicePartiesForScrada(
   if (!buyer.companyRegistrationNumber && buyerEndpoint.value) {
     buyer.companyRegistrationNumber = buyerEndpoint.value;
   }
+  const normalizedBuyerVat = sanitizeVat(buyer.vatNumber);
+  if (normalizedBuyerVat) {
+    buyer.vatNumber = normalizedBuyerVat;
+  }
 
   const sellerEndpoint = resolveEndpointFromParty(seller, senderFallback);
   const sellerCountry =
@@ -406,6 +410,10 @@ async function enrichInvoicePartiesForScrada(
   }
   if (!seller.companyRegistrationNumber && sellerEndpoint.value) {
     seller.companyRegistrationNumber = sellerEndpoint.value;
+  }
+  const normalizedSellerVat = sanitizeVat(seller.vatNumber);
+  if (normalizedSellerVat) {
+    seller.vatNumber = normalizedSellerVat;
   }
 
   return enriched;
