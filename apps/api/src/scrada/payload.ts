@@ -108,14 +108,48 @@ export function isOmitBuyerVatVariant(value: string | null | undefined): boolean
   return value === OMIT_BUYER_VAT_VARIANT;
 }
 
-function normalizeBuyerVat(value: string | null | undefined): string | undefined {
+function canonicalizeBuyerVat(value: string | null | undefined): string | undefined {
   if (!value) {
     return undefined;
   }
   if (isOmitBuyerVatVariant(value)) {
     return undefined;
   }
-  return value;
+  const trimmed = value.trim();
+  const normalizedVariants = resolveBuyerVatVariants();
+  const targetCore = compactVat(trimmed).replace(/^BE/i, "");
+
+  for (const variant of normalizedVariants) {
+    if (!variant) {
+      continue;
+    }
+    const normalizedVariant = variant.trim();
+    if (normalizedVariant === trimmed) {
+      return normalizedVariant;
+    }
+    const variantCore = compactVat(normalizedVariant).replace(/^BE/i, "");
+    if (variantCore === targetCore && variantCore.length > 0) {
+      return normalizedVariant;
+    }
+  }
+
+  return trimmed;
+}
+
+function resolveJsonBuyerVat(options: InvoiceBuildOptions): string | undefined {
+  const raw = options.buyerVat ?? resolveBuyerVatVariants()[0];
+  if (isOmitBuyerVatVariant(raw)) {
+    return undefined;
+  }
+  return raw;
+}
+
+function resolveUblBuyerVat(options: InvoiceBuildOptions): string | undefined {
+  const raw = options.buyerVat ?? resolveBuyerVatVariants()[0];
+  if (isOmitBuyerVatVariant(raw)) {
+    return undefined;
+  }
+  return canonicalizeBuyerVat(raw);
 }
 
 function resolveInvoiceId(options: InvoiceBuildOptions): string {
@@ -220,8 +254,11 @@ function buildBuyerParty(buyerVat?: string | null) {
   };
 }
 
-function baseInvoice(invoiceId: string, options: InvoiceBuildOptions): ScradaSalesInvoice {
-  const buyerVat = normalizeBuyerVat(options.buyerVat ?? resolveBuyerVatVariants()[0]);
+function baseInvoice(
+  invoiceId: string,
+  options: InvoiceBuildOptions,
+  buyerVat: string | undefined
+): ScradaSalesInvoice {
   const { issueDate, dueDate } = resolveDates(options);
   const reference = resolveReference(invoiceId, options);
   const supplier = buildSupplierParty();
@@ -277,7 +314,7 @@ function baseInvoice(invoiceId: string, options: InvoiceBuildOptions): ScradaSal
 
 export function buildScradaJsonInvoice(options: InvoiceBuildOptions = {}): ScradaSalesInvoice {
   const invoiceId = resolveInvoiceId(options);
-  return baseInvoice(invoiceId, options);
+  return baseInvoice(invoiceId, options, resolveJsonBuyerVat(options));
 }
 
 function appendParty(aggregation: any, role: "supplier" | "customer", invoice: ScradaSalesInvoice) {
@@ -441,7 +478,7 @@ function appendInvoiceLine(root: any, invoice: ScradaSalesInvoice) {
 
 export function buildScradaUblInvoice(options: InvoiceBuildOptions = {}): string {
   const invoiceId = resolveInvoiceId(options);
-  const invoice = baseInvoice(invoiceId, options);
+  const invoice = baseInvoice(invoiceId, options, resolveUblBuyerVat(options));
 
   const root = create({ version: "1.0", encoding: "UTF-8" }).ele("Invoice", {
     xmlns: "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",

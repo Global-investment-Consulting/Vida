@@ -8,6 +8,7 @@ import {
   pollOutboundDocument,
   sendInvoiceWithFallback
 } from "../src/adapters/scrada.ts";
+import { OMIT_BUYER_VAT_VARIANT } from "../src/scrada/payload.ts";
 
 const RUN_INTEGRATION = process.env.RUN_SCRADA_INTEGRATION === "true";
 const describeIfEnabled = RUN_INTEGRATION ? describe : describe.skip;
@@ -104,7 +105,12 @@ describeIfEnabled("Scrada sandbox flow", () => {
       }
 
       const jsonPayload = await readFile(path.join(artifactDir, "json-sent.json"), "utf8");
-      expect(jsonPayload).toContain(sendResult.vatVariant);
+      const parsedInvoice = JSON.parse(jsonPayload);
+      if (sendResult.vatVariant === OMIT_BUYER_VAT_VARIANT) {
+        expect(parsedInvoice.buyer?.vatNumber).toBeUndefined();
+      } else {
+        expect(parsedInvoice.buyer?.vatNumber).toBe(sendResult.vatVariant);
+      }
 
       if (archiveResult.driver === "local") {
         const ublContents = await readFile(archiveResult.location, "utf8");
