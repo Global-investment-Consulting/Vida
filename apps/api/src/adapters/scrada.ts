@@ -31,8 +31,22 @@ const JSON_ARTIFACT_NAME = "json-sent.json";
 const UBL_ARTIFACT_NAME = "ubl-sent.xml";
 const UBL_HEADERS_ARTIFACT_NAME = "ubl-header-names.txt";
 const ERROR_ARTIFACT_NAME = "error-body.txt";
-const DEFAULT_PEPPOL_SCHEME_HEADER = "iso6523-actorid-upis";
-const MAX_SEND_ATTEMPTS = 4;
+const MAX_JSON_ATTEMPTS = 3;
+
+const EXPECTED_UBL_HEADER_NAMES = [
+  "content-type",
+  "x-scrada-external-reference",
+  "x-scrada-peppol-c1-country-code",
+  "x-scrada-peppol-document-type-scheme",
+  "x-scrada-peppol-document-type-value",
+  "x-scrada-peppol-process-scheme",
+  "x-scrada-peppol-process-value",
+  "x-scrada-peppol-receiver-party-id"
+] as const;
+
+const SORTED_EXPECTED_UBL_HEADER_NAMES = [...EXPECTED_UBL_HEADER_NAMES].sort();
+const EXPECTED_UBL_HEADER_NAMES_SET = new Set<string>(EXPECTED_UBL_HEADER_NAMES);
+const REQUIRED_UBL_HEADER_NAMES = EXPECTED_UBL_HEADER_NAMES.filter((name) => name !== "content-type");
 
 const SUCCESS_STATUSES = new Set([
   "DELIVERED",
@@ -284,39 +298,45 @@ function isVatValidationError(error: unknown): boolean {
 
 function normalizeVariants(source?: string[]): string[] {
   const base = source ?? resolveBuyerVatVariants();
-  const variants = (Array.isArray(base) ? base : [])
-    .map((candidate) => candidate?.toString().trim())
-    .filter((candidate): candidate is string => Boolean(candidate && candidate.length > 0));
-
   const unique: string[] = [];
-  for (const candidate of variants) {
-    if (!unique.includes(candidate)) {
-      unique.push(candidate);
+  for (const candidate of Array.isArray(base) ? base : []) {
+    if (typeof candidate !== "string") {
+      continue;
+    }
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      continue;
+    }
+    if (!unique.includes(trimmed)) {
+      unique.push(trimmed);
+      if (unique.length >= MAX_JSON_ATTEMPTS) {
+        break;
+      }
+    }
+  }
+
+  if (!unique.includes(OMIT_BUYER_VAT_VARIANT)) {
+    if (unique.length >= MAX_JSON_ATTEMPTS && unique.length > 0) {
+      unique[unique.length - 1] = OMIT_BUYER_VAT_VARIANT;
+    } else {
+      unique.push(OMIT_BUYER_VAT_VARIANT);
+    }
+  }
+
+  const omitIndex = unique.indexOf(OMIT_BUYER_VAT_VARIANT);
+  if (omitIndex !== -1 && omitIndex !== unique.length - 1) {
+    unique.splice(omitIndex, 1);
+    unique.push(OMIT_BUYER_VAT_VARIANT);
+    if (unique.length > MAX_JSON_ATTEMPTS) {
+      unique.splice(MAX_JSON_ATTEMPTS);
     }
   }
 
   if (unique.length === 0) {
-    throw new Error("[scrada] Unable to determine buyer VAT variants");
+    unique.push(OMIT_BUYER_VAT_VARIANT);
   }
 
-  const ordered: string[] = [];
-  ordered.push(unique[0]);
-  if (unique.length > 1) {
-    ordered.push(unique[1]);
-  } else if (unique.length === 1 && MAX_SEND_ATTEMPTS > 2) {
-    ordered.push(unique[0]);
-  }
-  if (ordered.length > MAX_SEND_ATTEMPTS - 1) {
-    ordered.length = MAX_SEND_ATTEMPTS - 1;
-  }
-  if (!ordered.includes(OMIT_BUYER_VAT_VARIANT)) {
-    ordered.push(OMIT_BUYER_VAT_VARIANT);
-  }
-  while (ordered.length < MAX_SEND_ATTEMPTS) {
-    ordered.push(OMIT_BUYER_VAT_VARIANT);
-  }
-
-  return ordered.slice(0, MAX_SEND_ATTEMPTS);
+  return unique.slice(0, MAX_JSON_ATTEMPTS);
 }
 
 async function ensureArtifactDir(dir: string): Promise<void> {
@@ -335,13 +355,66 @@ async function appendTextArtifact(filePath: string, contents: string): Promise<v
   await writeFile(filePath, contents, { encoding: "utf8", flag: "a" });
 }
 
-async function writeHeaderPreview(filePath: string, headers: Record<string, string>): Promise<void> {
+async function writeHeaderPreview(filePath: string, headers: Record<string, string>): Promise<string[]> {
   const names = Object.keys(headers)
     .map((name) => name.trim())
     .filter((name) => name.length > 0)
     .sort((a, b) => a.localeCompare(b, "en"));
   const body = names.join("\n");
   await writeTextArtifact(filePath, body);
+  if (names.length > 0) {
+    console.log(`[scrada-ubl] header-name preview: ${names.join(", ")}`);
+  } else {
+    console.warn("[scrada-ubl] header-name preview: <empty>");
+  }
+  return names;
+}
+
+function detectForbiddenUblHeaders(headerNames: string[]): string[] {
+  const forbidden: string[] = [];
+  for (const name of headerNames) {
+    const normalized = name.toLowerCase();
+    if (normalized.startsWith("x-scrada-peppol-sender-")) {
+      forbidden.push(normalized);
+      continue;
+    }
+    if (
+      normalized.startsWith("x-scrada-peppol-receiver-") &&
+      normalized !== "x-scrada-peppol-receiver-party-id"
+    ) {
+      forbidden.push(normalized);
+    }
+  }
+  return forbidden.sort();
+}
+
+function enforceUblHeaderAllowList(headers: Record<string, string>): string[] {
+  const normalizedNames = Object.keys(headers)
+    .map((name) => name.trim().toLowerCase())
+    .filter((name) => name.length > 0);
+
+  const forbidden = detectForbiddenUblHeaders(normalizedNames);
+  if (forbidden.length > 0) {
+    throw new Error(
+      `[scrada] Unsupported UBL headers detected: ${forbidden.join(", ")}`
+    );
+  }
+
+  const sorted = [...normalizedNames].sort();
+  const expected = SORTED_EXPECTED_UBL_HEADER_NAMES;
+
+  if (sorted.length !== expected.length || !sorted.every((name, index) => name === expected[index])) {
+    const normalizedSet = new Set(normalizedNames);
+    const missing = EXPECTED_UBL_HEADER_NAMES.filter((name) => !normalizedSet.has(name));
+    const extra = normalizedNames.filter((name) => !EXPECTED_UBL_HEADER_NAMES_SET.has(name));
+    throw new Error(
+      `[scrada] UBL header set mismatch. Missing: ${missing.length > 0 ? missing.join(", ") : "none"}; Extra: ${
+        extra.length > 0 ? extra.join(", ") : "none"
+      }`
+    );
+  }
+
+  return sorted;
 }
 
 export async function sendSalesInvoiceJson(
@@ -368,38 +441,55 @@ export async function sendUbl(
 ): Promise<{ documentId: string }> {
   const pathName = companyPath("peppol/outbound/document");
   try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/xml"
+    const baseHeaders: Record<string, string> = {
+      "content-type": "application/xml; charset=utf-8"
     };
+
+    const sanitizedHeaders: Record<string, string> = {};
     if (opts?.headers) {
       for (const [name, value] of Object.entries(opts.headers)) {
-        if (typeof value === "string" && value.trim().length > 0) {
-          headers[name] = value;
+        if (typeof value !== "string") {
+          continue;
         }
+        const trimmedName = name.trim();
+        const trimmedValue = value.trim();
+        if (!trimmedName || !trimmedValue) {
+          continue;
+        }
+        const normalizedName = trimmedName.toLowerCase();
+        if (normalizedName.startsWith("x-scrada-peppol-sender-")) {
+          throw new Error(`[scrada] Unsupported sender header ${normalizedName} for UBL submission`);
+        }
+        if (
+          normalizedName.startsWith("x-scrada-peppol-receiver-") &&
+          normalizedName !== "x-scrada-peppol-receiver-party-id"
+        ) {
+          throw new Error(`[scrada] Unsupported receiver header ${normalizedName} for UBL submission`);
+        }
+        sanitizedHeaders[normalizedName] = trimmedValue;
       }
     }
-    if (opts?.externalReference && !headers["x-scrada-external-reference"]) {
-      headers["x-scrada-external-reference"] = opts.externalReference;
+
+    const resolvedExternalReference = opts?.externalReference?.trim();
+    if (resolvedExternalReference && !sanitizedHeaders["x-scrada-external-reference"]) {
+      sanitizedHeaders["x-scrada-external-reference"] = resolvedExternalReference;
     }
-    const requiredHeaderNames = [
-      "x-scrada-peppol-sender-scheme",
-      "x-scrada-peppol-sender-id",
-      "x-scrada-peppol-receiver-scheme",
-      "x-scrada-peppol-receiver-id",
-      "x-scrada-peppol-c1-country-code",
-      "x-scrada-peppol-document-type-scheme",
-      "x-scrada-peppol-document-type-value",
-      "x-scrada-peppol-process-scheme",
-      "x-scrada-peppol-process-value",
-      "x-scrada-external-reference"
-    ];
-    for (const name of requiredHeaderNames) {
-      if (!headers[name] || headers[name]?.toString().trim().length === 0) {
+
+    for (const name of REQUIRED_UBL_HEADER_NAMES) {
+      if (!sanitizedHeaders[name] || sanitizedHeaders[name].trim().length === 0) {
         throw new Error(`[scrada] Missing required header ${name} for UBL submission`);
       }
     }
+
+    const finalHeaders: Record<string, string> = {
+      ...baseHeaders,
+      ...sanitizedHeaders
+    };
+
+    enforceUblHeaderAllowList(finalHeaders);
+
     const response = await getScradaClient().post(pathName, ublXml, {
-      headers
+      headers: finalHeaders
     });
     return { documentId: extractDocumentId(response.data) };
   } catch (error) {
@@ -599,33 +689,32 @@ function determineArtifactDir(options: ScradaSendOptions, invoiceId: string): st
 }
 
 function buildScradaPeppolHeaders(context: ScradaInvoiceContext): Record<string, string> {
-  const resolveSchemeHeader = (raw?: string): string => {
-    const candidate = raw?.trim();
-    if (!candidate || /^[0-9]{4}$/.test(candidate)) {
-      return process.env.SCRADA_PEPPOL_SCHEME_HEADER?.trim() || DEFAULT_PEPPOL_SCHEME_HEADER;
-    }
-    return candidate;
-  };
+  const receiverIdFromEnv = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
+  const receiverId = receiverIdFromEnv || context.customer.id?.trim();
+  if (!receiverId) {
+    throw new Error("[scrada] SCRADA_TEST_RECEIVER_ID (receiver ID) is required to build Peppol headers");
+  }
 
-  const senderScheme = resolveSchemeHeader(context.supplier.scheme);
-  const senderId = (context.supplier.peppolId || `${context.supplier.scheme}:${context.supplier.id}`).trim();
-  const receiverScheme = resolveSchemeHeader(context.customer.scheme);
-  const receiverId = (context.customer.peppolId || `${context.customer.scheme}:${context.customer.id}`).trim();
-  const countryCode = context.supplier.address.countryCode?.trim();
-  const externalReference = context.externalReference?.trim() || context.invoiceId;
+  const receiverSchemeFromEnv = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
+  const receiverScheme = receiverSchemeFromEnv || context.customer.scheme?.trim();
+  if (!receiverScheme) {
+    throw new Error("[scrada] SCRADA_TEST_RECEIVER_SCHEME (receiver scheme) is required to build Peppol headers");
+  }
 
-  const headers: Record<string, string | undefined> = {
-    "x-scrada-peppol-sender-scheme": senderScheme,
-    "x-scrada-peppol-sender-id": senderId,
-    "x-scrada-peppol-receiver-scheme": receiverScheme,
-    "x-scrada-peppol-receiver-id": receiverId,
-    "x-scrada-peppol-c1-country-code": countryCode,
+  const invoiceId = context.invoiceId?.trim();
+  if (!invoiceId) {
+    throw new Error("[scrada] Invoice ID is required to build Peppol headers");
+  }
+
+  const headers: Record<string, string> = {
+    "x-scrada-peppol-receiver-party-id": `${receiverScheme}:${receiverId}`,
+    "x-scrada-peppol-c1-country-code": "BE",
     "x-scrada-peppol-document-type-scheme": "busdox-docid-qns",
     "x-scrada-peppol-document-type-value":
       "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1",
     "x-scrada-peppol-process-scheme": "cenbii-procid-ubl",
     "x-scrada-peppol-process-value": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
-    "x-scrada-external-reference": externalReference
+    "x-scrada-external-reference": invoiceId
   };
 
   for (const [name, value] of Object.entries(headers)) {
@@ -634,7 +723,7 @@ function buildScradaPeppolHeaders(context: ScradaInvoiceContext): Record<string,
     }
   }
 
-  return headers as Record<string, string>;
+  return headers;
 }
 
 export async function sendInvoiceWithFallback(
@@ -662,15 +751,16 @@ export async function sendInvoiceWithFallback(
 
   const attempts: ScradaSendAttempt[] = [];
   let lastInvoice: ScradaSalesInvoice | null = null;
+  let lastInvoiceContext: ScradaInvoiceContext | null = null;
+  let lastUblXml: string | null = null;
   let lastError: unknown;
   let finalDocumentId: string | null = null;
   let finalChannel: Channel = "json";
-  let finalVatVariant = vatVariants[0];
+  let finalVatVariant = vatVariants[0] ?? OMIT_BUYER_VAT_VARIANT;
   const client = options.client ?? getScradaClient();
 
-  for (let attemptIndex = 0; attemptIndex < MAX_SEND_ATTEMPTS; attemptIndex += 1) {
-    const channel: Channel = attemptIndex < MAX_SEND_ATTEMPTS - 1 ? "json" : "ubl";
-    const vatVariant = vatVariants[attemptIndex % vatVariants.length];
+  for (let index = 0; index < vatVariants.length; index += 1) {
+    const vatVariant = vatVariants[index];
     const omitBuyerVat = isOmitBuyerVatVariant(vatVariant);
     const { context: invoiceContext, json: invoice, ubl: ublXml } = createScradaInvoiceArtifacts({
       invoiceId,
@@ -678,63 +768,46 @@ export async function sendInvoiceWithFallback(
       buyerVat: vatVariant
     });
     lastInvoice = invoice;
+    lastInvoiceContext = invoiceContext;
+    lastUblXml = ublXml;
     finalVatVariant = vatVariant;
 
     await writeJsonArtifact(jsonPath, invoice);
     await writeTextArtifact(ublPath, ublXml);
 
     const attemptRecord: ScradaSendAttempt = {
-      attempt: attemptIndex + 1,
-      channel,
+      attempt: attempts.length + 1,
+      channel: "json",
       vatVariant,
       success: false
     };
     attempts.push(attemptRecord);
 
     try {
-      if (channel === "json") {
-        const response = await client.post(
-          companyPath("peppol/outbound/salesInvoice"),
-          withExternalReference(invoice, externalReference),
-          {
-            headers: {
-              "Content-Type": "application/json"
-            }
-          }
-        );
-        finalDocumentId = extractDocumentId(response.data);
-        attemptRecord.success = true;
-        finalChannel = "json";
-        break;
-      }
-
-      // ublXml already written for this attempt; reuse for send
-      const peppolHeaders = buildScradaPeppolHeaders(invoiceContext);
-      await writeHeaderPreview(ublHeadersPath, peppolHeaders);
       const response = await client.post(
-        companyPath("peppol/outbound/document"),
-        ublXml,
+        companyPath("peppol/outbound/salesInvoice"),
+        withExternalReference(invoice, externalReference),
         {
           headers: {
-            "Content-Type": "application/xml",
-            ...peppolHeaders
+            "Content-Type": "application/json"
           }
         }
       );
       finalDocumentId = extractDocumentId(response.data);
       attemptRecord.success = true;
-      finalChannel = "ubl";
+      finalChannel = "json";
       break;
     } catch (error) {
-      lastError = wrapAxiosError(error, channel === "json" ? "send sales invoice JSON" : "send UBL document");
-      const axiosError = unwrapAxiosError(lastError);
+      const wrappedError = wrapAxiosError(error, "send sales invoice JSON");
+      lastError = wrappedError;
+      const axiosError = unwrapAxiosError(wrappedError);
       attemptRecord.statusCode = axiosError?.response?.status ?? null;
       attemptRecord.errorMessage =
-        lastError instanceof Error ? lastError.message : String(lastError ?? "unknown error");
-      const errorBody = stringifyErrorBody(lastError);
+        wrappedError instanceof Error ? wrappedError.message : String(wrappedError ?? "unknown error");
+      const errorBody = stringifyErrorBody(wrappedError);
       const entryParts = [
         `[${new Date().toISOString()}] attempt=${attemptRecord.attempt}`,
-        `channel=${channel}`,
+        `channel=json`,
         `vatVariant=${omitBuyerVat ? "omit-buyer-vat" : vatVariant}`
       ];
       if (typeof attemptRecord.statusCode === "number") {
@@ -746,11 +819,7 @@ export async function sendInvoiceWithFallback(
       const rawData = scrubbedStringify(axiosError?.response?.data);
       if (rawData) {
         entryParts.push(`data=${rawData}`);
-        if (channel === "json") {
-          console.error(`[scrada-json] response data: ${rawData}`);
-        } else {
-          console.error(`[scrada-ubl] response data: ${rawData}`);
-        }
+        console.error(`[scrada-json] response data: ${rawData}`);
       }
       const headerHint = headersToHint(axiosError?.response?.headers);
       if (headerHint) {
@@ -770,16 +839,85 @@ export async function sendInvoiceWithFallback(
         `${entry}\n${errorBody}\n\n`
       );
 
-      if (channel === "json") {
-        const shouldRetryForVat = isVatValidationError(lastError);
-        const axiosError = unwrapAxiosError(lastError);
-        const isBadRequest = axiosError?.response?.status === 400;
-        if ((shouldRetryForVat || isBadRequest) && attemptIndex < MAX_SEND_ATTEMPTS - 1) {
-          continue;
+      const shouldRetryForVat = isVatValidationError(wrappedError);
+      const isBadRequest = axiosError?.response?.status === 400;
+      if ((shouldRetryForVat || isBadRequest) && index < vatVariants.length - 1) {
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (!finalDocumentId && lastInvoiceContext && lastUblXml) {
+    const attemptRecord: ScradaSendAttempt = {
+      attempt: attempts.length + 1,
+      channel: "ubl",
+      vatVariant: finalVatVariant,
+      success: false
+    };
+    attempts.push(attemptRecord);
+    try {
+      const peppolHeaders = buildScradaPeppolHeaders(lastInvoiceContext);
+      const finalHeaders: Record<string, string> = {
+        "content-type": "application/xml; charset=utf-8",
+        ...peppolHeaders
+      };
+      const normalizedHeaderNames = enforceUblHeaderAllowList(finalHeaders);
+      await writeHeaderPreview(ublHeadersPath, finalHeaders);
+      console.log(
+        `[scrada-ubl] header allow-list verification passed: ${normalizedHeaderNames.join(", ")}`
+      );
+      const response = await client.post(
+        companyPath("peppol/outbound/document"),
+        lastUblXml,
+        {
+          headers: finalHeaders
+        }
+      );
+      finalDocumentId = extractDocumentId(response.data);
+      attemptRecord.success = true;
+      finalChannel = "ubl";
+    } catch (error) {
+      const wrappedError = wrapAxiosError(error, "send UBL document");
+      lastError = wrappedError;
+      const axiosError = unwrapAxiosError(wrappedError);
+      attemptRecord.statusCode = axiosError?.response?.status ?? null;
+      attemptRecord.errorMessage =
+        wrappedError instanceof Error ? wrappedError.message : String(wrappedError ?? "unknown error");
+      const errorBody = stringifyErrorBody(wrappedError);
+      const entryParts = [
+        `[${new Date().toISOString()}] attempt=${attemptRecord.attempt}`,
+        "channel=ubl",
+        `vatVariant=${isOmitBuyerVatVariant(finalVatVariant) ? "omit-buyer-vat" : finalVatVariant}`
+      ];
+      if (typeof attemptRecord.statusCode === "number") {
+        entryParts.push(`status=${attemptRecord.statusCode}`);
+      }
+      if (attemptRecord.errorMessage) {
+        entryParts.push(`error=${attemptRecord.errorMessage}`);
+      }
+      const rawData = scrubbedStringify(axiosError?.response?.data);
+      if (rawData) {
+        entryParts.push(`data=${rawData}`);
+        console.error(`[scrada-ubl] response data: ${rawData}`);
+      }
+      const headerHint = headersToHint(axiosError?.response?.headers);
+      if (headerHint) {
+        entryParts.push(`headers=${headerHint}`);
+        console.error(`[scrada] response headers: ${headerHint}`);
+      }
+      if (axiosError && typeof axiosError.toJSON === "function") {
+        try {
+          console.error(`[scrada] axios error: ${JSON.stringify(axiosError.toJSON())}`);
+        } catch {
+          // ignore serialization issues
         }
       }
-
-      break;
+      const entry = entryParts.join(" ");
+      await appendTextArtifact(
+        errorPath,
+        `${entry}\n${errorBody}\n\n`
+      );
     }
   }
 
