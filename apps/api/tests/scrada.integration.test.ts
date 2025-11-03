@@ -122,10 +122,11 @@ describeIfEnabled("Scrada sandbox flow", () => {
       const jsonPayload = await readFile(path.join(artifactDir, "json-sent.json"), "utf8");
       const parsedInvoice = JSON.parse(jsonPayload);
       if (sendResult.vatVariant === OMIT_BUYER_VAT_VARIANT) {
-        expect(parsedInvoice.buyer?.vatNumber).toBeUndefined();
+        expect(parsedInvoice.customer?.vatNumber).toBeUndefined();
       } else {
-        expect(parsedInvoice.buyer?.vatNumber).toBe(sendResult.vatVariant);
+        expect(parsedInvoice.customer?.vatNumber).toBe(sendResult.vatVariant);
       }
+      expect(parsedInvoice.customer?.peppolID).toMatch(/^0208:/);
 
       if (archiveResult.driver === "local") {
         const ublContents = await readFile(archiveResult.location, "utf8");
