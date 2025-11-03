@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildScradaJsonInvoice,
   buildScradaUblInvoice,
-  resolveBuyerVatVariants
+  resolveBuyerVatVariants,
+  OMIT_BUYER_VAT_VARIANT
 } from "../src/scrada/payload.ts";
 
 describe("scrada payload builders", () => {
@@ -26,6 +27,39 @@ describe("scrada payload builders", () => {
     expect(invoice.totals.payableAmount.value).toBeCloseTo(121);
     expect(invoice.seller.vatNumber).toBe("BE0123456789");
     expect(invoice.buyer.vatNumber).toBe("BE0755799452");
+  });
+
+  it("omits buyer VAT details when the omit variant is used", () => {
+    process.env.SCRADA_SUPPLIER_SCHEME = "0208";
+    process.env.SCRADA_SUPPLIER_ID = "0123456789";
+    process.env.SCRADA_SUPPLIER_VAT = "BE0123456789";
+    process.env.SCRADA_TEST_RECEIVER_SCHEME = "0208";
+    process.env.SCRADA_TEST_RECEIVER_ID = "0755799452";
+    process.env.SCRADA_RECEIVER_VAT = "BE0755799452";
+
+    const invoice = buildScradaJsonInvoice({
+      invoiceId: "INV-OMIT",
+      buyerVat: OMIT_BUYER_VAT_VARIANT
+    });
+
+    expect(invoice.buyer.vatNumber).toBeUndefined();
+
+    const ubl = buildScradaUblInvoice({
+      invoiceId: "INV-OMIT-UBL",
+      buyerVat: OMIT_BUYER_VAT_VARIANT
+    });
+
+    const supplierSection = ubl.slice(
+      ubl.indexOf("<cac:AccountingSupplierParty>"),
+      ubl.indexOf("</cac:AccountingSupplierParty>")
+    );
+    const customerSection = ubl.slice(
+      ubl.indexOf("<cac:AccountingCustomerParty>"),
+      ubl.indexOf("</cac:AccountingCustomerParty>")
+    );
+
+    expect(supplierSection).toContain("<cac:PartyTaxScheme>");
+    expect(customerSection).not.toContain("<cac:PartyTaxScheme>");
   });
 
   it("renders BIS 3.0 UBL with mandatory identifiers", () => {
