@@ -535,6 +535,35 @@ function determineArtifactDir(options: ScradaSendOptions, invoiceId: string): st
   return path.join(DEFAULT_ARTIFACT_ROOT, invoiceId);
 }
 
+function buildScradaPeppolHeaders(invoiceId: string): Record<string, string> {
+  const receiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
+  const trimmedInvoiceId = invoiceId?.trim();
+
+  const headers: Record<string, string | undefined> = {
+    "x-scrada-peppol-receiver-party-id": receiverId ? `0208:${receiverId}` : undefined,
+    "x-scrada-peppol-c1-country-code": "BE",
+    "x-scrada-peppol-document-type-scheme": "busdox-docid-qns",
+    "x-scrada-peppol-document-type-value":
+      "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1",
+    "x-scrada-peppol-process-scheme": "cenbii-procid-ubl",
+    "x-scrada-peppol-process-value": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+    "x-scrada-external-reference": trimmedInvoiceId || undefined
+  };
+
+  for (const [name, value] of Object.entries(headers)) {
+    if (!value || value.trim().length === 0) {
+      const message =
+        name === "x-scrada-peppol-receiver-party-id"
+          ? "[scrada] Missing SCRADA_TEST_RECEIVER_ID required for x-scrada-peppol-receiver-party-id header"
+          : `[scrada] Missing required header value for ${name}`;
+      console.error(message);
+      throw new Error(message);
+    }
+  }
+
+  return headers as Record<string, string>;
+}
+
 export async function sendInvoiceWithFallback(
   options: ScradaSendOptions = {}
 ): Promise<ScradaSendResult> {
@@ -610,12 +639,14 @@ export async function sendInvoiceWithFallback(
       }
 
       // ublXml already written for this attempt; reuse for send
+      const peppolHeaders = buildScradaPeppolHeaders(invoiceId);
       const response = await client.post(
         companyPath("peppol/outbound/document"),
         ublXml,
         {
           headers: {
-            "Content-Type": "application/xml"
+            "Content-Type": "application/xml",
+            ...peppolHeaders
           },
           params: { externalReference }
         }
