@@ -10,6 +10,7 @@ const DOCUMENT_CURRENCY = "EUR";
 const VAT_CATEGORY = "S";
 const TAX_SCHEME_ID = "VAT";
 const DEFAULT_UNIT_CODE = "EA";
+export const OMIT_BUYER_VAT_VARIANT = "omit-buyer-vat";
 
 const NET_AMOUNT = 100;
 const VAT_RATE = 21;
@@ -21,7 +22,7 @@ type InvoiceBuildOptions = {
   issueDate?: string;
   dueDate?: string;
   externalReference?: string;
-  buyerVat?: string;
+  buyerVat?: string | null;
 };
 
 function requireEnv(name: string): string {
@@ -103,6 +104,20 @@ export function resolveBuyerVatVariants(source?: string): string[] {
   return variants.slice(0, 3);
 }
 
+export function isOmitBuyerVatVariant(value: string | null | undefined): boolean {
+  return value === OMIT_BUYER_VAT_VARIANT;
+}
+
+function normalizeBuyerVat(value: string | null | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (isOmitBuyerVatVariant(value)) {
+    return undefined;
+  }
+  return value;
+}
+
 function resolveInvoiceId(options: InvoiceBuildOptions): string {
   return options.invoiceId?.trim() && options.invoiceId.trim().length > 0
     ? options.invoiceId.trim()
@@ -171,7 +186,7 @@ function buildSupplierParty() {
   };
 }
 
-function buildBuyerParty(buyerVat: string) {
+function buildBuyerParty(buyerVat?: string | null) {
   const participantRaw = process.env.SCRADA_PARTICIPANT_ID?.trim();
   let receiverScheme = requireEnv("SCRADA_TEST_RECEIVER_SCHEME");
   let receiverId = requireEnv("SCRADA_TEST_RECEIVER_ID");
@@ -188,7 +203,7 @@ function buildBuyerParty(buyerVat: string) {
     name,
     endpointId: `${receiverScheme}:${receiverId}`,
     endpointScheme: receiverScheme,
-    vatNumber: buyerVat,
+    vatNumber: buyerVat ?? undefined,
     schemeId: receiverScheme,
     peppolId: `${receiverScheme}:${receiverId}`,
     address: {
@@ -206,7 +221,7 @@ function buildBuyerParty(buyerVat: string) {
 }
 
 function baseInvoice(invoiceId: string, options: InvoiceBuildOptions): ScradaSalesInvoice {
-  const buyerVat = options.buyerVat ?? resolveBuyerVatVariants()[0];
+  const buyerVat = normalizeBuyerVat(options.buyerVat ?? resolveBuyerVatVariants()[0]);
   const { issueDate, dueDate } = resolveDates(options);
   const reference = resolveReference(invoiceId, options);
   const supplier = buildSupplierParty();
@@ -310,17 +325,23 @@ function appendParty(aggregation: any, role: "supplier" | "customer", invoice: S
   addressElement.ele("cbc:PostalZone").txt(address.postalZone).up();
   addressElement.ele("cac:Country").ele("cbc:IdentificationCode").txt(address.countryCode).up().up();
 
-  partyElement
-    .ele("cac:PartyTaxScheme")
-    .ele("cbc:CompanyID", { schemeID: "VAT" })
-    .txt(compactVat(party.vatNumber))
-    .up()
-    .ele("cac:TaxScheme")
-    .ele("cbc:ID", { schemeID: "UN/ECE 5153", schemeAgencyID: "6" })
-    .txt(TAX_SCHEME_ID)
-    .up()
-    .up()
-    .up();
+  const vatValue = compactVat(party.vatNumber);
+  const shouldIncludeTaxScheme = role === "supplier" || Boolean(vatValue);
+  if (shouldIncludeTaxScheme) {
+    const companyVat = role === "supplier" ? vatValue || compactVat(requireEnv("SCRADA_SUPPLIER_VAT")) : vatValue;
+    const partyTaxScheme = partyElement.ele("cac:PartyTaxScheme");
+    partyTaxScheme
+      .ele("cbc:CompanyID", { schemeID: "VAT" })
+      .txt(companyVat)
+      .up();
+    partyTaxScheme
+      .ele("cac:TaxScheme")
+      .ele("cbc:ID", { schemeID: "UN/ECE 5153", schemeAgencyID: "6" })
+      .txt(TAX_SCHEME_ID)
+      .up()
+      .up();
+    partyTaxScheme.up();
+  }
 
   partyElement
     .ele("cac:PartyLegalEntity")
