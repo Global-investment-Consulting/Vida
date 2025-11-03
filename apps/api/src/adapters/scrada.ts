@@ -7,11 +7,12 @@ import { getScradaClient } from "../lib/http.js";
 import { saveArchiveObject, type SaveResult } from "../lib/storage.js";
 import {
   buildScradaJsonInvoice,
-  buildScradaUblInvoice,
+  createScradaInvoiceArtifacts,
   generateInvoiceId,
   isOmitBuyerVatVariant,
   resolveBuyerVatVariants,
-  OMIT_BUYER_VAT_VARIANT
+  OMIT_BUYER_VAT_VARIANT,
+  type ScradaInvoiceContext
 } from "../scrada/payload.js";
 import type {
   RegisterCompanyInput,
@@ -28,6 +29,7 @@ type Channel = "json" | "ubl";
 const DEFAULT_ARTIFACT_ROOT = path.resolve(process.cwd(), ".data", "scrada");
 const JSON_ARTIFACT_NAME = "json-sent.json";
 const UBL_ARTIFACT_NAME = "ubl-sent.xml";
+const UBL_HEADERS_ARTIFACT_NAME = "ubl-header-names.txt";
 const ERROR_ARTIFACT_NAME = "error-body.txt";
 const MAX_SEND_ATTEMPTS = 4;
 
@@ -84,6 +86,7 @@ export interface ScradaSendResult {
     directory: string;
     jsonPath: string;
     ublPath: string | null;
+    ublHeadersPath: string;
     errorPath: string;
   };
 }
@@ -331,6 +334,15 @@ async function appendTextArtifact(filePath: string, contents: string): Promise<v
   await writeFile(filePath, contents, { encoding: "utf8", flag: "a" });
 }
 
+async function writeHeaderPreview(filePath: string, headers: Record<string, string>): Promise<void> {
+  const names = Object.keys(headers)
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+    .sort((a, b) => a.localeCompare(b, "en"));
+  const body = names.join("\n");
+  await writeTextArtifact(filePath, body);
+}
+
 export async function sendSalesInvoiceJson(
   payload: ScradaSalesInvoice,
   opts?: { externalReference?: string }
@@ -351,15 +363,36 @@ export async function sendSalesInvoiceJson(
 
 export async function sendUbl(
   ublXml: string,
-  opts?: { externalReference?: string }
+  opts?: { headers?: Record<string, string>; externalReference?: string }
 ): Promise<{ documentId: string }> {
   const pathName = companyPath("peppol/outbound/document");
   try {
+    const headers = {
+      "Content-Type": "application/xml",
+      ...opts?.headers
+    };
+    if (opts?.externalReference && !headers["x-scrada-external-reference"]) {
+      headers["x-scrada-external-reference"] = opts.externalReference;
+    }
+    const requiredHeaderNames = [
+      "x-scrada-peppol-sender-scheme",
+      "x-scrada-peppol-sender-id",
+      "x-scrada-peppol-receiver-scheme",
+      "x-scrada-peppol-receiver-id",
+      "x-scrada-peppol-c1-country-code",
+      "x-scrada-peppol-document-type-scheme",
+      "x-scrada-peppol-document-type-value",
+      "x-scrada-peppol-process-scheme",
+      "x-scrada-peppol-process-value",
+      "x-scrada-external-reference"
+    ];
+    for (const name of requiredHeaderNames) {
+      if (!headers[name] || headers[name]?.toString().trim().length === 0) {
+        throw new Error(`[scrada] Missing required header ${name} for UBL submission`);
+      }
+    }
     const response = await getScradaClient().post(pathName, ublXml, {
-      headers: {
-        "Content-Type": "application/xml"
-      },
-      params: opts?.externalReference ? { externalReference: opts.externalReference } : undefined
+      headers
     });
     return { documentId: extractDocumentId(response.data) };
   } catch (error) {
@@ -421,14 +454,17 @@ export async function lookupParticipantById(peppolId: string): Promise<ScradaPar
   if (!trimmed) {
     throw new Error("[scrada] peppolId is required");
   }
+  const [schemePart, idPart] = trimmed.includes(":")
+    ? trimmed.split(":", 2)
+    : [process.env.SCRADA_TEST_RECEIVER_SCHEME ?? "0208", trimmed];
+  const scheme = schemePart?.trim();
+  const value = idPart?.trim();
+  if (!scheme || !value) {
+    throw new Error("[scrada] Unable to determine scheme and value for participant lookup");
+  }
   try {
     const response = await getScradaClient().get<ScradaParticipantLookupResponse | boolean>(
-      "/peppol/participantLookup",
-      {
-        params: {
-          peppolID: trimmed
-        }
-      }
+      companyPath(`peppol/lookup/${encodeURIComponent(scheme)}/${encodeURIComponent(value)}`)
     );
     const normalized = normalizeLookupResponse(response.data ?? { exists: false });
     let exists: boolean;
@@ -442,7 +478,7 @@ export async function lookupParticipantById(peppolId: string): Promise<ScradaPar
       exists = false;
     }
     return {
-      peppolId: trimmed,
+      peppolId: `${scheme}:${value}`,
       exists,
       response: normalized
     };
@@ -467,10 +503,14 @@ export async function lookupPartyBySchemeValue(
   const countryCode = options.countryCode?.trim() || "BE";
   try {
     const response = await getScradaClient().post(
-      companyPath("peppol/partyLookup"),
+      companyPath("peppol/lookup"),
       {
-        countryCode,
-        identifiers: [
+        name: `${trimmedScheme}:${trimmedValue}`,
+        peppolID: `${trimmedScheme}:${trimmedValue}`,
+        address: {
+          countryCode
+        },
+        extraIdentifiers: [
           {
             scheme: trimmedScheme,
             value: trimmedValue
@@ -502,22 +542,38 @@ export async function lookupPartyBySchemeValue(
 
 export async function registerForInbound(input: RegisterCompanyInput): Promise<void> {
   try {
-    await getScradaClient().post("/peppol/inbound/register", {
-      company: input.companyName,
-      vatNumber: input.vatNumber,
-      countryCode: input.countryCode,
-      endpointUrl: input.endpointUrl,
-      contactEmail: input.contactEmail,
-      contactName: input.contactName
-    });
+    await getScradaClient().post(
+      companyPath("peppol/register"),
+      {
+        company: input.companyName,
+        vatNumber: input.vatNumber,
+        countryCode: input.countryCode,
+        endpointUrl: input.endpointUrl,
+        contactEmail: input.contactEmail,
+        contactName: input.contactName
+      }
+    );
   } catch (error) {
     throw wrapAxiosError(error, "register inbound endpoint");
   }
 }
 
-export async function deregisterInbound(): Promise<void> {
+export async function deregisterInbound(options: { scheme?: string; value?: string } = {}): Promise<void> {
+  const scheme =
+    options.scheme?.trim() ||
+    process.env.SCRADA_SUPPLIER_SCHEME?.trim() ||
+    process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
+  const value =
+    options.value?.trim() ||
+    process.env.SCRADA_SUPPLIER_ID?.trim() ||
+    process.env.SCRADA_TEST_RECEIVER_ID?.trim();
+  if (!scheme || !value) {
+    throw new Error("[scrada] Scheme and value are required to deregister inbound participant");
+  }
   try {
-    await getScradaClient().delete("/peppol/inbound/register");
+    await getScradaClient().delete(
+      companyPath(`peppol/deregister/${encodeURIComponent(scheme)}/${encodeURIComponent(value)}`)
+    );
   } catch (error) {
     throw wrapAxiosError(error, "deregister inbound endpoint");
   }
@@ -535,29 +591,31 @@ function determineArtifactDir(options: ScradaSendOptions, invoiceId: string): st
   return path.join(DEFAULT_ARTIFACT_ROOT, invoiceId);
 }
 
-function buildScradaPeppolHeaders(invoiceId: string): Record<string, string> {
-  const receiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
-  const trimmedInvoiceId = invoiceId?.trim();
+function buildScradaPeppolHeaders(context: ScradaInvoiceContext): Record<string, string> {
+  const senderScheme = context.supplier.scheme?.trim();
+  const senderId = (context.supplier.peppolId || `${context.supplier.scheme}:${context.supplier.id}`).trim();
+  const receiverScheme = context.customer.scheme?.trim();
+  const receiverId = (context.customer.peppolId || `${context.customer.scheme}:${context.customer.id}`).trim();
+  const countryCode = context.supplier.address.countryCode?.trim();
+  const externalReference = context.externalReference?.trim() || context.invoiceId;
 
   const headers: Record<string, string | undefined> = {
-    "x-scrada-peppol-receiver-party-id": receiverId ? `0208:${receiverId}` : undefined,
-    "x-scrada-peppol-c1-country-code": "BE",
+    "x-scrada-peppol-sender-scheme": senderScheme,
+    "x-scrada-peppol-sender-id": senderId,
+    "x-scrada-peppol-receiver-scheme": receiverScheme,
+    "x-scrada-peppol-receiver-id": receiverId,
+    "x-scrada-peppol-c1-country-code": countryCode,
     "x-scrada-peppol-document-type-scheme": "busdox-docid-qns",
     "x-scrada-peppol-document-type-value":
       "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1",
     "x-scrada-peppol-process-scheme": "cenbii-procid-ubl",
     "x-scrada-peppol-process-value": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
-    "x-scrada-external-reference": trimmedInvoiceId || undefined
+    "x-scrada-external-reference": externalReference
   };
 
   for (const [name, value] of Object.entries(headers)) {
     if (!value || value.trim().length === 0) {
-      const message =
-        name === "x-scrada-peppol-receiver-party-id"
-          ? "[scrada] Missing SCRADA_TEST_RECEIVER_ID required for x-scrada-peppol-receiver-party-id header"
-          : `[scrada] Missing required header value for ${name}`;
-      console.error(message);
-      throw new Error(message);
+      throw new Error(`[scrada] Missing required header value for ${name}`);
     }
   }
 
@@ -579,11 +637,13 @@ export async function sendInvoiceWithFallback(
   const artifactDir = determineArtifactDir(options, invoiceId);
   const jsonPath = path.join(artifactDir, JSON_ARTIFACT_NAME);
   const ublPath = path.join(artifactDir, UBL_ARTIFACT_NAME);
+  const ublHeadersPath = path.join(artifactDir, UBL_HEADERS_ARTIFACT_NAME);
   const errorPath = path.join(artifactDir, ERROR_ARTIFACT_NAME);
 
   await ensureArtifactDir(artifactDir);
   await writeTextArtifact(errorPath, "");
   await writeTextArtifact(ublPath, "");
+  await writeTextArtifact(ublHeadersPath, "");
 
   const attempts: ScradaSendAttempt[] = [];
   let lastInvoice: ScradaSalesInvoice | null = null;
@@ -597,7 +657,7 @@ export async function sendInvoiceWithFallback(
     const channel: Channel = attemptIndex < MAX_SEND_ATTEMPTS - 1 ? "json" : "ubl";
     const vatVariant = vatVariants[attemptIndex % vatVariants.length];
     const omitBuyerVat = isOmitBuyerVatVariant(vatVariant);
-    const invoice = buildScradaJsonInvoice({
+    const { context: invoiceContext, json: invoice, ubl: ublXml } = createScradaInvoiceArtifacts({
       invoiceId,
       externalReference,
       buyerVat: vatVariant
@@ -606,11 +666,6 @@ export async function sendInvoiceWithFallback(
     finalVatVariant = vatVariant;
 
     await writeJsonArtifact(jsonPath, invoice);
-    const ublXml = buildScradaUblInvoice({
-      invoiceId,
-      externalReference,
-      buyerVat: vatVariant
-    });
     await writeTextArtifact(ublPath, ublXml);
 
     const attemptRecord: ScradaSendAttempt = {
@@ -639,7 +694,8 @@ export async function sendInvoiceWithFallback(
       }
 
       // ublXml already written for this attempt; reuse for send
-      const peppolHeaders = buildScradaPeppolHeaders(invoiceId);
+      const peppolHeaders = buildScradaPeppolHeaders(invoiceContext);
+      await writeHeaderPreview(ublHeadersPath, peppolHeaders);
       const response = await client.post(
         companyPath("peppol/outbound/document"),
         ublXml,
@@ -647,8 +703,7 @@ export async function sendInvoiceWithFallback(
           headers: {
             "Content-Type": "application/xml",
             ...peppolHeaders
-          },
-          params: { externalReference }
+          }
         }
       );
       finalDocumentId = extractDocumentId(response.data);
@@ -711,6 +766,7 @@ export async function sendInvoiceWithFallback(
       directory: artifactDir,
       jsonPath,
       ublPath: finalChannel === "ubl" ? ublPath : null,
+      ublHeadersPath,
       errorPath
     }
   };

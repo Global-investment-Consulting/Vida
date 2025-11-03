@@ -10,6 +10,7 @@ const DOCUMENT_CURRENCY = "EUR";
 const VAT_CATEGORY = "S";
 const TAX_SCHEME_ID = "VAT";
 const DEFAULT_UNIT_CODE = "EA";
+const DEFAULT_UNIT_TYPE = 1;
 export const OMIT_BUYER_VAT_VARIANT = "omit-buyer-vat";
 
 const NET_AMOUNT = 100;
@@ -17,13 +18,67 @@ const VAT_RATE = 21;
 const VAT_AMOUNT = Number((NET_AMOUNT * (VAT_RATE / 100)).toFixed(2));
 const GROSS_AMOUNT = Number((NET_AMOUNT + VAT_AMOUNT).toFixed(2));
 
-type InvoiceBuildOptions = {
+export type InvoiceBuildOptions = {
   invoiceId?: string;
   issueDate?: string;
   dueDate?: string;
   externalReference?: string;
   buyerVat?: string | null;
 };
+
+type PartyAddressContext = {
+  streetName: string;
+  buildingNumber?: string;
+  additionalStreetName?: string;
+  postalZone: string;
+  cityName: string;
+  countryCode: string;
+};
+
+type PartyContext = {
+  name: string;
+  scheme: string;
+  id: string;
+  peppolId: string;
+  vatNumber?: string;
+  ublVatNumber?: string;
+  contactName?: string;
+  contactEmail?: string;
+  address: PartyAddressContext;
+};
+
+type InvoiceLineContext = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitCode: string;
+  unitType: number;
+  unitPrice: number;
+};
+
+type PaymentContext = {
+  note: string;
+  paymentDueDate: string;
+  paymentMeansCode: string;
+  paymentMeansText: string;
+  paymentId: string;
+};
+
+export interface ScradaInvoiceContext {
+  invoiceId: string;
+  externalReference: string;
+  issueDate: string;
+  dueDate: string;
+  currency: string;
+  supplier: PartyContext;
+  customer: PartyContext;
+  netAmount: number;
+  vatAmount: number;
+  grossAmount: number;
+  vatRate: number;
+  line: InvoiceLineContext;
+  payment: PaymentContext;
+}
 
 function requireEnv(name: string): string {
   const raw = process.env[name];
@@ -33,13 +88,16 @@ function requireEnv(name: string): string {
   return raw.trim();
 }
 
-function optionalEnv(name: string, fallback: string): string {
+function optionalEnv(name: string, fallback?: string): string | undefined {
   const raw = process.env[name];
   if (!raw) {
     return fallback;
   }
   const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : fallback;
+  if (!trimmed) {
+    return fallback;
+  }
+  return trimmed;
 }
 
 function formatAmount(value: number): string {
@@ -108,6 +166,10 @@ export function isOmitBuyerVatVariant(value: string | null | undefined): boolean
   return value === OMIT_BUYER_VAT_VARIANT;
 }
 
+function compactVat(value: string | undefined): string {
+  return value ? value.replace(/\s+/g, "") : "";
+}
+
 function canonicalizeBuyerVat(value: string | null | undefined): string | undefined {
   if (!value) {
     return undefined;
@@ -165,10 +227,6 @@ function resolveReference(invoiceId: string, options: InvoiceBuildOptions): stri
   return invoiceId;
 }
 
-function compactVat(value: string | undefined): string {
-  return value ? value.replace(/\s+/g, "") : "";
-}
-
 function resolveDates(options: InvoiceBuildOptions): { issueDate: string; dueDate: string } {
   if (options.issueDate && options.issueDate.trim().length > 0) {
     const providedIssue = options.issueDate.trim();
@@ -185,10 +243,11 @@ function resolveDates(options: InvoiceBuildOptions): { issueDate: string; dueDat
   return { issueDate, dueDate };
 }
 
-function buildSupplierParty() {
-  const companyIdRaw = process.env.SCRADA_COMPANY_ID?.trim();
+function buildSupplierContext(): PartyContext {
   let supplierScheme = requireEnv("SCRADA_SUPPLIER_SCHEME");
   let supplierId = requireEnv("SCRADA_SUPPLIER_ID");
+
+  const companyIdRaw = optionalEnv("SCRADA_COMPANY_ID");
   if (companyIdRaw && companyIdRaw.includes(":")) {
     const [schemePart, valuePart] = companyIdRaw.split(":", 2);
     if (schemePart && valuePart) {
@@ -196,34 +255,35 @@ function buildSupplierParty() {
       supplierId = valuePart.trim() || supplierId;
     }
   }
+
   const supplierVat = requireEnv("SCRADA_SUPPLIER_VAT");
-  const name = optionalEnv("SCRADA_SUPPLIER_NAME", "Vida Supplier NV");
+  const name = optionalEnv("SCRADA_SUPPLIER_NAME", "Vida Supplier NV")!;
 
   return {
     name,
-    endpointId: supplierId,
-    endpointScheme: supplierScheme,
-    vatNumber: supplierVat,
-    schemeId: supplierScheme,
+    scheme: supplierScheme,
+    id: supplierId,
     peppolId: `${supplierScheme}:${supplierId}`,
+    vatNumber: supplierVat,
+    ublVatNumber: compactVat(supplierVat),
+    contactName: optionalEnv("SCRADA_SUPPLIER_CONTACT"),
+    contactEmail: optionalEnv("SCRADA_SUPPLIER_EMAIL"),
     address: {
-      streetName: optionalEnv("SCRADA_SUPPLIER_STREET", "Koning Albert II-laan"),
+      streetName: optionalEnv("SCRADA_SUPPLIER_STREET", "Koning Albert II-laan")!,
       buildingNumber: optionalEnv("SCRADA_SUPPLIER_BUILDING", "21"),
-      postalZone: optionalEnv("SCRADA_SUPPLIER_POSTAL", "1000"),
-      cityName: optionalEnv("SCRADA_SUPPLIER_CITY", "Brussels"),
-      countryCode: optionalEnv("SCRADA_SUPPLIER_COUNTRY", "BE")
-    },
-    contact: {
-      name: optionalEnv("SCRADA_SUPPLIER_CONTACT", "Vida Finance"),
-      email: optionalEnv("SCRADA_SUPPLIER_EMAIL", "billing@example.test")
+      additionalStreetName: optionalEnv("SCRADA_SUPPLIER_STREET_LINE_2"),
+      postalZone: optionalEnv("SCRADA_SUPPLIER_POSTAL", "1000")!,
+      cityName: optionalEnv("SCRADA_SUPPLIER_CITY", "Brussels")!,
+      countryCode: optionalEnv("SCRADA_SUPPLIER_COUNTRY", "BE")!
     }
   };
 }
 
-function buildBuyerParty(buyerVat?: string | null) {
-  const participantRaw = process.env.SCRADA_PARTICIPANT_ID?.trim();
+function buildBuyerContext(jsonBuyerVat: string | undefined, ublBuyerVat: string | undefined): PartyContext {
   let receiverScheme = requireEnv("SCRADA_TEST_RECEIVER_SCHEME");
   let receiverId = requireEnv("SCRADA_TEST_RECEIVER_ID");
+
+  const participantRaw = optionalEnv("SCRADA_PARTICIPANT_ID");
   if (participantRaw && participantRaw.includes(":")) {
     const [schemePart, valuePart] = participantRaw.split(":", 2);
     if (schemePart && valuePart) {
@@ -231,113 +291,173 @@ function buildBuyerParty(buyerVat?: string | null) {
       receiverId = valuePart.trim() || receiverId;
     }
   }
-  const name = optionalEnv("SCRADA_RECEIVER_NAME", "Vida Sandbox Buyer");
+
+  const name = optionalEnv("SCRADA_RECEIVER_NAME", "Vida Sandbox Buyer")!;
 
   return {
     name,
-    endpointId: `${receiverScheme}:${receiverId}`,
-    endpointScheme: receiverScheme,
-    vatNumber: buyerVat ?? undefined,
-    schemeId: receiverScheme,
+    scheme: receiverScheme,
+    id: receiverId,
     peppolId: `${receiverScheme}:${receiverId}`,
+    vatNumber: jsonBuyerVat,
+    ublVatNumber: ublBuyerVat ? compactVat(ublBuyerVat) : undefined,
+    contactName: optionalEnv("SCRADA_RECEIVER_CONTACT"),
+    contactEmail: optionalEnv("SCRADA_RECEIVER_EMAIL"),
     address: {
-      streetName: optionalEnv("SCRADA_RECEIVER_STREET", "Receiverstraat"),
+      streetName: optionalEnv("SCRADA_RECEIVER_STREET", "Receiverstraat")!,
       buildingNumber: optionalEnv("SCRADA_RECEIVER_BUILDING", "5"),
-      postalZone: optionalEnv("SCRADA_RECEIVER_POSTAL", "2000"),
-      cityName: optionalEnv("SCRADA_RECEIVER_CITY", "Antwerpen"),
-      countryCode: optionalEnv("SCRADA_RECEIVER_COUNTRY", "BE")
-    },
-    contact: {
-      name: optionalEnv("SCRADA_RECEIVER_CONTACT", "Vida AP Sandbox"),
-      email: optionalEnv("SCRADA_RECEIVER_EMAIL", "ap@example.test")
+      additionalStreetName: optionalEnv("SCRADA_RECEIVER_STREET_LINE_2"),
+      postalZone: optionalEnv("SCRADA_RECEIVER_POSTAL", "2000")!,
+      cityName: optionalEnv("SCRADA_RECEIVER_CITY", "Antwerpen")!,
+      countryCode: optionalEnv("SCRADA_RECEIVER_COUNTRY", "BE")!
     }
   };
 }
 
-function baseInvoice(
-  invoiceId: string,
-  options: InvoiceBuildOptions,
-  buyerVat: string | undefined
-): ScradaSalesInvoice {
+function buildPaymentContext(externalReference: string, dueDate: string): PaymentContext {
+  const note = optionalEnv("SCRADA_PAYMENT_NOTE", "Payment due within 30 days")!;
+  const meansCode = optionalEnv("SCRADA_PAYMENT_MEANS_CODE", "30")!;
+  const meansText = optionalEnv("SCRADA_PAYMENT_MEANS_TEXT", "Credit transfer")!;
+  const paymentId = optionalEnv("SCRADA_PAYMENT_REFERENCE", externalReference)!;
+  return {
+    note,
+    paymentDueDate: dueDate,
+    paymentMeansCode: meansCode,
+    paymentMeansText: meansText,
+    paymentId
+  };
+}
+
+function buildLineContext(): InvoiceLineContext {
+  const description = optionalEnv("SCRADA_LINE_DESCRIPTION", "Scrada sandbox service")!;
+  return {
+    id: "1",
+    description,
+    quantity: 1,
+    unitCode: DEFAULT_UNIT_CODE,
+    unitType: DEFAULT_UNIT_TYPE,
+    unitPrice: NET_AMOUNT
+  };
+}
+
+function buildInvoiceContext(options: InvoiceBuildOptions = {}): ScradaInvoiceContext {
+  const invoiceId = resolveInvoiceId(options);
+  const externalReference = resolveReference(invoiceId, options);
   const { issueDate, dueDate } = resolveDates(options);
-  const reference = resolveReference(invoiceId, options);
-  const supplier = buildSupplierParty();
-  const buyer = buildBuyerParty(buyerVat);
+  const jsonBuyerVat = resolveJsonBuyerVat(options);
+  const ublBuyerVat = resolveUblBuyerVat(options);
+
+  const supplier = buildSupplierContext();
+  const customer = buildBuyerContext(jsonBuyerVat, ublBuyerVat);
+  const payment = buildPaymentContext(externalReference, dueDate);
+  const line = buildLineContext();
 
   return {
-    profileId: PROFILE_ID,
-    customizationId: CUSTOMIZATION_ID,
-    id: invoiceId,
+    invoiceId,
+    externalReference,
     issueDate,
     dueDate,
     currency: DOCUMENT_CURRENCY,
-    externalReference: reference,
-    seller: supplier,
-    buyer,
-    totals: {
-      lineExtensionAmount: { currency: DOCUMENT_CURRENCY, value: NET_AMOUNT },
-      taxExclusiveAmount: { currency: DOCUMENT_CURRENCY, value: NET_AMOUNT },
-      taxInclusiveAmount: { currency: DOCUMENT_CURRENCY, value: GROSS_AMOUNT },
-      payableAmount: { currency: DOCUMENT_CURRENCY, value: GROSS_AMOUNT },
-      taxTotals: [
-        {
-          rate: VAT_RATE,
-          taxableAmount: { currency: DOCUMENT_CURRENCY, value: NET_AMOUNT },
-          taxAmount: { currency: DOCUMENT_CURRENCY, value: VAT_AMOUNT }
-        }
-      ]
-    },
-    lines: [
-      {
-        id: "1",
-        description: optionalEnv("SCRADA_LINE_DESCRIPTION", "Scrada sandbox service"),
-        quantity: 1,
-        unitCode: DEFAULT_UNIT_CODE,
-        unitPrice: { currency: DOCUMENT_CURRENCY, value: NET_AMOUNT },
-        lineExtensionAmount: { currency: DOCUMENT_CURRENCY, value: NET_AMOUNT },
-        vat: {
-          rate: VAT_RATE,
-          taxableAmount: { currency: DOCUMENT_CURRENCY, value: NET_AMOUNT },
-          taxAmount: { currency: DOCUMENT_CURRENCY, value: VAT_AMOUNT }
-        }
-      }
-    ],
-    paymentTerms: {
-      note: "Payment due within 30 days",
-      paymentDueDate: dueDate,
-      paymentMeansCode: "30",
-      paymentMeansText: "Credit transfer",
-      paymentId: reference
+    supplier,
+    customer,
+    netAmount: NET_AMOUNT,
+    vatAmount: VAT_AMOUNT,
+    grossAmount: GROSS_AMOUNT,
+    vatRate: VAT_RATE,
+    line,
+    payment
+  };
+}
+
+type JsonParty = ScradaSalesInvoice["supplier"];
+type JsonLine = ScradaSalesInvoice["lines"][number];
+type JsonVatTotal = ScradaSalesInvoice["vatTotals"][number];
+
+function mapPartyToJson(context: PartyContext): JsonParty {
+  return {
+    name: context.name,
+    contact: context.contactName,
+    email: context.contactEmail,
+    vatNumber: context.vatNumber,
+    peppolID: context.peppolId,
+    address: {
+      street: context.address.streetName,
+      streetNumber: context.address.buildingNumber,
+      zipCode: context.address.postalZone,
+      city: context.address.cityName,
+      countryCode: context.address.countryCode
     }
   };
 }
 
-export function buildScradaJsonInvoice(options: InvoiceBuildOptions = {}): ScradaSalesInvoice {
-  const invoiceId = resolveInvoiceId(options);
-  return baseInvoice(invoiceId, options, resolveJsonBuyerVat(options));
+function mapLineToJson(context: ScradaInvoiceContext): JsonLine {
+  return {
+    lineNumber: context.line.id,
+    itemName: context.line.description,
+    quantity: context.line.quantity,
+    unitType: context.line.unitType,
+    itemExclVat: context.line.unitPrice,
+    totalExclVat: context.netAmount,
+    totalInclVat: context.grossAmount,
+    vatType: 1,
+    vatPercentage: Number(context.vatRate.toFixed(2))
+  };
 }
 
-function appendParty(aggregation: any, role: "supplier" | "customer", invoice: ScradaSalesInvoice) {
-  const party = role === "supplier" ? invoice.seller : invoice.buyer;
-  const container =
-    role === "supplier" ? aggregation.ele("cac:AccountingSupplierParty") : aggregation.ele("cac:AccountingCustomerParty");
+function mapVatTotalsToJson(context: ScradaInvoiceContext): JsonVatTotal[] {
+  return [
+    {
+      vatType: 1,
+      vatPercentage: Number(context.vatRate.toFixed(2)),
+      totalExclVat: context.netAmount,
+      totalVat: context.vatAmount,
+      totalInclVat: context.grossAmount
+    }
+  ];
+}
+
+function buildJsonInvoice(context: ScradaInvoiceContext): ScradaSalesInvoice {
+  const supplier = mapPartyToJson(context.supplier);
+  const customer = mapPartyToJson(context.customer);
+  if (!customer.peppolID) {
+    customer.peppolID = `${context.customer.scheme}:${context.customer.id}`;
+  }
+
+  return {
+    number: context.invoiceId,
+    externalReference: context.externalReference,
+    invoiceDate: context.issueDate,
+    invoiceExpiryDate: context.dueDate,
+    supplier,
+    customer,
+    currency: context.currency,
+    totalExclVat: context.netAmount,
+    totalVat: context.vatAmount,
+    totalInclVat: context.grossAmount,
+    isInclVat: false,
+    buyerReference: context.externalReference,
+    note: optionalEnv("SCRADA_INVOICE_NOTE") ?? undefined,
+    lines: [mapLineToJson(context)],
+    vatTotals: mapVatTotalsToJson(context),
+    paymentTerms: context.payment.note
+  };
+}
+
+function appendParty(root: any, role: "supplier" | "customer", context: ScradaInvoiceContext) {
+  const party = role === "supplier" ? context.supplier : context.customer;
+  const containerName = role === "supplier" ? "cac:AccountingSupplierParty" : "cac:AccountingCustomerParty";
+  const container = root.ele(containerName);
   const partyElement = container.ele("cac:Party");
 
-  const endpointScheme = party.endpointScheme ?? "0208";
-  const endpointValue =
-    role === "supplier"
-      ? requireEnv("SCRADA_SUPPLIER_ID")
-      : requireEnv("SCRADA_TEST_RECEIVER_ID");
-
   partyElement
-    .ele("cbc:EndpointID", { schemeID: endpointScheme })
-    .txt(endpointValue)
+    .ele("cbc:EndpointID", { schemeID: party.scheme })
+    .txt(party.id)
     .up();
 
   if (party.peppolId) {
     const [schemePart, valuePart] = party.peppolId.includes(":")
       ? party.peppolId.split(":", 2)
-      : [endpointScheme, party.peppolId];
+      : [party.scheme, party.peppolId];
     const identification = partyElement.ele("cac:PartyIdentification").ele("cbc:ID");
     if (schemePart) {
       identification.att("schemeID", schemePart);
@@ -362,14 +482,15 @@ function appendParty(aggregation: any, role: "supplier" | "customer", invoice: S
   addressElement.ele("cbc:PostalZone").txt(address.postalZone).up();
   addressElement.ele("cac:Country").ele("cbc:IdentificationCode").txt(address.countryCode).up().up();
 
-  const vatValue = compactVat(party.vatNumber);
-  const shouldIncludeTaxScheme = role === "supplier" || Boolean(vatValue);
-  if (shouldIncludeTaxScheme) {
-    const companyVat = role === "supplier" ? vatValue || compactVat(requireEnv("SCRADA_SUPPLIER_VAT")) : vatValue;
+  const vatValue =
+    role === "supplier"
+      ? compactVat(party.vatNumber) || compactVat(requireEnv("SCRADA_SUPPLIER_VAT"))
+      : compactVat(party.ublVatNumber);
+  if (vatValue) {
     const partyTaxScheme = partyElement.ele("cac:PartyTaxScheme");
     partyTaxScheme
       .ele("cbc:CompanyID", { schemeID: "VAT" })
-      .txt(companyVat)
+      .txt(vatValue)
       .up();
     partyTaxScheme
       .ele("cac:TaxScheme")
@@ -377,35 +498,34 @@ function appendParty(aggregation: any, role: "supplier" | "customer", invoice: S
       .txt(TAX_SCHEME_ID)
       .up()
       .up();
-    partyTaxScheme.up();
   }
 
-  partyElement
-    .ele("cac:PartyLegalEntity")
+  const legalEntity = partyElement.ele("cac:PartyLegalEntity");
+  legalEntity
     .ele("cbc:RegistrationName")
     .txt(party.name)
-    .up()
-    .ele("cbc:CompanyID", { schemeID: endpointScheme })
-    .txt(endpointValue)
-    .up()
+    .up();
+  legalEntity
+    .ele("cbc:CompanyID", { schemeID: party.scheme })
+    .txt(party.id)
     .up();
 }
 
-function appendTaxTotals(root: any) {
+function appendTaxTotals(root: any, context: ScradaInvoiceContext) {
   const taxTotal = root.ele("cac:TaxTotal");
   taxTotal
-    .ele("cbc:TaxAmount", { currencyID: DOCUMENT_CURRENCY })
-    .txt(formatAmount(VAT_AMOUNT))
+    .ele("cbc:TaxAmount", { currencyID: context.currency })
+    .txt(formatAmount(context.vatAmount))
     .up();
 
   const taxSubtotal = taxTotal.ele("cac:TaxSubtotal");
   taxSubtotal
-    .ele("cbc:TaxableAmount", { currencyID: DOCUMENT_CURRENCY })
-    .txt(formatAmount(NET_AMOUNT))
+    .ele("cbc:TaxableAmount", { currencyID: context.currency })
+    .txt(formatAmount(context.netAmount))
     .up();
   taxSubtotal
-    .ele("cbc:TaxAmount", { currencyID: DOCUMENT_CURRENCY })
-    .txt(formatAmount(VAT_AMOUNT))
+    .ele("cbc:TaxAmount", { currencyID: context.currency })
+    .txt(formatAmount(context.vatAmount))
     .up();
 
   const taxCategory = taxSubtotal.ele("cac:TaxCategory");
@@ -413,7 +533,7 @@ function appendTaxTotals(root: any) {
     .ele("cbc:ID", { schemeID: "UNCL5305", schemeAgencyID: "6" })
     .txt(VAT_CATEGORY)
     .up();
-  taxCategory.ele("cbc:Percent").txt(VAT_RATE.toFixed(2)).up();
+  taxCategory.ele("cbc:Percent").txt(context.vatRate.toFixed(2)).up();
   taxCategory
     .ele("cac:TaxScheme")
     .ele("cbc:ID", { schemeID: "UN/ECE 5153", schemeAgencyID: "6" })
@@ -422,46 +542,48 @@ function appendTaxTotals(root: any) {
     .up();
 }
 
-function appendLegalMonetaryTotal(root: any) {
+function appendLegalMonetaryTotal(root: any, context: ScradaInvoiceContext) {
   const totals = root.ele("cac:LegalMonetaryTotal");
   totals
-    .ele("cbc:LineExtensionAmount", { currencyID: DOCUMENT_CURRENCY })
-    .txt(formatAmount(NET_AMOUNT))
+    .ele("cbc:LineExtensionAmount", { currencyID: context.currency })
+    .txt(formatAmount(context.netAmount))
     .up();
   totals
-    .ele("cbc:TaxExclusiveAmount", { currencyID: DOCUMENT_CURRENCY })
-    .txt(formatAmount(NET_AMOUNT))
+    .ele("cbc:TaxExclusiveAmount", { currencyID: context.currency })
+    .txt(formatAmount(context.netAmount))
     .up();
   totals
-    .ele("cbc:TaxInclusiveAmount", { currencyID: DOCUMENT_CURRENCY })
-    .txt(formatAmount(GROSS_AMOUNT))
+    .ele("cbc:TaxInclusiveAmount", { currencyID: context.currency })
+    .txt(formatAmount(context.grossAmount))
     .up();
   totals
-    .ele("cbc:PayableAmount", { currencyID: DOCUMENT_CURRENCY })
-    .txt(formatAmount(GROSS_AMOUNT))
+    .ele("cbc:PayableAmount", { currencyID: context.currency })
+    .txt(formatAmount(context.grossAmount))
     .up();
 }
 
-function appendInvoiceLine(root: any, invoice: ScradaSalesInvoice) {
-  const line = invoice.lines[0];
+function appendInvoiceLine(root: any, context: ScradaInvoiceContext) {
   const invoiceLine = root.ele("cac:InvoiceLine");
-  invoiceLine.ele("cbc:ID").txt(line.id).up();
-  invoiceLine.ele("cbc:InvoicedQuantity", { unitCode: line.unitCode ?? DEFAULT_UNIT_CODE }).txt(line.quantity.toString()).up();
+  invoiceLine.ele("cbc:ID").txt(context.line.id).up();
   invoiceLine
-    .ele("cbc:LineExtensionAmount", { currencyID: DOCUMENT_CURRENCY })
-    .txt(formatAmount(line.lineExtensionAmount.value))
+    .ele("cbc:InvoicedQuantity", { unitCode: context.line.unitCode })
+    .txt(context.line.quantity.toString())
+    .up();
+  invoiceLine
+    .ele("cbc:LineExtensionAmount", { currencyID: context.currency })
+    .txt(formatAmount(context.netAmount))
     .up();
 
   const item = invoiceLine.ele("cac:Item");
-  item.ele("cbc:Description").txt(line.description).up();
-  item.ele("cbc:Name").txt(line.description).up();
+  item.ele("cbc:Description").txt(context.line.description).up();
+  item.ele("cbc:Name").txt(context.line.description).up();
 
   const classifiedTax = item.ele("cac:ClassifiedTaxCategory");
   classifiedTax
     .ele("cbc:ID", { schemeID: "UNCL5305", schemeAgencyID: "6" })
     .txt(VAT_CATEGORY)
     .up();
-  classifiedTax.ele("cbc:Percent").txt(VAT_RATE.toFixed(2)).up();
+  classifiedTax.ele("cbc:Percent").txt(context.vatRate.toFixed(2)).up();
   classifiedTax
     .ele("cac:TaxScheme")
     .ele("cbc:ID", { schemeID: "UN/ECE 5153", schemeAgencyID: "6" })
@@ -471,15 +593,12 @@ function appendInvoiceLine(root: any, invoice: ScradaSalesInvoice) {
 
   const price = invoiceLine.ele("cac:Price");
   price
-    .ele("cbc:PriceAmount", { currencyID: DOCUMENT_CURRENCY })
-    .txt(formatAmount(line.unitPrice.value))
+    .ele("cbc:PriceAmount", { currencyID: context.currency })
+    .txt(formatAmount(context.line.unitPrice))
     .up();
 }
 
-export function buildScradaUblInvoice(options: InvoiceBuildOptions = {}): string {
-  const invoiceId = resolveInvoiceId(options);
-  const invoice = baseInvoice(invoiceId, options, resolveUblBuyerVat(options));
-
+function buildUblInvoice(context: ScradaInvoiceContext): string {
   const root = create({ version: "1.0", encoding: "UTF-8" }).ele("Invoice", {
     xmlns: "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
     "xmlns:cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
@@ -488,47 +607,61 @@ export function buildScradaUblInvoice(options: InvoiceBuildOptions = {}): string
 
   root.ele("cbc:CustomizationID").txt(CUSTOMIZATION_ID).up();
   root.ele("cbc:ProfileID").txt(PROFILE_ID).up();
-  root.ele("cbc:ID").txt(invoice.id).up();
-  root.ele("cbc:IssueDate").txt(invoice.issueDate).up();
-  root.ele("cbc:DueDate").txt(invoice.dueDate ?? invoice.issueDate).up();
+  root.ele("cbc:ID").txt(context.invoiceId).up();
+  root.ele("cbc:IssueDate").txt(context.issueDate).up();
+  root.ele("cbc:DueDate").txt(context.dueDate).up();
   root.ele("cbc:InvoiceTypeCode").txt(INVOICE_TYPE_CODE).up();
-  root.ele("cbc:DocumentCurrencyCode", { listID: "ISO4217" }).txt(DOCUMENT_CURRENCY).up();
-  if (invoice.externalReference) {
-    root.ele("cbc:BuyerReference").txt(invoice.externalReference).up();
+  root.ele("cbc:DocumentCurrencyCode", { listID: "ISO4217" }).txt(context.currency).up();
+  if (context.externalReference) {
+    root.ele("cbc:BuyerReference").txt(context.externalReference).up();
   }
 
-  appendParty(root, "supplier", invoice);
-  appendParty(root, "customer", invoice);
-  appendTaxTotals(root);
-  appendLegalMonetaryTotal(root);
-  appendInvoiceLine(root, invoice);
-
-  const paymentTermsData = invoice.paymentTerms ?? {
-    note: "Payment due within 30 days",
-    paymentDueDate: invoice.dueDate ?? invoice.issueDate,
-    paymentMeansCode: "31",
-    paymentId: invoice.externalReference ?? invoice.id
-  };
+  appendParty(root, "supplier", context);
+  appendParty(root, "customer", context);
+  appendTaxTotals(root, context);
+  appendLegalMonetaryTotal(root, context);
+  appendInvoiceLine(root, context);
 
   const paymentMeans = root.ele("cac:PaymentMeans");
   paymentMeans
     .ele("cbc:PaymentMeansCode")
-    .txt(paymentTermsData.paymentMeansCode ?? "31")
+    .txt(context.payment.paymentMeansCode)
     .up();
-  if (paymentTermsData.paymentId) {
-    paymentMeans.ele("cbc:PaymentID").txt(paymentTermsData.paymentId).up();
+  if (context.payment.paymentId) {
+    paymentMeans.ele("cbc:PaymentID").txt(context.payment.paymentId).up();
   }
 
   const paymentTerms = root.ele("cac:PaymentTerms");
-  if (paymentTermsData.note) {
-    paymentTerms.ele("cbc:Note").txt(paymentTermsData.note).up();
+  if (context.payment.note) {
+    paymentTerms.ele("cbc:Note").txt(context.payment.note).up();
   }
-  if (paymentTermsData.paymentDueDate) {
-    paymentTerms.ele("cbc:PaymentDueDate").txt(paymentTermsData.paymentDueDate).up();
+  if (context.payment.paymentDueDate) {
+    paymentTerms.ele("cbc:PaymentDueDate").txt(context.payment.paymentDueDate).up();
   }
-  if (paymentTermsData.paymentId) {
-    paymentTerms.ele("cbc:PaymentID").txt(paymentTermsData.paymentId).up();
+  if (context.payment.paymentId) {
+    paymentTerms.ele("cbc:PaymentID").txt(context.payment.paymentId).up();
   }
 
   return root.end({ prettyPrint: true });
+}
+
+export interface ScradaInvoiceArtifacts {
+  context: ScradaInvoiceContext;
+  json: ScradaSalesInvoice;
+  ubl: string;
+}
+
+export function createScradaInvoiceArtifacts(options: InvoiceBuildOptions = {}): ScradaInvoiceArtifacts {
+  const context = buildInvoiceContext(options);
+  const json = buildJsonInvoice(context);
+  const ubl = buildUblInvoice(context);
+  return { context, json, ubl };
+}
+
+export function buildScradaJsonInvoice(options: InvoiceBuildOptions = {}): ScradaSalesInvoice {
+  return createScradaInvoiceArtifacts(options).json;
+}
+
+export function buildScradaUblInvoice(options: InvoiceBuildOptions = {}): string {
+  return createScradaInvoiceArtifacts(options).ubl;
 }

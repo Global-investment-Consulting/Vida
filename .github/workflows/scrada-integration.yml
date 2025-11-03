@@ -158,4 +158,5 @@ jobs:
             artifacts/scrada/json-sent.json
             artifacts/scrada/error-body.txt
             artifacts/scrada/ubl-sent.xml
+            artifacts/scrada/ubl-header-names.txt
             .data/archive/peppol/${{ steps.scrada_send.outputs.document_id }}.xml
