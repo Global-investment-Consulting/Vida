@@ -22,11 +22,12 @@ describe("scrada payload builders", () => {
 
     const invoice = buildScradaJsonInvoice({ invoiceId: "INV-TEST", buyerVat: "BE0755799452" });
 
-    expect(invoice.id).toBe("INV-TEST");
+    expect(invoice.number).toBe("INV-TEST");
     expect(invoice.lines).toHaveLength(1);
-    expect(invoice.totals.payableAmount.value).toBeCloseTo(121);
-    expect(invoice.seller.vatNumber).toBe("BE0123456789");
-    expect(invoice.buyer.vatNumber).toBe("BE0755799452");
+    expect(invoice.totalInclVat).toBeCloseTo(121);
+    expect(invoice.supplier.vatNumber).toBe("BE0123456789");
+    expect(invoice.customer.vatNumber).toBe("BE0755799452");
+    expect(invoice.customer.peppolID).toBe("0208:0755799452");
   });
 
   it("omits buyer VAT details when the omit variant is used", () => {
@@ -42,7 +43,7 @@ describe("scrada payload builders", () => {
       buyerVat: OMIT_BUYER_VAT_VARIANT
     });
 
-    expect(invoice.buyer.vatNumber).toBeUndefined();
+    expect(invoice.customer.vatNumber).toBeUndefined();
 
     const ubl = buildScradaUblInvoice({
       invoiceId: "INV-OMIT-UBL",
