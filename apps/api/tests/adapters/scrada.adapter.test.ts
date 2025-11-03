@@ -90,15 +90,21 @@ describe("sendInvoiceWithFallback", () => {
     expect(result.attempts[0].channel).toBe("json");
     expect(result.attempts[1].channel).toBe("json");
     expect(result.attempts[2].channel).toBe("ubl");
+    expect(result.attempts[2].vatVariant).toBe("omit-buyer-vat");
 
     const jsonPayload = await readFile(path.join(tempDir, "json-sent.json"), "utf8");
-    expect(jsonPayload).toContain("\"vatNumber\": \"BE 0755 799 452\"");
+    const parsedInvoice = JSON.parse(jsonPayload);
+    expect(parsedInvoice.buyer?.vatNumber).toBeUndefined();
 
     const errorContents = await readFile(path.join(tempDir, "error-body.txt"), "utf8");
-    expect(errorContents).toMatch(/VAT/i);
+    expect(errorContents).toContain("attempt=1");
+    expect(errorContents).toContain("attempt=2");
+    expect(errorContents).toContain("Buyer VAT invalid");
+    expect(errorContents).toContain("VAT mismatch");
 
     const ublPayload = await readFile(path.join(tempDir, "ubl-sent.xml"), "utf8");
     expect(ublPayload).toContain("<cbc:CustomizationID>urn:cen.eu:en16931:2017</cbc:CustomizationID>");
+    expect(ublPayload).not.toMatch(/AccountingCustomerParty[\s\S]*PartyTaxScheme/);
   });
 
   it("fails immediately on non-VAT validation errors", async () => {
