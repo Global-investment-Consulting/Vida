@@ -743,6 +743,10 @@ export async function sendInvoiceWithFallback(
       if (attemptRecord.errorMessage) {
         entryParts.push(`error=${attemptRecord.errorMessage}`);
       }
+      const rawData = scrubbedStringify(axiosError?.response?.data);
+      if (rawData) {
+        entryParts.push(`data=${rawData}`);
+      }
       const entry = entryParts.join(" ");
       await appendTextArtifact(
         errorPath,
