@@ -732,11 +732,18 @@ export async function sendInvoiceWithFallback(
       attemptRecord.errorMessage =
         lastError instanceof Error ? lastError.message : String(lastError ?? "unknown error");
       const errorBody = stringifyErrorBody(lastError);
-      const entry = [
+      const entryParts = [
         `[${new Date().toISOString()}] attempt=${attemptRecord.attempt}`,
         `channel=${channel}`,
         `vatVariant=${omitBuyerVat ? "omit-buyer-vat" : vatVariant}`
-      ].join(" ");
+      ];
+      if (typeof attemptRecord.statusCode === "number") {
+        entryParts.push(`status=${attemptRecord.statusCode}`);
+      }
+      if (attemptRecord.errorMessage) {
+        entryParts.push(`error=${attemptRecord.errorMessage}`);
+      }
+      const entry = entryParts.join(" ");
       await appendTextArtifact(
         errorPath,
         `${entry}\n${errorBody}\n\n`
