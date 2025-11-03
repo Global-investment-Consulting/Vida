@@ -79,6 +79,21 @@ describeIfEnabled("Scrada sandbox flow", () => {
           );
         }
 
+        try {
+          const ublBody = await readFile(path.join(artifactDir, "ubl-sent.xml"), "utf8");
+          const trimmed = ublBody.trim();
+          if (trimmed) {
+            const preview = trimmed.length > 1000 ? `${trimmed.slice(0, 1000)}…` : trimmed;
+            process.stdout.write(`[[scrada-integration] artifact ubl head] ${preview}\n`);
+          }
+        } catch (readError) {
+          process.stdout.write(
+            `[[scrada-integration] unable to read UBL artifact] ${
+              readError instanceof Error ? readError.message : readError
+            }\n`
+          );
+        }
+
         throw error;
       }
 
