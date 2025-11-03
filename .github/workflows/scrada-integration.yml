@@ -1,0 +1,152 @@
+name: Scrada Integration
+
+on:
+  push:
+    branches:
+      - main
+      - feat/scrada-e2e-clean
+  workflow_dispatch:
+
+jobs:
+  scrada-e2e:
+    runs-on: ubuntu-latest
+    env:
+      RUN_SCRADA_INTEGRATION: "true"
+      SCRADA_API_KEY: ${{ secrets.SCRADA_API_KEY }}
+      SCRADA_API_PASSWORD: ${{ secrets.SCRADA_API_PASSWORD }}
+      SCRADA_COMPANY_ID: ${{ secrets.SCRADA_COMPANY_ID }}
+      SCRADA_WEBHOOK_SECRET: ${{ secrets.SCRADA_WEBHOOK_SECRET }}
+      SCRADA_API_BASE: ${{ vars.SCRADA_API_BASE }}
+      SCRADA_LANGUAGE: ${{ vars.SCRADA_LANGUAGE }}
+      SCRADA_TEST_RECEIVER_SCHEME: ${{ vars.SCRADA_TEST_RECEIVER_SCHEME }}
+      SCRADA_TEST_RECEIVER_ID: ${{ vars.SCRADA_TEST_RECEIVER_ID }}
+      SCRADA_SUPPLIER_SCHEME: ${{ vars.SCRADA_SUPPLIER_SCHEME }}
+      SCRADA_SUPPLIER_ID: ${{ vars.SCRADA_SUPPLIER_ID }}
+      SCRADA_SUPPLIER_VAT: ${{ vars.SCRADA_SUPPLIER_VAT }}
+      SCRADA_RECEIVER_VAT: ${{ vars.SCRADA_RECEIVER_VAT }}
+      SCRADA_SKIP_PARTICIPANT_PREFLIGHT: ${{ vars.SCRADA_SKIP_PARTICIPANT_PREFLIGHT }}
+      SCRADA_PARTICIPANT_ID: ${{ format('{0}:{1}', vars.SCRADA_TEST_RECEIVER_SCHEME, vars.SCRADA_TEST_RECEIVER_ID) }}
+      ARCHIVE_BUCKET: ${{ vars.ARCHIVE_BUCKET }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20.19
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.0"
+          cache: "npm"
+
+      - name: Mask Scrada secrets
+        run: |
+          echo "::add-mask::${SCRADA_API_KEY}"
+          echo "::add-mask::${SCRADA_API_PASSWORD}"
+          echo "::add-mask::${SCRADA_COMPANY_ID}"
+          echo "::add-mask::${SCRADA_WEBHOOK_SECRET}"
+
+      - name: Verify environment variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_vars=(
+            SCRADA_API_KEY
+            SCRADA_API_PASSWORD
+            SCRADA_COMPANY_ID
+            SCRADA_API_BASE
+            SCRADA_LANGUAGE
+            SCRADA_TEST_RECEIVER_SCHEME
+            SCRADA_TEST_RECEIVER_ID
+            SCRADA_SUPPLIER_SCHEME
+            SCRADA_SUPPLIER_ID
+            SCRADA_SUPPLIER_VAT
+            SCRADA_RECEIVER_VAT
+          )
+          missing=0
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Missing required environment variable $var"
+              missing=1
+            else
+              echo "${var}=OK"
+            fi
+          done
+          if [ "${missing}" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Show revision
+        shell: bash
+        run: |
+          echo "ref=${GITHUB_REF}"
+          echo "sha=${GITHUB_SHA}"
+
+      - name: Install API workspace dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix apps/api
+
+      - name: Wait for Scrada participant readiness
+        if: ${{ env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'true' && env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'TRUE' }}
+        id: scrada_participant
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/scrada
+          node apps/api/scripts/scrada-wait-participant.mjs --participant "${SCRADA_PARTICIPANT_ID}" > artifacts/scrada/participant.json
+          cat artifacts/scrada/participant.json
+
+      - name: Build API workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build --prefix apps/api
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test --prefix apps/api
+
+      - name: Scrada smoke send
+        id: scrada_send
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/scrada
+          node apps/api/scripts/scrada-send.mjs --artifact-dir artifacts/scrada > artifacts/scrada/scrada-send-output.json
+          cat artifacts/scrada/scrada-send-output.json
+          echo "document_id=$(jq -r '.documentId' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "invoice_id=$(jq -r '.invoiceId' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "external_reference=$(jq -r '.externalReference' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "send_channel=$(jq -r '.channel' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "vat_variant=$(jq -r '.vatVariant' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Poll Scrada status and archive
+        id: scrada_status
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/api/scripts/scrada-status.mjs "${{ steps.scrada_send.outputs.document_id }}" --archive > artifacts/scrada/scrada-status.log
+          cat artifacts/scrada/scrada-status.log
+          jq -s '.' artifacts/scrada/scrada-status.log > artifacts/scrada/scrada-status-output.json
+          cat artifacts/scrada/scrada-status-output.json
+          echo "status=$(jq -r '.[0].status' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+          echo "classification=$(jq -r '.[0].classification' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+          echo "archive_driver=$(jq -r '.[1].driver // empty' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+          echo "archive_location=$(jq -r '.[1].location // empty' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+          echo "archive_key=$(jq -r '.[1].key // empty' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Scrada artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrada-flow-artifacts
+          if-no-files-found: warn
+          path: |
+            artifacts/scrada/json-sent.json
+            artifacts/scrada/error-body.txt
+            artifacts/scrada/ubl-sent.xml
+            artifacts/scrada/scrada-send-output.json
+            artifacts/scrada/scrada-status-output.json
+            artifacts/scrada/participant.json
+            .data/archive/peppol/${{ steps.scrada_send.outputs.document_id }}.xml
