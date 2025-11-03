@@ -6,6 +6,11 @@ on:
       - main
       - feat/scrada-e2e-clean
   workflow_dispatch:
+    inputs:
+      run_ref:
+        description: "Git ref to run (default feat/scrada-e2e-clean)"
+        required: false
+        default: "feat/scrada-e2e-clean"
 
 jobs:
   scrada-e2e:
@@ -30,6 +35,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_ref || github.ref }}
 
       - name: Use Node.js 20.19
         uses: actions/setup-node@v4
@@ -44,7 +51,7 @@ jobs:
           echo "::add-mask::${SCRADA_COMPANY_ID}"
           echo "::add-mask::${SCRADA_WEBHOOK_SECRET}"
 
-      - name: Verify environment variables
+      - name: env-presence (VAR=OK)
         shell: bash
         run: |
           set -euo pipefail
@@ -138,6 +145,7 @@ jobs:
           echo "archive_key=$(jq -r '.[1].key // empty' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
 
       - name: Upload Scrada artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: scrada-flow-artifacts
