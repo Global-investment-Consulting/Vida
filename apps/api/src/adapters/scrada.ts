@@ -29,7 +29,7 @@ const DEFAULT_ARTIFACT_ROOT = path.resolve(process.cwd(), ".data", "scrada");
 const JSON_ARTIFACT_NAME = "json-sent.json";
 const UBL_ARTIFACT_NAME = "ubl-sent.xml";
 const ERROR_ARTIFACT_NAME = "error-body.txt";
-const MAX_SEND_ATTEMPTS = 3;
+const MAX_SEND_ATTEMPTS = 4;
 
 const SUCCESS_STATUSES = new Set([
   "DELIVERED",
