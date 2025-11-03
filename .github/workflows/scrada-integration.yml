@@ -44,13 +44,6 @@ jobs:
           node-version: "20.19.0"
           cache: "npm"
 
-      - name: Show adapter and revision
-        shell: bash
-        run: |
-          echo "adapter=${VIDA_AP_ADAPTER}"
-          echo "ref=${GITHUB_REF}"
-          echo "sha=${GITHUB_SHA}"
-
       - name: Mask Scrada secrets
         run: |
           echo "::add-mask::${SCRADA_API_KEY}"
@@ -89,6 +82,34 @@ jobs:
             exit 1
           fi
 
+      - run: rm -rf apps/api/node_modules apps/api/dist
+        shell: bash
+
+      - run: npm ci --workspaces || (npm ci && (cd apps/api && npm install --no-audit --no-fund))
+        shell: bash
+
+      - run: npm run build --workspaces || (npm run build && (cd apps/api && npm run build))
+        shell: bash
+
+      - name: Isolation check (no Billit vars)
+        shell: bash
+        run: |
+          set -euo pipefail
+          LEAKS=$(env | awk -F= '/^BILLIT_/ {print $1}')
+          if [ -n "${LEAKS}" ]; then
+            echo "::error::Unexpected Billit vars: ${LEAKS}"
+            exit 1
+          fi
+          echo "Isolation=OK"
+
+      - name: Show revision
+        shell: bash
+        run: |
+          echo "Adapter=${VIDA_AP_ADAPTER}"
+          echo "REF=${GITHUB_REF}"
+          echo "SHA=${GITHUB_SHA}"
+          git rev-parse HEAD
+
       - name: Wait for Scrada participant readiness
         if: ${{ env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'true' && env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'TRUE' }}
         id: scrada_participant
@@ -98,20 +119,6 @@ jobs:
           mkdir -p artifacts/scrada
           node apps/api/scripts/scrada-wait-participant.mjs --participant "${SCRADA_PARTICIPANT_ID}" > artifacts/scrada/participant.json
           cat artifacts/scrada/participant.json
-
-      - name: Install and build
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm ci
-          npm run build
-
-      - name: Prepare API workspace
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --prefix apps/api
-          npm run build --prefix apps/api
 
       - name: Run unit tests
         shell: bash
