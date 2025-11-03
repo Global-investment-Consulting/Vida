@@ -747,6 +747,10 @@ export async function sendInvoiceWithFallback(
       if (rawData) {
         entryParts.push(`data=${rawData}`);
       }
+      const headerHint = headersToHint(axiosError?.response?.headers);
+      if (headerHint) {
+        entryParts.push(`headers=${headerHint}`);
+      }
       const entry = entryParts.join(" ");
       await appendTextArtifact(
         errorPath,
