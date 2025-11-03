@@ -746,10 +746,16 @@ export async function sendInvoiceWithFallback(
       const rawData = scrubbedStringify(axiosError?.response?.data);
       if (rawData) {
         entryParts.push(`data=${rawData}`);
+        if (channel === "json") {
+          console.error(`[scrada-json] response data: ${rawData}`);
+        } else {
+          console.error(`[scrada-ubl] response data: ${rawData}`);
+        }
       }
       const headerHint = headersToHint(axiosError?.response?.headers);
       if (headerHint) {
         entryParts.push(`headers=${headerHint}`);
+        console.error(`[scrada] response headers: ${headerHint}`);
       }
       const entry = entryParts.join(" ");
       await appendTextArtifact(
