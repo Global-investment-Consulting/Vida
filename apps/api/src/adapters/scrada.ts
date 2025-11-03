@@ -367,10 +367,16 @@ export async function sendUbl(
 ): Promise<{ documentId: string }> {
   const pathName = companyPath("peppol/outbound/document");
   try {
-    const headers = {
-      "Content-Type": "application/xml",
-      ...opts?.headers
+    const headers: Record<string, string> = {
+      "Content-Type": "application/xml"
     };
+    if (opts?.headers) {
+      for (const [name, value] of Object.entries(opts.headers)) {
+        if (typeof value === "string" && value.trim().length > 0) {
+          headers[name] = value;
+        }
+      }
+    }
     if (opts?.externalReference && !headers["x-scrada-external-reference"]) {
       headers["x-scrada-external-reference"] = opts.externalReference;
     }
