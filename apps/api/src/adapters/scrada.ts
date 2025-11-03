@@ -31,6 +31,7 @@ const JSON_ARTIFACT_NAME = "json-sent.json";
 const UBL_ARTIFACT_NAME = "ubl-sent.xml";
 const UBL_HEADERS_ARTIFACT_NAME = "ubl-header-names.txt";
 const ERROR_ARTIFACT_NAME = "error-body.txt";
+const DEFAULT_PEPPOL_SCHEME_HEADER = "iso6523-actorid-upis";
 const MAX_SEND_ATTEMPTS = 4;
 
 const SUCCESS_STATUSES = new Set([
@@ -598,9 +599,17 @@ function determineArtifactDir(options: ScradaSendOptions, invoiceId: string): st
 }
 
 function buildScradaPeppolHeaders(context: ScradaInvoiceContext): Record<string, string> {
-  const senderScheme = context.supplier.scheme?.trim();
+  const resolveSchemeHeader = (raw?: string): string => {
+    const candidate = raw?.trim();
+    if (!candidate || /^[0-9]{4}$/.test(candidate)) {
+      return process.env.SCRADA_PEPPOL_SCHEME_HEADER?.trim() || DEFAULT_PEPPOL_SCHEME_HEADER;
+    }
+    return candidate;
+  };
+
+  const senderScheme = resolveSchemeHeader(context.supplier.scheme);
   const senderId = (context.supplier.peppolId || `${context.supplier.scheme}:${context.supplier.id}`).trim();
-  const receiverScheme = context.customer.scheme?.trim();
+  const receiverScheme = resolveSchemeHeader(context.customer.scheme);
   const receiverId = (context.customer.peppolId || `${context.customer.scheme}:${context.customer.id}`).trim();
   const countryCode = context.supplier.address.countryCode?.trim();
   const externalReference = context.externalReference?.trim() || context.invoiceId;
