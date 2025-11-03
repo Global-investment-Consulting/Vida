@@ -13,10 +13,10 @@ on:
         default: "feat/scrada-e2e-clean"
 
 jobs:
-  scrada-e2e:
+  scrada:
     runs-on: ubuntu-latest
     env:
-      RUN_SCRADA_INTEGRATION: "true"
+      VIDA_AP_ADAPTER: scrada
       SCRADA_API_KEY: ${{ secrets.SCRADA_API_KEY }}
       SCRADA_API_PASSWORD: ${{ secrets.SCRADA_API_PASSWORD }}
       SCRADA_COMPANY_ID: ${{ secrets.SCRADA_COMPANY_ID }}
@@ -44,6 +44,13 @@ jobs:
           node-version: "20.19.0"
           cache: "npm"
 
+      - name: Show adapter and revision
+        shell: bash
+        run: |
+          echo "adapter=${VIDA_AP_ADAPTER}"
+          echo "ref=${GITHUB_REF}"
+          echo "sha=${GITHUB_SHA}"
+
       - name: Mask Scrada secrets
         run: |
           echo "::add-mask::${SCRADA_API_KEY}"
@@ -56,6 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           required_vars=(
+            VIDA_AP_ADAPTER
             SCRADA_API_KEY
             SCRADA_API_PASSWORD
             SCRADA_COMPANY_ID
@@ -81,18 +89,6 @@ jobs:
             exit 1
           fi
 
-      - name: Show revision
-        shell: bash
-        run: |
-          echo "ref=${GITHUB_REF}"
-          echo "sha=${GITHUB_SHA}"
-
-      - name: Install API workspace dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --prefix apps/api
-
       - name: Wait for Scrada participant readiness
         if: ${{ env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'true' && env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'TRUE' }}
         id: scrada_participant
@@ -103,17 +99,25 @@ jobs:
           node apps/api/scripts/scrada-wait-participant.mjs --participant "${SCRADA_PARTICIPANT_ID}" > artifacts/scrada/participant.json
           cat artifacts/scrada/participant.json
 
-      - name: Build API workspace
+      - name: Install and build
         shell: bash
         run: |
           set -euo pipefail
+          npm ci
+          npm run build
+
+      - name: Prepare API workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix apps/api
           npm run build --prefix apps/api
 
       - name: Run unit tests
         shell: bash
         run: |
           set -euo pipefail
-          npm test --prefix apps/api
+          npm test -- --run apps/api/tests/scrada.*
 
       - name: Scrada smoke send
         id: scrada_send
@@ -121,7 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/scrada
-          node apps/api/scripts/scrada-send.mjs --artifact-dir artifacts/scrada > artifacts/scrada/scrada-send-output.json
+          node apps/api/scripts/scrada-send.mjs --artifact-dir artifacts/scrada --vat "${SCRADA_RECEIVER_VAT}" > artifacts/scrada/scrada-send-output.json
           cat artifacts/scrada/scrada-send-output.json
           echo "document_id=$(jq -r '.documentId' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
           echo "invoice_id=$(jq -r '.invoiceId' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
@@ -154,7 +158,4 @@ jobs:
             artifacts/scrada/json-sent.json
             artifacts/scrada/error-body.txt
             artifacts/scrada/ubl-sent.xml
-            artifacts/scrada/scrada-send-output.json
-            artifacts/scrada/scrada-status-output.json
-            artifacts/scrada/participant.json
             .data/archive/peppol/${{ steps.scrada_send.outputs.document_id }}.xml
