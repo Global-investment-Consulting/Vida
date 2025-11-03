@@ -9,7 +9,9 @@ import {
   buildScradaJsonInvoice,
   buildScradaUblInvoice,
   generateInvoiceId,
-  resolveBuyerVatVariants
+  isOmitBuyerVatVariant,
+  resolveBuyerVatVariants,
+  OMIT_BUYER_VAT_VARIANT
 } from "../scrada/payload.js";
 import type {
   RegisterCompanyInput,
@@ -292,7 +294,25 @@ function normalizeVariants(source?: string[]): string[] {
   if (unique.length === 0) {
     throw new Error("[scrada] Unable to determine buyer VAT variants");
   }
-  return unique.slice(0, MAX_SEND_ATTEMPTS);
+
+  const ordered: string[] = [];
+  ordered.push(unique[0]);
+  if (unique.length > 1) {
+    ordered.push(unique[1]);
+  } else if (unique.length === 1 && MAX_SEND_ATTEMPTS > 2) {
+    ordered.push(unique[0]);
+  }
+  if (ordered.length > MAX_SEND_ATTEMPTS - 1) {
+    ordered.length = MAX_SEND_ATTEMPTS - 1;
+  }
+  if (!ordered.includes(OMIT_BUYER_VAT_VARIANT)) {
+    ordered.push(OMIT_BUYER_VAT_VARIANT);
+  }
+  while (ordered.length < MAX_SEND_ATTEMPTS) {
+    ordered.push(OMIT_BUYER_VAT_VARIANT);
+  }
+
+  return ordered.slice(0, MAX_SEND_ATTEMPTS);
 }
 
 async function ensureArtifactDir(dir: string): Promise<void> {
@@ -305,6 +325,10 @@ async function writeJsonArtifact(filePath: string, payload: ScradaSalesInvoice):
 
 async function writeTextArtifact(filePath: string, contents: string): Promise<void> {
   await writeFile(filePath, contents, "utf8");
+}
+
+async function appendTextArtifact(filePath: string, contents: string): Promise<void> {
+  await writeFile(filePath, contents, { encoding: "utf8", flag: "a" });
 }
 
 export async function sendSalesInvoiceJson(
@@ -543,6 +567,7 @@ export async function sendInvoiceWithFallback(
   for (let attemptIndex = 0; attemptIndex < MAX_SEND_ATTEMPTS; attemptIndex += 1) {
     const channel: Channel = attemptIndex < MAX_SEND_ATTEMPTS - 1 ? "json" : "ubl";
     const vatVariant = vatVariants[attemptIndex % vatVariants.length];
+    const omitBuyerVat = isOmitBuyerVatVariant(vatVariant);
     const invoice = buildScradaJsonInvoice({
       invoiceId,
       externalReference,
@@ -552,6 +577,12 @@ export async function sendInvoiceWithFallback(
     finalVatVariant = vatVariant;
 
     await writeJsonArtifact(jsonPath, invoice);
+    const ublXml = buildScradaUblInvoice({
+      invoiceId,
+      externalReference,
+      buyerVat: vatVariant
+    });
+    await writeTextArtifact(ublPath, ublXml);
 
     const attemptRecord: ScradaSendAttempt = {
       attempt: attemptIndex + 1,
@@ -578,12 +609,7 @@ export async function sendInvoiceWithFallback(
         break;
       }
 
-      const ublXml = buildScradaUblInvoice({
-        invoiceId,
-        externalReference,
-        buyerVat: vatVariant
-      });
-      await writeTextArtifact(ublPath, ublXml);
+      // ublXml already written for this attempt; reuse for send
       const response = await client.post(
         companyPath("peppol/outbound/document"),
         ublXml,
@@ -604,7 +630,16 @@ export async function sendInvoiceWithFallback(
       attemptRecord.statusCode = axiosError?.response?.status ?? null;
       attemptRecord.errorMessage =
         lastError instanceof Error ? lastError.message : String(lastError ?? "unknown error");
-      await writeTextArtifact(errorPath, stringifyErrorBody(lastError));
+      const errorBody = stringifyErrorBody(lastError);
+      const entry = [
+        `[${new Date().toISOString()}] attempt=${attemptRecord.attempt}`,
+        `channel=${channel}`,
+        `vatVariant=${omitBuyerVat ? "omit-buyer-vat" : vatVariant}`
+      ].join(" ");
+      await appendTextArtifact(
+        errorPath,
+        `${entry}\n${errorBody}\n\n`
+      );
 
       if (channel === "json") {
         const shouldRetryForVat = isVatValidationError(lastError);
