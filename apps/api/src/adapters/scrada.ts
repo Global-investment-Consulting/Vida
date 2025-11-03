@@ -757,6 +757,13 @@ export async function sendInvoiceWithFallback(
         entryParts.push(`headers=${headerHint}`);
         console.error(`[scrada] response headers: ${headerHint}`);
       }
+      if (axiosError && typeof axiosError.toJSON === "function") {
+        try {
+          console.error(`[scrada] axios error: ${JSON.stringify(axiosError.toJSON())}`);
+        } catch {
+          // ignore serialization issues
+        }
+      }
       const entry = entryParts.join(" ");
       await appendTextArtifact(
         errorPath,
