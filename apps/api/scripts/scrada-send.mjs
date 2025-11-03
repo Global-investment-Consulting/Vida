@@ -14,22 +14,13 @@ async function loadAdapter() {
   }
 }
 
-const { sendInvoiceWithFallback, ScradaSendFailure } = await loadAdapter();
-
-function isScradaSendFailure(error) {
-  if (!error) {
-    return false;
-  }
-  if (typeof ScradaSendFailure === "function" && error instanceof ScradaSendFailure) {
-    return true;
-  }
-  return error?.name === "ScradaSendFailure";
-}
+const { sendInvoiceWithFallback } = await loadAdapter();
 
 function parseArgs(argv) {
   const parsed = {
     artifactDir: process.env.SCRADA_ARTIFACT_DIR,
-    externalReference: process.env.SCRADA_EXTERNAL_REFERENCE
+    externalReference: process.env.SCRADA_EXTERNAL_REFERENCE,
+    variants: []
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -52,7 +43,20 @@ function parseArgs(argv) {
       parsed.externalReference = token.split("=", 2)[1];
       continue;
     }
+    if (token === "--vat" && argv[i + 1]) {
+      parsed.variants.push(argv[i + 1]);
+      i += 1;
+      continue;
+    }
+    if (token.startsWith("--vat=")) {
+      parsed.variants.push(token.split("=", 2)[1]);
+      continue;
+    }
   }
+
+  parsed.variants = parsed.variants
+    .map((value) => value?.trim())
+    .filter((value) => value && value.length > 0);
 
   return parsed;
 }
@@ -70,11 +74,11 @@ async function main() {
   try {
     const result = await sendInvoiceWithFallback({
       artifactDir: normalizeArtifactDir(args.artifactDir),
-      externalReference: args.externalReference
+      externalReference: args.externalReference,
+      vatVariants: args.variants
     });
 
     const output = {
-      success: true,
       documentId: result.documentId,
       invoiceId: result.invoiceId,
       externalReference: result.externalReference,
@@ -86,29 +90,10 @@ async function main() {
 
     console.log(JSON.stringify(output, null, 2));
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error ?? "unknown error");
-    const failureOutput = {
-      success: false,
-      errorMessage: message
-    };
-    if (isScradaSendFailure(error)) {
-      failureOutput.invoiceId = error.invoiceId;
-      failureOutput.externalReference = error.externalReference;
-      failureOutput.vatVariant = error.vatVariant;
-      failureOutput.attempts = Array.isArray(error.attempts) ? error.attempts : undefined;
-      failureOutput.artifacts = error.artifacts;
-      failureOutput.headerSweep = error.headerSweep;
-      failureOutput.docValueIndex =
-        typeof error.docValueIndex === "number" ? error.docValueIndex : null;
-      failureOutput.processValueIndex =
-        typeof error.processValueIndex === "number" ? error.processValueIndex : null;
-    }
-    console.error("[scrada-send] Failed to send Scrada invoice:", message);
-    try {
-      console.log(JSON.stringify(failureOutput, null, 2));
-    } catch {
-      console.log('{"success":false,"errorMessage":"failed to serialize error"}');
-    }
+    console.error(
+      "[scrada-send] Failed to send Scrada invoice:",
+      error instanceof Error ? error.message : error
+    );
     process.exit(1);
   }
 }

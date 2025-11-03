@@ -4,7 +4,6 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const postMock = vi.fn();
-const ORIGINAL_PREFERRED_FORMAT = process.env.SCRADA_PREFERRED_FORMAT;
 
 vi.mock("../../src/lib/http.ts", () => ({
   getScradaClient: () => ({
@@ -12,106 +11,113 @@ vi.mock("../../src/lib/http.ts", () => ({
   })
 }));
 
-vi.mock(
-  "../../dist/src/lib/http.js",
-  () => ({
-    getScradaClient: () => ({
-      post: postMock
-    })
-  }),
-  { virtual: true }
-);
-
-function createAxiosError(status: number, message: string) {
+function createAxiosVatError(message: string) {
   const error = new Error(message);
   Object.assign(error, {
     isAxiosError: true,
     response: {
-      status,
-      data: message,
-      headers: {}
+      status: 400,
+      data: message
     }
   });
   return error;
 }
 
-describe("sendInvoiceWithFallback (BIS 3.0)", () => {
+describe("sendInvoiceWithFallback", () => {
   beforeEach(() => {
-    vi.resetModules();
     postMock.mockReset();
     process.env.SCRADA_COMPANY_ID = "0208:COMPANY";
     process.env.SCRADA_SUPPLIER_SCHEME = "0208";
     process.env.SCRADA_SUPPLIER_ID = "0123456789";
     process.env.SCRADA_SUPPLIER_VAT = "BE0123456789";
-    process.env.SCRADA_PREFERRED_FORMAT = "json";
+    process.env.SCRADA_TEST_RECEIVER_SCHEME = "0208";
+    process.env.SCRADA_TEST_RECEIVER_ID = "0755799452";
+    process.env.SCRADA_RECEIVER_VAT = "BE0755799452";
   });
 
   afterEach(() => {
-    if (ORIGINAL_PREFERRED_FORMAT === undefined) {
-      delete process.env.SCRADA_PREFERRED_FORMAT;
-    } else {
-      process.env.SCRADA_PREFERRED_FORMAT = ORIGINAL_PREFERRED_FORMAT;
-    }
     delete process.env.SCRADA_COMPANY_ID;
     delete process.env.SCRADA_SUPPLIER_SCHEME;
     delete process.env.SCRADA_SUPPLIER_ID;
     delete process.env.SCRADA_SUPPLIER_VAT;
+    delete process.env.SCRADA_TEST_RECEIVER_SCHEME;
+    delete process.env.SCRADA_TEST_RECEIVER_ID;
+    delete process.env.SCRADA_RECEIVER_VAT;
   });
 
   it("succeeds on the initial JSON attempt", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "scrada-send-"));
-    postMock.mockResolvedValue({ data: { documentId: "DOC-JSON" } });
-
+    postMock.mockResolvedValue({ data: { documentId: "DOC-001" } });
     const { sendInvoiceWithFallback } = await import("../../src/adapters/scrada.ts");
+
     const result = await sendInvoiceWithFallback({ artifactDir: tempDir });
 
     expect(postMock).toHaveBeenCalledTimes(1);
-    expect(postMock).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining("salesInvoice"),
-      expect.anything(),
-      expect.objectContaining({ headers: { "Content-Type": "application/json" } })
-    );
     expect(result.channel).toBe("json");
-    expect(result.documentId).toBe("DOC-JSON");
-    expect(result.attempts).toHaveLength(1);
-    expect(result.attempts[0]).toMatchObject({ channel: "json", vatVariant: "BE0755799452", success: true });
+    expect(result.documentId).toBe("DOC-001");
 
     const jsonPayload = await readFile(path.join(tempDir, "json-sent.json"), "utf8");
     expect(jsonPayload).toContain("\"vatNumber\": \"BE0755799452\"");
   });
 
-  it("falls back to UBL when the JSON attempt returns HTTP 400", async () => {
+  it("retries variants and falls back to UBL on VAT validation errors", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "scrada-send-"));
-    postMock
-      .mockRejectedValueOnce(createAxiosError(400, "Bad request"))
-      .mockResolvedValueOnce({ data: { documentId: "DOC-UBL" } });
+    const responses = [
+      () => {
+        throw createAxiosVatError("Buyer VAT invalid");
+      },
+      () => {
+        throw createAxiosVatError("VAT mismatch");
+      },
+      () => ({ data: { documentId: "DOC-UBL" } })
+    ];
+
+    postMock.mockImplementation((pathName) => {
+      const handler = responses.shift();
+      if (!handler) {
+        throw new Error(`Unexpected extra call for ${pathName}`);
+      }
+      return handler();
+    });
 
     const { sendInvoiceWithFallback } = await import("../../src/adapters/scrada.ts");
+
     const result = await sendInvoiceWithFallback({ artifactDir: tempDir });
 
-    expect(postMock).toHaveBeenCalledTimes(2);
     expect(result.channel).toBe("ubl");
     expect(result.documentId).toBe("DOC-UBL");
-    expect(result.attempts).toHaveLength(2);
-    expect(result.attempts[0]).toMatchObject({ channel: "json", success: false, vatVariant: "BE0755799452" });
-    expect(result.attempts[1]).toMatchObject({ channel: "ubl", success: true, vatVariant: "BE0755799452" });
+    expect(result.attempts).toHaveLength(3);
+    expect(result.attempts[0].channel).toBe("json");
+    expect(result.attempts[1].channel).toBe("json");
+    expect(result.attempts[2].channel).toBe("ubl");
 
-    const headersPreview = await readFile(path.join(tempDir, "headers-sent.txt"), "utf8");
-    expect(headersPreview).toContain("x-scrada-peppol-sender-scheme: iso6523-actorid-upis");
-    expect(headersPreview).toContain("x-scrada-peppol-receiver-scheme: iso6523-actorid-upis");
-    expect(headersPreview).toContain("x-scrada-peppol-receiver-id: 0208:0755799452");
-    expect(headersPreview).not.toContain("x-scrada-peppol-receiver-party-id");
+    const jsonPayload = await readFile(path.join(tempDir, "json-sent.json"), "utf8");
+    expect(jsonPayload).toContain("\"vatNumber\": \"BE 0755 799 452\"");
+
+    const errorContents = await readFile(path.join(tempDir, "error-body.txt"), "utf8");
+    expect(errorContents).toMatch(/VAT/i);
+
+    const ublPayload = await readFile(path.join(tempDir, "ubl-sent.xml"), "utf8");
+    expect(ublPayload).toContain("<cbc:CustomizationID>urn:cen.eu:en16931:2017</cbc:CustomizationID>");
   });
 
-  it("surfaces non-400 errors without retrying UBL", async () => {
+  it("fails immediately on non-VAT validation errors", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "scrada-send-"));
-    postMock.mockRejectedValue(createAxiosError(422, "Unprocessable"));
-    process.env.SCRADA_PREFERRED_FORMAT = "ubl";
+    const nonVatError = new Error("Bad request");
+    Object.assign(nonVatError, {
+      isAxiosError: true,
+      response: {
+        status: 422,
+        data: "Bad request"
+      }
+    });
+    postMock.mockRejectedValue(nonVatError);
 
     const { sendInvoiceWithFallback } = await import("../../src/adapters/scrada.ts");
 
-    await expect(sendInvoiceWithFallback({ artifactDir: tempDir })).rejects.toThrow(/Unprocessable/);
+    await expect(sendInvoiceWithFallback({ artifactDir: tempDir })).rejects.toThrow(
+      /Bad request/
+    );
     expect(postMock).toHaveBeenCalledTimes(1);
   });
 });

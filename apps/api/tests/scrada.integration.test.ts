@@ -3,7 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import axios from "axios";
-import { fetchAndArchiveOutboundUbl, pollOutboundDocument, sendInvoiceWithFallback } from "../src/adapters/scrada.ts";
+import {
+  fetchAndArchiveOutboundUbl,
+  pollOutboundDocument,
+  sendInvoiceWithFallback
+} from "../src/adapters/scrada.ts";
 
 const RUN_INTEGRATION = process.env.RUN_SCRADA_INTEGRATION === "true";
 const describeIfEnabled = RUN_INTEGRATION ? describe : describe.skip;
@@ -22,7 +26,10 @@ describeIfEnabled("Scrada sandbox flow", () => {
       "SCRADA_COMPANY_ID",
       "SCRADA_SUPPLIER_SCHEME",
       "SCRADA_SUPPLIER_ID",
-      "SCRADA_SUPPLIER_VAT"
+      "SCRADA_SUPPLIER_VAT",
+      "SCRADA_TEST_RECEIVER_SCHEME",
+      "SCRADA_TEST_RECEIVER_ID",
+      "SCRADA_RECEIVER_VAT"
     ]) {
       ensureEnv(envName);
     }
@@ -71,21 +78,6 @@ describeIfEnabled("Scrada sandbox flow", () => {
           );
         }
 
-        try {
-          const ublBody = await readFile(path.join(artifactDir, "ubl-sent.xml"), "utf8");
-          const trimmed = ublBody.trim();
-          if (trimmed) {
-            const preview = trimmed.length > 1000 ? `${trimmed.slice(0, 1000)}…` : trimmed;
-            process.stdout.write(`[[scrada-integration] artifact ubl head] ${preview}\n`);
-          }
-        } catch (readError) {
-          process.stdout.write(
-            `[[scrada-integration] unable to read UBL artifact] ${
-              readError instanceof Error ? readError.message : readError
-            }\n`
-          );
-        }
-
         throw error;
       }
 
@@ -112,9 +104,7 @@ describeIfEnabled("Scrada sandbox flow", () => {
       }
 
       const jsonPayload = await readFile(path.join(artifactDir, "json-sent.json"), "utf8");
-      const parsedInvoice = JSON.parse(jsonPayload);
-      expect(parsedInvoice.customer?.vatNumber).toBe("BE0755799452");
-      expect(parsedInvoice.customer?.peppolID).toBe("0208:0755799452");
+      expect(jsonPayload).toContain(sendResult.vatVariant);
 
       if (archiveResult.driver === "local") {
         const ublContents = await readFile(archiveResult.location, "utf8");

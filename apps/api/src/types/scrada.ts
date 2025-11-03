@@ -1,104 +1,87 @@
 type UnknownRecord = Record<string, unknown>;
 
-export interface ScradaInvoiceAddress extends UnknownRecord {
-  street?: string;
-  streetNumber?: string;
-  streetBox?: string;
-  zipCode?: string;
-  city?: string;
-  countrySubentity?: string;
+export interface ScradaAddress extends UnknownRecord {
+  streetName: string;
+  buildingNumber?: string;
+  additionalStreetName?: string;
+  postalZone: string;
+  cityName: string;
   countryCode: string;
 }
 
-export interface ScradaExtraIdentifier extends UnknownRecord {
-  scheme?: string;
-  value?: string;
+export interface ScradaContact extends UnknownRecord {
+  name?: string;
+  email?: string;
+  telephone?: string;
 }
 
-export interface ScradaInvoiceParty extends UnknownRecord {
+export interface ScradaParty extends UnknownRecord {
   name: string;
-  code?: string;
-  contact?: string;
-  email?: string;
-  invoiceEmail?: string;
-  phone?: string;
-  languageCode?: string;
-  legalPersonRegister?: string;
+  endpointId?: string;
+  endpointScheme?: string;
   vatNumber?: string;
-  taxNumber?: string;
-  taxNumberType?: number;
-  vatStatus?: number;
-  glnNumber?: string;
-  peppolID?: string;
-  extraIdentifiers?: ScradaExtraIdentifier[];
-  address: ScradaInvoiceAddress;
+  companyRegistrationNumber?: string;
+  peppolId?: string;
+  schemeId?: string;
+  address: ScradaAddress;
+  contact?: ScradaContact;
+}
+
+export interface ScradaAmount extends UnknownRecord {
+  currency: string;
+  value: number;
+}
+
+export interface ScradaVatDetail extends UnknownRecord {
+  rate: number;
+  taxableAmount: ScradaAmount;
+  taxAmount: ScradaAmount;
+  exemptionReasonCode?: string;
 }
 
 export interface ScradaInvoiceLine extends UnknownRecord {
-  lineNumber: string;
-  itemName: string;
+  id: string;
+  description: string;
   quantity: number;
-  unitType?: number;
-  itemExclVat?: number;
-  itemInclVat?: number;
-  totalExclVat?: number;
-  totalInclVat?: number;
-  vatType: number;
-  vatPercentage: number;
-  totalDiscountExclVat?: number;
-  totalDiscountInclVat?: number;
-  invoicePeriodStartDate?: string;
-  invoicePeriodEndDate?: string;
-  standardItemIdentifierType?: number;
-  standardItemIdentifier?: string;
-  purchaseOrderLineReference?: string;
-  additionalProperties?: UnknownRecord[];
+  unitCode?: string;
+  unitPrice: ScradaAmount;
+  lineExtensionAmount: ScradaAmount;
+  vat: ScradaVatDetail;
+  allowances?: ScradaAmount[];
+  charges?: ScradaAmount[];
 }
 
-export interface ScradaVatTotal extends UnknownRecord {
-  vatType: number;
-  vatPercentage: number;
-  totalExclVat?: number;
-  totalVat: number;
-  totalInclVat?: number;
+export interface ScradaInvoiceTotals extends UnknownRecord {
+  taxExclusiveAmount: ScradaAmount;
+  taxInclusiveAmount: ScradaAmount;
+  payableAmount: ScradaAmount;
+  lineExtensionAmount: ScradaAmount;
+  taxTotals: ScradaVatDetail[];
+}
+
+export interface ScradaPaymentTerms extends UnknownRecord {
   note?: string;
-}
-
-export interface ScradaInvoiceAttachment extends UnknownRecord {
-  name?: string;
-  description?: string;
-  externalReference?: string;
-  contentType?: string;
-  content?: string;
+  paymentDueDate?: string;
+  paymentMeansCode?: string;
+  paymentMeansText?: string;
+  paymentId?: string;
 }
 
 export interface ScradaSalesInvoice extends UnknownRecord {
-  id?: string;
-  number: string;
-  externalReference?: string;
-  creditInvoice?: boolean;
-  isInclVat?: boolean;
-  invoiceReference?: string;
-  invoiceDate: string;
-  invoiceExpiryDate?: string;
-  buyerReference?: string;
-  purchaseOrderReference?: string;
-  salesOrderReference?: string;
-  despatchDocumentReference?: string;
-  supplier: ScradaInvoiceParty;
-  customer: ScradaInvoiceParty;
-  delivery?: UnknownRecord;
-  totalExclVat?: number;
-  totalInclVat?: number;
-  totalVat: number;
-  currency?: string;
-  payableRoundingAmount?: number;
-  note?: string;
+  profileId?: string;
+  customizationId?: string;
+  id: string;
+  issueDate: string;
+  dueDate?: string;
+  currency: string;
+  buyer: ScradaParty;
+  seller: ScradaParty;
+  totals: ScradaInvoiceTotals;
   lines: ScradaInvoiceLine[];
-  vatTotals: ScradaVatTotal[];
-  paymentTerms?: string;
-  paymentMethods?: UnknownRecord[];
-  attachments?: ScradaInvoiceAttachment[];
+  paymentTerms?: ScradaPaymentTerms;
+  orderReference?: string;
+  externalReference?: string;
+  note?: string;
 }
 
 export interface ScradaStatusInfo extends UnknownRecord {
