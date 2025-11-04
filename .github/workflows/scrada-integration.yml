@@ -32,6 +32,7 @@ jobs:
       SCRADA_SKIP_PARTICIPANT_PREFLIGHT: ${{ vars.SCRADA_SKIP_PARTICIPANT_PREFLIGHT }}
       SCRADA_PARTICIPANT_ID: ${{ format('{0}:{1}', vars.SCRADA_TEST_RECEIVER_SCHEME, vars.SCRADA_TEST_RECEIVER_ID) }}
       ARCHIVE_BUCKET: ${{ vars.ARCHIVE_BUCKET }}
+      SCRADA_HEADER_SWEEP: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -109,6 +110,13 @@ jobs:
           echo "REF=${GITHUB_REF}"
           echo "SHA=${GITHUB_SHA}"
           git rev-parse HEAD
+      - name: Override receiver for sweep
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SCRADA_TEST_RECEIVER_SCHEME=9925" >> "$GITHUB_ENV"
+          echo "SCRADA_TEST_RECEIVER_ID=BE0755799452" >> "$GITHUB_ENV"
+          echo "ReceiverOverride=OK" >> "$GITHUB_ENV"
 
       - name: Wait for Scrada participant readiness
         if: ${{ env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'true' && env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'TRUE' }}
@@ -166,4 +174,7 @@ jobs:
             artifacts/scrada/error-body.txt
             artifacts/scrada/ubl-sent.xml
             artifacts/scrada/ubl-header-names.txt
+            artifacts/scrada/ubl-sent-*.xml
+            artifacts/scrada/header-names-*.txt
+            artifacts/scrada/error-body-*.txt
             .data/archive/peppol/${{ steps.scrada_send.outputs.document_id }}.xml
