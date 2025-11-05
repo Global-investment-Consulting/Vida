@@ -33,7 +33,7 @@ const UBL_HEADERS_ARTIFACT_NAME = "ubl-header-names.txt";
 const ERROR_ARTIFACT_NAME = "error-body.txt";
 const MAX_JSON_ATTEMPTS = 3;
 
-const EXPECTED_UBL_HEADER_NAMES = [
+const REQUIRED_UBL_HEADER_NAMES = [
   "content-type",
   "x-scrada-external-reference",
   "x-scrada-peppol-c1-country-code",
@@ -43,16 +43,28 @@ const EXPECTED_UBL_HEADER_NAMES = [
   "x-scrada-peppol-process-value",
   "x-scrada-peppol-receiver-party-id"
 ] as const;
+const OPTIONAL_UBL_HEADER_NAMES = [
+  "x-scrada-peppol-sender-scheme",
+  "x-scrada-peppol-sender-id"
+] as const;
 
-const SORTED_EXPECTED_UBL_HEADER_NAMES = [...EXPECTED_UBL_HEADER_NAMES].sort();
-const EXPECTED_UBL_HEADER_NAMES_SET = new Set<string>(EXPECTED_UBL_HEADER_NAMES);
-const REQUIRED_UBL_HEADER_NAMES = EXPECTED_UBL_HEADER_NAMES.filter((name) => name !== "content-type");
+const ALLOWED_UBL_HEADER_NAMES = [
+  ...REQUIRED_UBL_HEADER_NAMES,
+  ...OPTIONAL_UBL_HEADER_NAMES
+] as const;
+
+const REQUIRED_UBL_HEADER_NAMES_SET = new Set<string>(REQUIRED_UBL_HEADER_NAMES);
+const OPTIONAL_UBL_HEADER_NAMES_SET = new Set<string>(OPTIONAL_UBL_HEADER_NAMES);
+const ALLOWED_UBL_HEADER_NAMES_SET = new Set<string>(ALLOWED_UBL_HEADER_NAMES);
+const REQUIRED_SANITIZED_UBL_HEADER_NAMES = REQUIRED_UBL_HEADER_NAMES.filter(
+  (name) => name !== "content-type"
+);
 
 const DEFAULT_DOC_TYPE_VALUE =
-  "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1";
+  "xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1";
 const DEFAULT_PROCESS_VALUE = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0";
 const HEADER_SWEEP_DOC_VALUES = [
-  "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1",
+  "xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1",
   "urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1"
 ] as const;
 const HEADER_SWEEP_PROCESS_VALUES = [
@@ -391,7 +403,10 @@ function detectForbiddenUblHeaders(headerNames: string[]): string[] {
   const forbidden: string[] = [];
   for (const name of headerNames) {
     const normalized = name.toLowerCase();
-    if (normalized.startsWith("x-scrada-peppol-sender-")) {
+    if (
+      normalized.startsWith("x-scrada-peppol-sender-") &&
+      !OPTIONAL_UBL_HEADER_NAMES_SET.has(normalized)
+    ) {
       forbidden.push(normalized);
       continue;
     }
@@ -417,21 +432,23 @@ function enforceUblHeaderAllowList(headers: Record<string, string>): string[] {
     );
   }
 
-  const sorted = [...normalizedNames].sort();
-  const expected = SORTED_EXPECTED_UBL_HEADER_NAMES;
+  const normalizedSet = new Set(normalizedNames);
+  const missing = Array.from(REQUIRED_UBL_HEADER_NAMES_SET).filter(
+    (name) => !normalizedSet.has(name)
+  );
+  const extra = Array.from(normalizedSet).filter(
+    (name) => !ALLOWED_UBL_HEADER_NAMES_SET.has(name)
+  );
 
-  if (sorted.length !== expected.length || !sorted.every((name, index) => name === expected[index])) {
-    const normalizedSet = new Set(normalizedNames);
-    const missing = EXPECTED_UBL_HEADER_NAMES.filter((name) => !normalizedSet.has(name));
-    const extra = normalizedNames.filter((name) => !EXPECTED_UBL_HEADER_NAMES_SET.has(name));
+  if (missing.length > 0 || extra.length > 0) {
     throw new Error(
-      `[scrada] UBL header set mismatch. Missing: ${missing.length > 0 ? missing.join(", ") : "none"}; Extra: ${
-        extra.length > 0 ? extra.join(", ") : "none"
-      }`
+      `[scrada] UBL header set mismatch. Missing: ${
+        missing.length > 0 ? missing.join(", ") : "none"
+      }; Extra: ${extra.length > 0 ? extra.join(", ") : "none"}`
     );
   }
 
-  return sorted;
+  return Array.from(normalizedSet).sort();
 }
 
 function isTruthyFlag(value: string | undefined): boolean {
@@ -463,7 +480,7 @@ export async function sendUbl(
   const pathName = companyPath("peppol/outbound/document");
   try {
     const baseHeaders: Record<string, string> = {
-      "content-type": "application/xml; charset=utf-8"
+      "Content-Type": "application/xml; charset=utf-8"
     };
 
     const sanitizedHeaders: Record<string, string> = {};
@@ -496,7 +513,7 @@ export async function sendUbl(
       sanitizedHeaders["x-scrada-external-reference"] = resolvedExternalReference;
     }
 
-    for (const name of REQUIRED_UBL_HEADER_NAMES) {
+    for (const name of REQUIRED_SANITIZED_UBL_HEADER_NAMES) {
       if (!sanitizedHeaders[name] || sanitizedHeaders[name].trim().length === 0) {
         throw new Error(`[scrada] Missing required header ${name} for UBL submission`);
       }
@@ -738,13 +755,20 @@ function buildScradaPeppolHeaders(
   const envProcessValue = process.env.SCRADA_PROC_VALUE?.trim();
   const processValue = processValueOverride || envProcessValue || DEFAULT_PROCESS_VALUE;
 
+  const supplierId = process.env.SCRADA_SUPPLIER_ID?.trim();
+  if (!supplierId) {
+    throw new Error("[scrada] SCRADA_SUPPLIER_ID (supplier ID) is required to build Peppol headers");
+  }
+
   const headers: Record<string, string> = {
-    "x-scrada-peppol-receiver-party-id": `${receiverScheme}:${receiverId}`,
-    "x-scrada-peppol-c1-country-code": "BE",
     "x-scrada-peppol-document-type-scheme": "busdox-docid-qns",
     "x-scrada-peppol-document-type-value": docValue,
     "x-scrada-peppol-process-scheme": "cenbii-procid-ubl",
     "x-scrada-peppol-process-value": processValue,
+    "x-scrada-peppol-receiver-party-id": `${receiverScheme}:${receiverId}`,
+    "x-scrada-peppol-c1-country-code": "BE",
+    "x-scrada-peppol-sender-scheme": "iso6523-actorid-upis",
+    "x-scrada-peppol-sender-id": `0208:${supplierId}`,
     "x-scrada-external-reference": invoiceId
   };
 
@@ -925,7 +949,7 @@ export async function sendInvoiceWithFallback(
             processValue
           });
           const finalHeaders: Record<string, string> = {
-            "content-type": "application/xml; charset=utf-8",
+            "Content-Type": "application/xml; charset=utf-8",
             ...peppolHeaders
           };
           const normalizedHeaderNames = enforceUblHeaderAllowList(finalHeaders);

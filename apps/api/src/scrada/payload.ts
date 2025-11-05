@@ -156,7 +156,7 @@ export function resolveBuyerVatVariants(source?: string): string[] {
   }
 
   if (variants.length === 0) {
-    throw new Error("[scrada-payload] SCRADA_RECEIVER_VAT is required to build invoice payloads");
+    variants.push(OMIT_BUYER_VAT_VARIANT);
   }
 
   return variants.slice(0, 3);
@@ -419,7 +419,10 @@ function mapVatTotalsToJson(context: ScradaInvoiceContext): JsonVatTotal[] {
 function buildJsonInvoice(context: ScradaInvoiceContext): ScradaSalesInvoice {
   const supplier = mapPartyToJson(context.supplier);
   const customer = mapPartyToJson(context.customer);
-  if (!customer.peppolID) {
+  const normalizedPeppolId = customer.peppolID?.trim();
+  if (normalizedPeppolId) {
+    customer.peppolID = normalizedPeppolId;
+  } else {
     customer.peppolID = `${context.customer.scheme}:${context.customer.id}`;
   }
 

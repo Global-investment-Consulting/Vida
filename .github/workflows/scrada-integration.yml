@@ -110,58 +110,132 @@ jobs:
           echo "REF=${GITHUB_REF}"
           echo "SHA=${GITHUB_SHA}"
           git rev-parse HEAD
-      - name: Override receiver for sweep
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "SCRADA_TEST_RECEIVER_SCHEME=9925" >> "$GITHUB_ENV"
-          echo "SCRADA_TEST_RECEIVER_ID=BE0755799452" >> "$GITHUB_ENV"
-          echo "ReceiverOverride=OK" >> "$GITHUB_ENV"
-
-      - name: Wait for Scrada participant readiness
-        if: ${{ env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'true' && env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'TRUE' }}
-        id: scrada_participant
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/scrada
-          node apps/api/scripts/scrada-wait-participant.mjs --participant "${SCRADA_PARTICIPANT_ID}" > artifacts/scrada/participant.json
-          cat artifacts/scrada/participant.json
-
       - name: Run unit tests
         shell: bash
         run: |
           set -euo pipefail
           npm test -- --run apps/api/tests/scrada.*
 
-      - name: Scrada smoke send
-        id: scrada_send
+      - name: Configure Scrada pass 0208
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/scrada
-          node apps/api/scripts/scrada-send.mjs --artifact-dir artifacts/scrada --vat "${SCRADA_RECEIVER_VAT}" > artifacts/scrada/scrada-send-output.json
-          cat artifacts/scrada/scrada-send-output.json
-          echo "document_id=$(jq -r '.documentId' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
-          echo "invoice_id=$(jq -r '.invoiceId' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
-          echo "external_reference=$(jq -r '.externalReference' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
-          echo "send_channel=$(jq -r '.channel' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
-          echo "vat_variant=$(jq -r '.vatVariant' artifacts/scrada/scrada-send-output.json)" >> "$GITHUB_OUTPUT"
+          echo "SCRADA_TEST_RECEIVER_SCHEME=0208" >> "$GITHUB_ENV"
+          echo "SCRADA_TEST_RECEIVER_ID=${SCRADA_SUPPLIER_ID}" >> "$GITHUB_ENV"
+          echo "SCRADA_PARTICIPANT_ID=0208:${SCRADA_SUPPLIER_ID}" >> "$GITHUB_ENV"
+          echo "SCRADA_ARTIFACT_DIR=artifacts/scrada/0208" >> "$GITHUB_ENV"
+          echo "ReceiverPass=0208" >> "$GITHUB_ENV"
+          echo "Configured receiver pass 0208"
 
-      - name: Poll Scrada status and archive
-        id: scrada_status
+      - name: Wait for Scrada participant readiness (0208)
+        if: ${{ env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'true' && env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'TRUE' }}
+        id: scrada_participant_0208
         shell: bash
         run: |
           set -euo pipefail
-          node apps/api/scripts/scrada-status.mjs "${{ steps.scrada_send.outputs.document_id }}" --archive > artifacts/scrada/scrada-status.log
-          cat artifacts/scrada/scrada-status.log
-          jq -s '.' artifacts/scrada/scrada-status.log > artifacts/scrada/scrada-status-output.json
-          cat artifacts/scrada/scrada-status-output.json
-          echo "status=$(jq -r '.[0].status' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
-          echo "classification=$(jq -r '.[0].classification' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
-          echo "archive_driver=$(jq -r '.[1].driver // empty' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
-          echo "archive_location=$(jq -r '.[1].location // empty' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
-          echo "archive_key=$(jq -r '.[1].key // empty' artifacts/scrada/scrada-status-output.json)" >> "$GITHUB_OUTPUT"
+          mkdir -p "${SCRADA_ARTIFACT_DIR}"
+          node apps/api/scripts/scrada-wait-participant.mjs --participant "${SCRADA_PARTICIPANT_ID}" > "${SCRADA_ARTIFACT_DIR}/participant.json"
+          cat "${SCRADA_ARTIFACT_DIR}/participant.json"
+
+      - name: Scrada smoke send (0208)
+        id: scrada_send_0208
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${SCRADA_ARTIFACT_DIR}"
+          node apps/api/scripts/scrada-send.mjs --artifact-dir "${SCRADA_ARTIFACT_DIR}" --vat "${SCRADA_RECEIVER_VAT}" > "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
+          cat "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
+          document_id=$(jq -r '.documentId' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          invoice_id=$(jq -r '.invoiceId' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          external_reference=$(jq -r '.externalReference' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          send_channel=$(jq -r '.channel' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          vat_variant=$(jq -r '.vatVariant' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          echo "document_id=${document_id}" >> "$GITHUB_OUTPUT"
+          echo "invoice_id=${invoice_id}" >> "$GITHUB_OUTPUT"
+          echo "external_reference=${external_reference}" >> "$GITHUB_OUTPUT"
+          echo "send_channel=${send_channel}" >> "$GITHUB_OUTPUT"
+          echo "vat_variant=${vat_variant}" >> "$GITHUB_OUTPUT"
+
+      - name: Poll Scrada status and archive (0208)
+        id: scrada_status_0208
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/api/scripts/scrada-status.mjs "${{ steps.scrada_send_0208.outputs.document_id }}" --archive > "${SCRADA_ARTIFACT_DIR}/scrada-status.log"
+          cat "${SCRADA_ARTIFACT_DIR}/scrada-status.log"
+          jq -s '.' "${SCRADA_ARTIFACT_DIR}/scrada-status.log" > "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json"
+          cat "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json"
+          status=$(jq -r '.[0].status' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          classification=$(jq -r '.[0].classification' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          archive_driver=$(jq -r '.[1].driver // empty' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          archive_location=$(jq -r '.[1].location // empty' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          archive_key=$(jq -r '.[1].key // empty' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "classification=${classification}" >> "$GITHUB_OUTPUT"
+          echo "archive_driver=${archive_driver}" >> "$GITHUB_OUTPUT"
+          echo "archive_location=${archive_location}" >> "$GITHUB_OUTPUT"
+          echo "archive_key=${archive_key}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure Scrada pass 9925
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SCRADA_TEST_RECEIVER_SCHEME=9925" >> "$GITHUB_ENV"
+          echo "SCRADA_TEST_RECEIVER_ID=${SCRADA_RECEIVER_VAT}" >> "$GITHUB_ENV"
+          echo "SCRADA_PARTICIPANT_ID=9925:${SCRADA_RECEIVER_VAT}" >> "$GITHUB_ENV"
+          echo "SCRADA_ARTIFACT_DIR=artifacts/scrada/9925" >> "$GITHUB_ENV"
+          echo "ReceiverPass=9925" >> "$GITHUB_ENV"
+          echo "Configured receiver pass 9925"
+
+      - name: Wait for Scrada participant readiness (9925)
+        if: ${{ env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'true' && env.SCRADA_SKIP_PARTICIPANT_PREFLIGHT != 'TRUE' }}
+        id: scrada_participant_9925
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${SCRADA_ARTIFACT_DIR}"
+          node apps/api/scripts/scrada-wait-participant.mjs --participant "${SCRADA_PARTICIPANT_ID}" > "${SCRADA_ARTIFACT_DIR}/participant.json"
+          cat "${SCRADA_ARTIFACT_DIR}/participant.json"
+
+      - name: Scrada smoke send (9925)
+        id: scrada_send_9925
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${SCRADA_ARTIFACT_DIR}"
+          node apps/api/scripts/scrada-send.mjs --artifact-dir "${SCRADA_ARTIFACT_DIR}" --vat "${SCRADA_RECEIVER_VAT}" > "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
+          cat "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
+          document_id=$(jq -r '.documentId' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          invoice_id=$(jq -r '.invoiceId' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          external_reference=$(jq -r '.externalReference' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          send_channel=$(jq -r '.channel' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          vat_variant=$(jq -r '.vatVariant' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          echo "document_id=${document_id}" >> "$GITHUB_OUTPUT"
+          echo "invoice_id=${invoice_id}" >> "$GITHUB_OUTPUT"
+          echo "external_reference=${external_reference}" >> "$GITHUB_OUTPUT"
+          echo "send_channel=${send_channel}" >> "$GITHUB_OUTPUT"
+          echo "vat_variant=${vat_variant}" >> "$GITHUB_OUTPUT"
+
+      - name: Poll Scrada status and archive (9925)
+        id: scrada_status_9925
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/api/scripts/scrada-status.mjs "${{ steps.scrada_send_9925.outputs.document_id }}" --archive > "${SCRADA_ARTIFACT_DIR}/scrada-status.log"
+          cat "${SCRADA_ARTIFACT_DIR}/scrada-status.log"
+          jq -s '.' "${SCRADA_ARTIFACT_DIR}/scrada-status.log" > "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json"
+          cat "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json"
+          status=$(jq -r '.[0].status' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          classification=$(jq -r '.[0].classification' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          archive_driver=$(jq -r '.[1].driver // empty' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          archive_location=$(jq -r '.[1].location // empty' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          archive_key=$(jq -r '.[1].key // empty' "${SCRADA_ARTIFACT_DIR}/scrada-status-output.json")
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "classification=${classification}" >> "$GITHUB_OUTPUT"
+          echo "archive_driver=${archive_driver}" >> "$GITHUB_OUTPUT"
+          echo "archive_location=${archive_location}" >> "$GITHUB_OUTPUT"
+          echo "archive_key=${archive_key}" >> "$GITHUB_OUTPUT"
 
       - name: Upload Scrada artifacts
         if: always()
@@ -170,11 +244,7 @@ jobs:
           name: scrada-flow-artifacts
           if-no-files-found: warn
           path: |
-            artifacts/scrada/json-sent.json
-            artifacts/scrada/error-body.txt
-            artifacts/scrada/ubl-sent.xml
-            artifacts/scrada/ubl-header-names.txt
-            artifacts/scrada/ubl-sent-*.xml
-            artifacts/scrada/header-names-*.txt
-            artifacts/scrada/error-body-*.txt
-            .data/archive/peppol/${{ steps.scrada_send.outputs.document_id }}.xml
+            artifacts/scrada/0208
+            artifacts/scrada/9925
+            ${{ steps.scrada_send_0208.outputs.document_id && format('.data/archive/peppol/{0}.xml', steps.scrada_send_0208.outputs.document_id) }}
+            ${{ steps.scrada_send_9925.outputs.document_id && format('.data/archive/peppol/{0}.xml', steps.scrada_send_9925.outputs.document_id) }}
