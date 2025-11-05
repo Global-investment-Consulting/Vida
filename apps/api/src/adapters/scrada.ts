@@ -29,7 +29,7 @@ type Channel = "json" | "ubl";
 const DEFAULT_ARTIFACT_ROOT = path.resolve(process.cwd(), ".data", "scrada");
 const JSON_ARTIFACT_NAME = "json-sent.json";
 const UBL_ARTIFACT_NAME = "ubl-sent.xml";
-const UBL_HEADERS_ARTIFACT_NAME = "ubl-header-names.txt";
+const UBL_HEADERS_ARTIFACT_NAME = "headers-sent.txt";
 const ERROR_ARTIFACT_NAME = "error-body.txt";
 const MAX_JSON_ATTEMPTS = 3;
 
@@ -61,16 +61,10 @@ const REQUIRED_SANITIZED_UBL_HEADER_NAMES = REQUIRED_UBL_HEADER_NAMES.filter(
 );
 
 const DEFAULT_DOC_TYPE_VALUE =
-  "xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1";
+  "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1";
 const DEFAULT_PROCESS_VALUE = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0";
-const HEADER_SWEEP_DOC_VALUES = [
-  "xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1",
-  "urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1"
-] as const;
-const HEADER_SWEEP_PROCESS_VALUES = [
-  "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
-  "urn:fdc:peppol.eu:2017:poacc:billing:3:1.0"
-] as const;
+const HEADER_SWEEP_DOC_VALUES = [DEFAULT_DOC_TYPE_VALUE] as const;
+const HEADER_SWEEP_PROCESS_VALUES = [DEFAULT_PROCESS_VALUE] as const;
 
 const SUCCESS_STATUSES = new Set([
   "DELIVERED",
@@ -115,6 +109,52 @@ export interface ScradaSendAttempt {
   processValueIndex?: number;
 }
 
+export interface ScradaSendArtifacts {
+  directory: string;
+  jsonPath: string;
+  ublPath: string | null;
+  ublHeadersPath: string;
+  errorPath: string;
+}
+
+interface ScradaSendFailureDetails {
+  attempts: ScradaSendAttempt[];
+  artifacts: ScradaSendArtifacts;
+  invoiceId: string;
+  externalReference: string;
+  vatVariant: string;
+  headerSweep: boolean;
+  docValueIndex: number | null;
+  processValueIndex: number | null;
+  cause?: unknown;
+}
+
+export class ScradaSendFailure extends Error {
+  readonly attempts: ScradaSendAttempt[];
+  readonly artifacts: ScradaSendArtifacts;
+  readonly invoiceId: string;
+  readonly externalReference: string;
+  readonly vatVariant: string;
+  readonly headerSweep: boolean;
+  readonly docValueIndex: number | null;
+  readonly processValueIndex: number | null;
+
+  constructor(message: string, details: ScradaSendFailureDetails) {
+    super(message, {
+      cause: details.cause instanceof Error ? details.cause : undefined
+    });
+    this.name = "ScradaSendFailure";
+    this.attempts = details.attempts;
+    this.artifacts = details.artifacts;
+    this.invoiceId = details.invoiceId;
+    this.externalReference = details.externalReference;
+    this.vatVariant = details.vatVariant;
+    this.headerSweep = details.headerSweep;
+    this.docValueIndex = details.docValueIndex;
+    this.processValueIndex = details.processValueIndex;
+  }
+}
+
 export interface ScradaSendResult {
   invoice: ScradaSalesInvoice;
   documentId: string;
@@ -126,13 +166,7 @@ export interface ScradaSendResult {
   docValueIndex: number | null;
   processValueIndex: number | null;
   attempts: ScradaSendAttempt[];
-  artifacts: {
-    directory: string;
-    jsonPath: string;
-    ublPath: string | null;
-    ublHeadersPath: string;
-    errorPath: string;
-  };
+  artifacts: ScradaSendArtifacts;
 }
 
 export interface ScradaSendOptions {
@@ -384,19 +418,18 @@ async function appendTextArtifact(filePath: string, contents: string): Promise<v
   await writeFile(filePath, contents, { encoding: "utf8", flag: "a" });
 }
 
-async function writeHeaderPreview(filePath: string, headers: Record<string, string>): Promise<string[]> {
-  const names = Object.keys(headers)
-    .map((name) => name.trim())
-    .filter((name) => name.length > 0)
-    .sort((a, b) => a.localeCompare(b, "en"));
-  const body = names.join("\n");
-  await writeTextArtifact(filePath, body);
-  if (names.length > 0) {
-    console.log(`[scrada-ubl] header-name preview: ${names.join(", ")}`);
+async function writeHeaderPreview(filePath: string, headers: Record<string, string>): Promise<void> {
+  const entries = Object.entries(headers)
+    .map(([name, value]) => [name.trim(), value.trim()] as const)
+    .filter(([name, value]) => name.length > 0 && value.length > 0)
+    .sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase(), "en"));
+  const lines = entries.map(([name, value]) => `${name}: ${value}`);
+  await writeTextArtifact(filePath, lines.join("\n"));
+  if (lines.length > 0) {
+    console.log(`[scrada-ubl] header preview: ${lines.join(" | ")}`);
   } else {
-    console.warn("[scrada-ubl] header-name preview: <empty>");
+    console.warn("[scrada-ubl] header preview: <empty>");
   }
-  return names;
 }
 
 function detectForbiddenUblHeaders(headerNames: string[]): string[] {
@@ -730,14 +763,12 @@ function buildScradaPeppolHeaders(
   context: ScradaInvoiceContext,
   overrides?: { docValue?: string; processValue?: string }
 ): Record<string, string> {
-  const receiverIdFromEnv = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
-  const receiverId = receiverIdFromEnv || context.customer.id?.trim();
+  const receiverId = process.env.SCRADA_TEST_RECEIVER_ID?.trim();
   if (!receiverId) {
     throw new Error("[scrada] SCRADA_TEST_RECEIVER_ID (receiver ID) is required to build Peppol headers");
   }
 
-  const receiverSchemeFromEnv = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
-  const receiverScheme = receiverSchemeFromEnv || context.customer.scheme?.trim();
+  const receiverScheme = process.env.SCRADA_TEST_RECEIVER_SCHEME?.trim();
   if (!receiverScheme) {
     throw new Error("[scrada] SCRADA_TEST_RECEIVER_SCHEME (receiver scheme) is required to build Peppol headers");
   }
@@ -747,13 +778,13 @@ function buildScradaPeppolHeaders(
     throw new Error("[scrada] Invoice ID is required to build Peppol headers");
   }
 
-  const docValueOverride = overrides?.docValue?.trim();
-  const envDocValue = process.env.SCRADA_DOC_VALUE?.trim();
-  const docValue = docValueOverride || envDocValue || DEFAULT_DOC_TYPE_VALUE;
+  if (overrides?.docValue && overrides.docValue.trim() !== DEFAULT_DOC_TYPE_VALUE) {
+    throw new Error("[scrada] Unsupported document type value override");
+  }
 
-  const processValueOverride = overrides?.processValue?.trim();
-  const envProcessValue = process.env.SCRADA_PROC_VALUE?.trim();
-  const processValue = processValueOverride || envProcessValue || DEFAULT_PROCESS_VALUE;
+  if (overrides?.processValue && overrides.processValue.trim() !== DEFAULT_PROCESS_VALUE) {
+    throw new Error("[scrada] Unsupported process value override");
+  }
 
   const supplierId = process.env.SCRADA_SUPPLIER_ID?.trim();
   if (!supplierId) {
@@ -762,9 +793,9 @@ function buildScradaPeppolHeaders(
 
   const headers: Record<string, string> = {
     "x-scrada-peppol-document-type-scheme": "busdox-docid-qns",
-    "x-scrada-peppol-document-type-value": docValue,
+    "x-scrada-peppol-document-type-value": DEFAULT_DOC_TYPE_VALUE,
     "x-scrada-peppol-process-scheme": "cenbii-procid-ubl",
-    "x-scrada-peppol-process-value": processValue,
+    "x-scrada-peppol-process-value": DEFAULT_PROCESS_VALUE,
     "x-scrada-peppol-receiver-party-id": `${receiverScheme}:${receiverId}`,
     "x-scrada-peppol-c1-country-code": "BE",
     "x-scrada-peppol-sender-scheme": "iso6523-actorid-upis",
@@ -798,6 +829,13 @@ export async function sendInvoiceWithFallback(
   const ublPath = path.join(artifactDir, UBL_ARTIFACT_NAME);
   const ublHeadersPath = path.join(artifactDir, UBL_HEADERS_ARTIFACT_NAME);
   const errorPath = path.join(artifactDir, ERROR_ARTIFACT_NAME);
+  const artifacts: ScradaSendArtifacts = {
+    directory: artifactDir,
+    jsonPath,
+    ublPath: null,
+    ublHeadersPath,
+    errorPath
+  };
 
   await ensureArtifactDir(artifactDir);
   await writeTextArtifact(errorPath, "");
@@ -1039,16 +1077,27 @@ export async function sendInvoiceWithFallback(
   if (!attempts.at(-1)?.success) {
     const failureMessage =
       lastError instanceof Error ? lastError.message : "Unknown failure while sending Scrada invoice.";
-    const error = new Error(
+    throw new ScradaSendFailure(
       `[scrada] Exhausted send attempts (${attempts.length}) without success: ${failureMessage}`,
-      lastError instanceof Error ? { cause: lastError } : undefined
+      {
+        attempts: attempts.slice(),
+        artifacts,
+        invoiceId,
+        externalReference,
+        vatVariant: finalVatVariant,
+        headerSweep: headerSweepEnabled,
+        docValueIndex: finalDocIndex ?? null,
+        processValueIndex: finalProcessIndex ?? null,
+        cause: lastError
+      }
     );
-    throw error;
   }
 
   if (!lastInvoice || !lastUblXml || !finalDocumentId) {
     throw new Error("[scrada] Send flow succeeded without capturing invoice state or document ID");
   }
+
+  artifacts.ublPath = finalChannel === "ubl" ? ublPath : null;
 
   return {
     invoice: lastInvoice,
@@ -1061,13 +1110,7 @@ export async function sendInvoiceWithFallback(
     docValueIndex: finalDocIndex,
     processValueIndex: finalProcessIndex,
     attempts,
-    artifacts: {
-      directory: artifactDir,
-      jsonPath,
-      ublPath: finalChannel === "ubl" ? ublPath : null,
-      ublHeadersPath,
-      errorPath
-    }
+    artifacts
   };
 }
 
