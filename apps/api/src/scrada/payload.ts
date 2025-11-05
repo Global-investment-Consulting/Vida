@@ -42,6 +42,7 @@ type PartyContext = {
   peppolId: string;
   vatNumber?: string;
   ublVatNumber?: string;
+  buyerVatVariant?: string;
   contactName?: string;
   contactEmail?: string;
   address: PartyAddressContext;
@@ -279,7 +280,11 @@ function buildSupplierContext(): PartyContext {
   };
 }
 
-function buildBuyerContext(jsonBuyerVat: string | undefined, ublBuyerVat: string | undefined): PartyContext {
+function buildBuyerContext(
+  jsonBuyerVat: string | undefined,
+  ublBuyerVat: string | undefined,
+  buyerVatVariant: string
+): PartyContext {
   let receiverScheme = requireEnv("SCRADA_TEST_RECEIVER_SCHEME");
   let receiverId = requireEnv("SCRADA_TEST_RECEIVER_ID");
 
@@ -301,6 +306,7 @@ function buildBuyerContext(jsonBuyerVat: string | undefined, ublBuyerVat: string
     peppolId: `${receiverScheme}:${receiverId}`,
     vatNumber: jsonBuyerVat,
     ublVatNumber: ublBuyerVat ? compactVat(ublBuyerVat) : undefined,
+    buyerVatVariant,
     contactName: optionalEnv("SCRADA_RECEIVER_CONTACT"),
     contactEmail: optionalEnv("SCRADA_RECEIVER_EMAIL"),
     address: {
@@ -344,11 +350,13 @@ function buildInvoiceContext(options: InvoiceBuildOptions = {}): ScradaInvoiceCo
   const invoiceId = resolveInvoiceId(options);
   const externalReference = resolveReference(invoiceId, options);
   const { issueDate, dueDate } = resolveDates(options);
+  const buyerVatVariantRaw = options.buyerVat ?? resolveBuyerVatVariants()[0];
+  const buyerVatVariant = buyerVatVariantRaw ?? OMIT_BUYER_VAT_VARIANT;
   const jsonBuyerVat = resolveJsonBuyerVat(options);
   const ublBuyerVat = resolveUblBuyerVat(options);
 
   const supplier = buildSupplierContext();
-  const customer = buildBuyerContext(jsonBuyerVat, ublBuyerVat);
+  const customer = buildBuyerContext(jsonBuyerVat, ublBuyerVat, buyerVatVariant);
   const payment = buildPaymentContext(externalReference, dueDate);
   const line = buildLineContext();
 
@@ -485,22 +493,37 @@ function appendParty(root: any, role: "supplier" | "customer", context: ScradaIn
   addressElement.ele("cbc:PostalZone").txt(address.postalZone).up();
   addressElement.ele("cac:Country").ele("cbc:IdentificationCode").txt(address.countryCode).up().up();
 
-  const vatValue =
-    role === "supplier"
-      ? compactVat(party.vatNumber) || compactVat(requireEnv("SCRADA_SUPPLIER_VAT"))
-      : compactVat(party.ublVatNumber);
+  const isCustomer = role === "customer";
+  const customerScheme = isCustomer ? context.customer.scheme?.trim() ?? "" : "";
+  const buyerVariant = isCustomer ? party.buyerVatVariant ?? OMIT_BUYER_VAT_VARIANT : undefined;
+  const includeCustomerVat =
+    isCustomer && (customerScheme === "9925" || buyerVariant !== OMIT_BUYER_VAT_VARIANT);
+  const receiverVatEnv = process.env.SCRADA_RECEIVER_VAT?.trim();
+
+  let vatValue: string | undefined;
+  if (role === "supplier") {
+    vatValue = compactVat(party.vatNumber) || compactVat(requireEnv("SCRADA_SUPPLIER_VAT"));
+  } else if (includeCustomerVat) {
+    const normalizedCustomerVat = compactVat(party.ublVatNumber);
+    const normalizedReceiverVat = compactVat(receiverVatEnv);
+    vatValue =
+      normalizedCustomerVat ||
+      normalizedReceiverVat ||
+      (receiverVatEnv && receiverVatEnv.trim().length > 0 ? receiverVatEnv.trim() : undefined);
+  }
+
   if (vatValue) {
     const partyTaxScheme = partyElement.ele("cac:PartyTaxScheme");
     partyTaxScheme
       .ele("cbc:CompanyID", { schemeID: "VAT" })
       .txt(vatValue)
       .up();
-    partyTaxScheme
-      .ele("cac:TaxScheme")
-      .ele("cbc:ID", { schemeID: "UN/ECE 5153", schemeAgencyID: "6" })
-      .txt(TAX_SCHEME_ID)
-      .up()
-      .up();
+    const taxScheme = partyTaxScheme.ele("cac:TaxScheme");
+    const taxSchemeId = isCustomer
+      ? taxScheme.ele("cbc:ID")
+      : taxScheme.ele("cbc:ID", { schemeID: "UN/ECE 5153", schemeAgencyID: "6" });
+    taxSchemeId.txt(TAX_SCHEME_ID).up();
+    taxScheme.up();
   }
 
   const legalEntity = partyElement.ele("cac:PartyLegalEntity");

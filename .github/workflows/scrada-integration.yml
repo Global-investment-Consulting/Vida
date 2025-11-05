@@ -52,6 +52,25 @@ jobs:
           echo "::add-mask::${SCRADA_COMPANY_ID}"
           echo "::add-mask::${SCRADA_WEBHOOK_SECRET}"
 
+      - name: Verify adapter
+        shell: bash
+        run: |
+          echo "Adapter=${VIDA_AP_ADAPTER}"
+          [ "${VIDA_AP_ADAPTER}" = "scrada" ] || (echo "::error::Unexpected adapter"; exit 1)
+          echo "ADAPTER_CHECK=Adapter=${VIDA_AP_ADAPTER}" >> "$GITHUB_ENV"
+
+      - name: Isolation check (no Billit vars)
+        shell: bash
+        run: |
+          LEAKS=$(env | awk -F= '/^BILLIT_/ {print $1}')
+          if [ -z "$LEAKS" ]; then
+            echo "Isolation=OK"
+            echo "ISOLATION_RESULT=Isolation=OK" >> "$GITHUB_ENV"
+          else
+            echo "::error::$LEAKS"
+            exit 1
+          fi
+
       - name: env-presence (VAR=OK)
         shell: bash
         run: |
@@ -91,17 +110,6 @@ jobs:
 
       - run: npm run build --workspaces || (npm run build && (cd apps/api && npm run build))
         shell: bash
-
-      - name: Isolation check (no Billit vars)
-        shell: bash
-        run: |
-          set -euo pipefail
-          LEAKS=$(env | awk -F= '/^BILLIT_/ {print $1}')
-          if [ -n "${LEAKS}" ]; then
-            echo "::error::Unexpected Billit vars: ${LEAKS}"
-            exit 1
-          fi
-          echo "Isolation=OK"
 
       - name: Show revision
         shell: bash
@@ -329,6 +337,297 @@ jobs:
           echo "archive_location=${archive_location}" >> "$GITHUB_OUTPUT"
           echo "archive_key=${archive_key}" >> "$GITHUB_OUTPUT"
 
+      - name: Assemble Scrada summary
+        if: always()
+        shell: bash
+        env:
+          RUN_URL: ${{ format('https://github.com/{0}/actions/runs/{1}', github.repository, github.run_id) }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISOLATION_RESULT: ${{ env.ISOLATION_RESULT }}
+          ADAPTER_CHECK: ${{ env.ADAPTER_CHECK }}
+          PASS0208_STATUS: ${{ steps.scrada_send_0208.outputs.send_status }}
+          PASS0208_CHANNEL: ${{ steps.scrada_send_0208.outputs.send_channel }}
+          PASS0208_EXIT: ${{ steps.scrada_send_0208.outputs.send_exit }}
+          PASS0208_DOCUMENT_ID: ${{ steps.scrada_send_0208.outputs.document_id }}
+          PASS0208_INVOICE_ID: ${{ steps.scrada_send_0208.outputs.invoice_id }}
+          PASS0208_EXTERNAL_REFERENCE: ${{ steps.scrada_send_0208.outputs.external_reference }}
+          PASS0208_VAT_VARIANT: ${{ steps.scrada_send_0208.outputs.vat_variant }}
+          PASS0208_ARCHIVE_DRIVER: ${{ steps.scrada_status_0208.outputs.archive_driver }}
+          PASS0208_ARCHIVE_LOCATION: ${{ steps.scrada_status_0208.outputs.archive_location }}
+          PASS0208_ARCHIVE_KEY: ${{ steps.scrada_status_0208.outputs.archive_key }}
+          PASS9925_STATUS: ${{ steps.scrada_send_9925.outputs.send_status }}
+          PASS9925_CHANNEL: ${{ steps.scrada_send_9925.outputs.send_channel }}
+          PASS9925_EXIT: ${{ steps.scrada_send_9925.outputs.send_exit }}
+          PASS9925_DOCUMENT_ID: ${{ steps.scrada_send_9925.outputs.document_id }}
+          PASS9925_INVOICE_ID: ${{ steps.scrada_send_9925.outputs.invoice_id }}
+          PASS9925_EXTERNAL_REFERENCE: ${{ steps.scrada_send_9925.outputs.external_reference }}
+          PASS9925_VAT_VARIANT: ${{ steps.scrada_send_9925.outputs.vat_variant }}
+          PASS9925_ARCHIVE_DRIVER: ${{ steps.scrada_status_9925.outputs.archive_driver }}
+          PASS9925_ARCHIVE_LOCATION: ${{ steps.scrada_status_9925.outputs.archive_location }}
+          PASS9925_ARCHIVE_KEY: ${{ steps.scrada_status_9925.outputs.archive_key }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs/promises");
+          const path = require("path");
+          const { promisify } = require("util");
+          const { execFile } = require("child_process");
+          const execFileAsync = promisify(execFile);
+
+          async function pathExists(targetPath) {
+            try {
+              await fs.access(targetPath);
+              return true;
+            } catch {
+              return false;
+            }
+          }
+
+          async function readJsonIfExists(filePath) {
+            if (!(await pathExists(filePath))) {
+              return null;
+            }
+            const text = await fs.readFile(filePath, "utf8");
+            try {
+              return JSON.parse(text);
+            } catch {
+              return null;
+            }
+          }
+
+          async function readLines(filePath) {
+            if (!(await pathExists(filePath))) {
+              return [];
+            }
+            const text = await fs.readFile(filePath, "utf8");
+            return text
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0);
+          }
+
+          async function readErrorPreview(filePath, limit) {
+            if (!(await pathExists(filePath))) {
+              return [];
+            }
+            const text = await fs.readFile(filePath, "utf8");
+            const rawLines = text.split(/\r?\n/);
+            const preview = [];
+            for (let i = 0; i < rawLines.length; i += 1) {
+              const raw = rawLines[i];
+              preview.push(raw.length > 0 ? raw : "(blank line)");
+              if (preview.length >= limit) {
+                break;
+              }
+            }
+            return preview;
+          }
+
+          async function collectExistingPaths(root, items) {
+            const results = [];
+            for (const relative of items) {
+              const target = path.join(root, relative);
+              if (await pathExists(target)) {
+                results.push(path.relative(process.cwd(), target));
+              }
+            }
+            if (results.length === 0 && (await pathExists(root))) {
+              const names = await fs.readdir(root);
+              names.sort((a, b) => a.localeCompare(b, "en"));
+              for (const name of names) {
+                results.push(path.relative(process.cwd(), path.join(root, name)));
+              }
+            }
+            return results;
+          }
+
+          (async () => {
+            const repoRoot = process.cwd();
+            const outputDir = path.join(repoRoot, "output");
+            await fs.mkdir(outputDir, { recursive: true });
+
+            const runId = process.env.GITHUB_RUN_ID ?? "unknown";
+            const repository = process.env.GITHUB_REPOSITORY ?? "";
+            const fallbackRunUrl = repository
+              ? `https://github.com/${repository}/actions/runs/${runId}`
+              : `actions/runs/${runId}`;
+            const runUrl = process.env.RUN_URL || fallbackRunUrl;
+            const sha = process.env.GITHUB_SHA ?? "unknown";
+            const isolation = process.env.ISOLATION_RESULT ?? "Isolation=UNKNOWN";
+            const adapterLine = process.env.ADAPTER_CHECK ?? "";
+
+            const passes = [
+              { id: "0208", envPrefix: "PASS0208" },
+              { id: "9925", envPrefix: "PASS9925" }
+            ];
+
+            const headerLines = [];
+            const passSummaries = [];
+
+            for (const pass of passes) {
+              const artifactDir = path.join(repoRoot, "artifacts", "scrada", pass.id);
+              const summary = {
+                id: pass.id,
+                statusEnv: process.env[`${pass.envPrefix}_STATUS`] ?? "",
+                channelEnv: process.env[`${pass.envPrefix}_CHANNEL`] ?? "",
+                documentId: process.env[`${pass.envPrefix}_DOCUMENT_ID`] ?? "",
+                archiveDriver: process.env[`${pass.envPrefix}_ARCHIVE_DRIVER`] ?? "",
+                archiveLocation: process.env[`${pass.envPrefix}_ARCHIVE_LOCATION`] ?? "",
+                archiveKey: process.env[`${pass.envPrefix}_ARCHIVE_KEY`] ?? "",
+                artifactPaths: [],
+                errorPreview: [],
+                statusText: "unknown",
+                channelText: "unknown",
+                supportBundlePath: "",
+                supportBundleError: "",
+                statusCode: null
+              };
+
+              summary.statusText = summary.statusEnv || "unknown";
+              summary.channelText = summary.channelEnv || "unknown";
+
+              if (await pathExists(artifactDir)) {
+                const sendData = await readJsonIfExists(path.join(artifactDir, "scrada-send-output.json"));
+                const attempts = Array.isArray(sendData?.attempts) ? sendData.attempts : [];
+                const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
+
+                if (summary.channelText === "unknown" && typeof sendData?.channel === "string") {
+                  summary.channelText = sendData.channel;
+                } else if (summary.channelText === "unknown" && lastAttempt?.channel) {
+                  summary.channelText = lastAttempt.channel;
+                }
+
+                if (lastAttempt && typeof lastAttempt.statusCode === "number") {
+                  summary.statusCode = lastAttempt.statusCode;
+                  if (summary.statusCode === 400) {
+                    summary.statusText = "HTTP 400";
+                  } else if (summary.statusText === "unknown") {
+                    summary.statusText = `HTTP ${summary.statusCode}`;
+                  }
+                }
+
+                if (headerLines.length === 0) {
+                  const headersPath = path.join(artifactDir, "headers-sent.txt");
+                  headerLines.push(...(await readLines(headersPath)));
+                }
+
+                summary.errorPreview = await readErrorPreview(
+                  path.join(artifactDir, "error-body.txt"),
+                  2
+                );
+
+                summary.artifactPaths = await collectExistingPaths(artifactDir, [
+                  "json-sent.json",
+                  "ubl-sent.xml",
+                  "headers-sent.txt",
+                  "error-body.txt",
+                  "scrada-send-output.log",
+                  "scrada-send-output.json",
+                  "scrada-status-output.json",
+                  "participant.json"
+                ]);
+
+                const needsSupportBundle =
+                  summary.statusCode === 400 || summary.statusText === "HTTP 400";
+                if (needsSupportBundle) {
+                  const zipName = `scrada_support_bundle_${pass.id}_${runId}.zip`;
+                  const zipPath = path.join(outputDir, zipName);
+                  try {
+                    await fs.unlink(zipPath).catch(() => {});
+                    await execFileAsync("zip", ["-r", zipPath, "."], { cwd: artifactDir });
+                    summary.supportBundlePath = path.relative(repoRoot, zipPath);
+                    console.log(`Support bundle created: ${summary.supportBundlePath}`);
+                  } catch (zipError) {
+                    summary.supportBundleError =
+                      zipError && zipError.message ? zipError.message : String(zipError ?? "unknown error");
+                    console.error(
+                      `Failed to create support bundle for pass ${pass.id}: ${summary.supportBundleError}`
+                    );
+                  }
+                }
+              }
+
+              passSummaries.push(summary);
+            }
+
+            const summaryLines = [];
+            summaryLines.push("# Summary");
+            summaryLines.push(`- Run URL: ${runUrl}`);
+            summaryLines.push(`- SHA: ${sha}`);
+            if (adapterLine) {
+              summaryLines.push(`- ${adapterLine}`);
+            }
+            summaryLines.push(`- Isolation: ${isolation}`);
+
+            const appendBlankLine = () => {
+              if (summaryLines.length === 0) {
+                return;
+              }
+              if (summaryLines[summaryLines.length - 1] === "") {
+                return;
+              }
+              summaryLines.push("");
+            };
+
+            appendBlankLine();
+            summaryLines.push("## Header values");
+            if (headerLines.length > 0) {
+              for (const line of headerLines) {
+                summaryLines.push(`- ${line}`);
+              }
+            } else {
+              summaryLines.push("- (no UBL header preview captured)");
+            }
+
+            for (const summary of passSummaries) {
+              appendBlankLine();
+              summaryLines.push(`## Pass ${summary.id}`);
+              summaryLines.push(`- Channel: ${summary.channelText}`);
+              summaryLines.push(`- Final status: ${summary.statusText}`);
+              if (summary.documentId) {
+                summaryLines.push(`- Document ID: ${summary.documentId}`);
+              }
+              if (summary.artifactPaths.length > 0) {
+                summaryLines.push(`- Artifacts: ${summary.artifactPaths.join("; ")}`);
+              }
+              if (
+                summary.archiveDriver ||
+                summary.archiveLocation ||
+                summary.archiveKey
+              ) {
+                const archiveParts = [
+                  summary.archiveDriver,
+                  summary.archiveLocation,
+                  summary.archiveKey
+                ].filter(Boolean);
+                summaryLines.push(`- Archive: ${archiveParts.join(" | ")}`);
+              }
+              if (summary.errorPreview.length > 0) {
+                summaryLines.push("- Error preview:");
+                for (const line of summary.errorPreview) {
+                  summaryLines.push(`  - ${line}`);
+                }
+              }
+              if (summary.supportBundlePath) {
+                summaryLines.push(`- Support bundle: ${summary.supportBundlePath}`);
+              } else if (summary.supportBundleError) {
+                summaryLines.push(`- Support bundle: failed (${summary.supportBundleError})`);
+              }
+            }
+
+            appendBlankLine();
+            const summaryPath = path.join(outputDir, "scrada_run_summary.md");
+            await fs.writeFile(summaryPath, `${summaryLines.join("\n")}\n`, "utf8");
+            console.log(`Summary written to ${path.relative(repoRoot, summaryPath)}`);
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+          cat output/scrada_run_summary.md
+
       - name: Upload Scrada artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -338,5 +637,8 @@ jobs:
           path: |
             artifacts/scrada/0208
             artifacts/scrada/9925
+            output/scrada_run_summary.md
+            ${{ format('output/scrada_support_bundle_0208_{0}.zip', github.run_id) }}
+            ${{ format('output/scrada_support_bundle_9925_{0}.zip', github.run_id) }}
             ${{ steps.scrada_send_0208.outputs.document_id && format('.data/archive/peppol/{0}.xml', steps.scrada_send_0208.outputs.document_id) }}
             ${{ steps.scrada_send_9925.outputs.document_id && format('.data/archive/peppol/{0}.xml', steps.scrada_send_9925.outputs.document_id) }}

@@ -25,6 +25,7 @@ describe("scrada payload builders", () => {
     process.env.SCRADA_TEST_RECEIVER_SCHEME = "0208";
     process.env.SCRADA_TEST_RECEIVER_ID = "0755799452";
     process.env.SCRADA_RECEIVER_VAT = "BE0755799452";
+    process.env.SCRADA_PARTICIPANT_ID = "0208:0755799452";
 
     const invoice = buildScradaJsonInvoice({ invoiceId: "INV-TEST", buyerVat: "BE0755799452" });
 
@@ -43,6 +44,7 @@ describe("scrada payload builders", () => {
     process.env.SCRADA_TEST_RECEIVER_SCHEME = "0208";
     process.env.SCRADA_TEST_RECEIVER_ID = "0755799452";
     process.env.SCRADA_RECEIVER_VAT = "BE0755799452";
+    process.env.SCRADA_PARTICIPANT_ID = "0208:0755799452";
 
     const invoice = buildScradaJsonInvoice({
       invoiceId: "INV-OMIT",
@@ -69,6 +71,29 @@ describe("scrada payload builders", () => {
     expect(customerSection).not.toContain("<cac:PartyTaxScheme>");
   });
 
+  it("includes buyer PartyTaxScheme for 9925 even when the omit variant is selected", () => {
+    process.env.SCRADA_SUPPLIER_SCHEME = "0208";
+    process.env.SCRADA_SUPPLIER_ID = "0123456789";
+    process.env.SCRADA_SUPPLIER_VAT = "BE0123456789";
+    process.env.SCRADA_TEST_RECEIVER_SCHEME = "9925";
+    process.env.SCRADA_TEST_RECEIVER_ID = "BE0755799452";
+    process.env.SCRADA_RECEIVER_VAT = "BE0755799452";
+    process.env.SCRADA_PARTICIPANT_ID = "9925:BE0755799452";
+
+    const ubl = buildScradaUblInvoice({
+      invoiceId: "INV-9925-OMIT",
+      buyerVat: OMIT_BUYER_VAT_VARIANT
+    });
+
+    const customerSection = ubl.slice(
+      ubl.indexOf("<cac:AccountingCustomerParty>"),
+      ubl.indexOf("</cac:AccountingCustomerParty>")
+    );
+
+    expect(customerSection).toContain("<cac:PartyTaxScheme>");
+    expect(customerSection).toContain('<cbc:CompanyID schemeID="VAT">BE0755799452</cbc:CompanyID>');
+  });
+
   it("renders BIS 3.0 UBL with mandatory identifiers", () => {
     process.env.SCRADA_SUPPLIER_SCHEME = "0208";
     process.env.SCRADA_SUPPLIER_ID = "0123456789";
@@ -76,6 +101,7 @@ describe("scrada payload builders", () => {
     process.env.SCRADA_TEST_RECEIVER_SCHEME = "0208";
     process.env.SCRADA_TEST_RECEIVER_ID = "0755799452";
     process.env.SCRADA_RECEIVER_VAT = "BE0755799452";
+    process.env.SCRADA_PARTICIPANT_ID = "0208:0755799452";
 
     const ubl = buildScradaUblInvoice({
       invoiceId: "INV-UBL",
