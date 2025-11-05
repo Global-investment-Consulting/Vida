@@ -152,27 +152,26 @@ jobs:
           send_exit=$?
           set -e
           cat "${send_log}"
-          python3 - <<'PY' "${send_log}" "${send_json}"
-import json
-import sys
-from pathlib import Path
-
-log_path = Path(sys.argv[1])
-json_path = Path(sys.argv[2])
-if not log_path.exists():
-    sys.exit(0)
-text = log_path.read_text()
-decoder = json.JSONDecoder()
-for idx in range(len(text) - 1, -1, -1):
-    if text[idx] != "{":
-        continue
-    try:
-        obj, _ = decoder.raw_decode(text[idx:])
-    except json.JSONDecodeError:
-        continue
-    json_path.write_text(json.dumps(obj, indent=2), encoding="utf-8")
-    break
-PY
+          node - <<'NODE' "${send_log}" "${send_json}"
+            const fs = require("fs");
+            const [logPath, jsonPath] = process.argv.slice(2);
+            if (!fs.existsSync(logPath)) {
+              process.exit(0);
+            }
+            const text = fs.readFileSync(logPath, "utf8");
+            for (let idx = text.length - 1; idx >= 0; idx -= 1) {
+              if (text[idx] !== "{") {
+                continue;
+              }
+              try {
+                const data = JSON.parse(text.slice(idx));
+                fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
+                break;
+              } catch (error) {
+                continue;
+              }
+            }
+          NODE
           send_status="failure"
           document_id=""
           invoice_id=""
@@ -259,27 +258,26 @@ PY
           send_exit=$?
           set -e
           cat "${send_log}"
-          python3 - <<'PY' "${send_log}" "${send_json}"
-import json
-import sys
-from pathlib import Path
-
-log_path = Path(sys.argv[1])
-json_path = Path(sys.argv[2])
-if not log_path.exists():
-    sys.exit(0)
-text = log_path.read_text()
-decoder = json.JSONDecoder()
-for idx in range(len(text) - 1, -1, -1):
-    if text[idx] != "{":
-        continue
-    try:
-        obj, _ = decoder.raw_decode(text[idx:])
-    except json.JSONDecodeError:
-        continue
-    json_path.write_text(json.dumps(obj, indent=2), encoding="utf-8")
-    break
-PY
+          node - <<'NODE' "${send_log}" "${send_json}"
+            const fs = require("fs");
+            const [logPath, jsonPath] = process.argv.slice(2);
+            if (!fs.existsSync(logPath)) {
+              process.exit(0);
+            }
+            const text = fs.readFileSync(logPath, "utf8");
+            for (let idx = text.length - 1; idx >= 0; idx -= 1) {
+              if (text[idx] !== "{") {
+                continue;
+              }
+              try {
+                const data = JSON.parse(text.slice(idx));
+                fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
+                break;
+              } catch (error) {
+                continue;
+              }
+            }
+          NODE
           send_status="failure"
           document_id=""
           invoice_id=""
