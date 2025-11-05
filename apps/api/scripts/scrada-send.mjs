@@ -14,7 +14,17 @@ async function loadAdapter() {
   }
 }
 
-const { sendInvoiceWithFallback } = await loadAdapter();
+const { sendInvoiceWithFallback, ScradaSendFailure } = await loadAdapter();
+
+function isScradaSendFailure(error) {
+  if (!error) {
+    return false;
+  }
+  if (typeof ScradaSendFailure === "function" && error instanceof ScradaSendFailure) {
+    return true;
+  }
+  return error?.name === "ScradaSendFailure";
+}
 
 function parseArgs(argv) {
   const parsed = {
@@ -96,6 +106,18 @@ async function main() {
       success: false,
       errorMessage: message
     };
+    if (isScradaSendFailure(error)) {
+      failureOutput.invoiceId = error.invoiceId;
+      failureOutput.externalReference = error.externalReference;
+      failureOutput.vatVariant = error.vatVariant;
+      failureOutput.attempts = Array.isArray(error.attempts) ? error.attempts : undefined;
+      failureOutput.artifacts = error.artifacts;
+      failureOutput.headerSweep = error.headerSweep;
+      failureOutput.docValueIndex =
+        typeof error.docValueIndex === "number" ? error.docValueIndex : null;
+      failureOutput.processValueIndex =
+        typeof error.processValueIndex === "number" ? error.processValueIndex : null;
+    }
     console.error("[scrada-send] Failed to send Scrada invoice:", message);
     try {
       console.log(JSON.stringify(failureOutput, null, 2));
