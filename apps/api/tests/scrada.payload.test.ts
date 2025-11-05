@@ -12,6 +12,12 @@ describe("scrada payload builders", () => {
     expect(variants).toEqual(["BE0755799452", "0755799452", "BE 0755 799 452"]);
   });
 
+  it("falls back to the omit variant when no buyer VAT is configured", () => {
+    delete process.env.SCRADA_RECEIVER_VAT;
+    const variants = resolveBuyerVatVariants();
+    expect(variants).toEqual([OMIT_BUYER_VAT_VARIANT]);
+  });
+
   it("builds a consistent JSON invoice shape", () => {
     process.env.SCRADA_SUPPLIER_SCHEME = "0208";
     process.env.SCRADA_SUPPLIER_ID = "0123456789";
