@@ -79,6 +79,7 @@ async function main() {
     });
 
     const output = {
+      success: true,
       documentId: result.documentId,
       invoiceId: result.invoiceId,
       externalReference: result.externalReference,
@@ -90,10 +91,17 @@ async function main() {
 
     console.log(JSON.stringify(output, null, 2));
   } catch (error) {
-    console.error(
-      "[scrada-send] Failed to send Scrada invoice:",
-      error instanceof Error ? error.message : error
-    );
+    const message = error instanceof Error ? error.message : String(error ?? "unknown error");
+    const failureOutput = {
+      success: false,
+      errorMessage: message
+    };
+    console.error("[scrada-send] Failed to send Scrada invoice:", message);
+    try {
+      console.log(JSON.stringify(failureOutput, null, 2));
+    } catch {
+      console.log('{"success":false,"errorMessage":"failed to serialize error"}');
+    }
     process.exit(1);
   }
 }
