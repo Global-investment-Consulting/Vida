@@ -144,21 +144,68 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${SCRADA_ARTIFACT_DIR}"
-          node apps/api/scripts/scrada-send.mjs --artifact-dir "${SCRADA_ARTIFACT_DIR}" --vat "${SCRADA_RECEIVER_VAT}" > "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
-          cat "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
-          document_id=$(jq -r '.documentId' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
-          invoice_id=$(jq -r '.invoiceId' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
-          external_reference=$(jq -r '.externalReference' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
-          send_channel=$(jq -r '.channel' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
-          vat_variant=$(jq -r '.vatVariant' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          send_log="${SCRADA_ARTIFACT_DIR}/scrada-send-output.log"
+          send_json="${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
+          rm -f "${send_log}" "${send_json}"
+          set +e
+          node apps/api/scripts/scrada-send.mjs --artifact-dir "${SCRADA_ARTIFACT_DIR}" --vat "${SCRADA_RECEIVER_VAT}" > "${send_log}" 2>&1
+          send_exit=$?
+          set -e
+          cat "${send_log}"
+          python3 - <<'PY' "${send_log}" "${send_json}"
+import json
+import sys
+from pathlib import Path
+
+log_path = Path(sys.argv[1])
+json_path = Path(sys.argv[2])
+if not log_path.exists():
+    sys.exit(0)
+text = log_path.read_text()
+decoder = json.JSONDecoder()
+for idx in range(len(text) - 1, -1, -1):
+    if text[idx] != "{":
+        continue
+    try:
+        obj, _ = decoder.raw_decode(text[idx:])
+    except json.JSONDecodeError:
+        continue
+    json_path.write_text(json.dumps(obj, indent=2), encoding="utf-8")
+    break
+PY
+          send_status="failure"
+          document_id=""
+          invoice_id=""
+          external_reference=""
+          send_channel=""
+          vat_variant=""
+          if [ -f "${send_json}" ] && jq -e '.success == true' "${send_json}" >/dev/null 2>&1; then
+            send_status="success"
+            document_id=$(jq -r '.documentId' "${send_json}")
+            invoice_id=$(jq -r '.invoiceId' "${send_json}")
+            external_reference=$(jq -r '.externalReference' "${send_json}")
+            send_channel=$(jq -r '.channel' "${send_json}")
+            vat_variant=$(jq -r '.vatVariant' "${send_json}")
+            jq '.' "${send_json}"
+          else
+            if [ -f "${send_json}" ]; then
+              jq '.' "${send_json}" || true
+            fi
+          fi
+          echo "send_status=${send_status}" >> "$GITHUB_OUTPUT"
+          echo "send_exit=${send_exit}" >> "$GITHUB_OUTPUT"
           echo "document_id=${document_id}" >> "$GITHUB_OUTPUT"
           echo "invoice_id=${invoice_id}" >> "$GITHUB_OUTPUT"
           echo "external_reference=${external_reference}" >> "$GITHUB_OUTPUT"
           echo "send_channel=${send_channel}" >> "$GITHUB_OUTPUT"
           echo "vat_variant=${vat_variant}" >> "$GITHUB_OUTPUT"
+          if [ "${send_status}" != "success" ]; then
+            echo "Scrada send (0208) did not complete successfully (exit=${send_exit})." >&2
+          fi
 
       - name: Poll Scrada status and archive (0208)
         id: scrada_status_0208
+        if: ${{ steps.scrada_send_0208.outputs.send_status == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -204,21 +251,68 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${SCRADA_ARTIFACT_DIR}"
-          node apps/api/scripts/scrada-send.mjs --artifact-dir "${SCRADA_ARTIFACT_DIR}" --vat "${SCRADA_RECEIVER_VAT}" > "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
-          cat "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
-          document_id=$(jq -r '.documentId' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
-          invoice_id=$(jq -r '.invoiceId' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
-          external_reference=$(jq -r '.externalReference' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
-          send_channel=$(jq -r '.channel' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
-          vat_variant=$(jq -r '.vatVariant' "${SCRADA_ARTIFACT_DIR}/scrada-send-output.json")
+          send_log="${SCRADA_ARTIFACT_DIR}/scrada-send-output.log"
+          send_json="${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
+          rm -f "${send_log}" "${send_json}"
+          set +e
+          node apps/api/scripts/scrada-send.mjs --artifact-dir "${SCRADA_ARTIFACT_DIR}" --vat "${SCRADA_RECEIVER_VAT}" > "${send_log}" 2>&1
+          send_exit=$?
+          set -e
+          cat "${send_log}"
+          python3 - <<'PY' "${send_log}" "${send_json}"
+import json
+import sys
+from pathlib import Path
+
+log_path = Path(sys.argv[1])
+json_path = Path(sys.argv[2])
+if not log_path.exists():
+    sys.exit(0)
+text = log_path.read_text()
+decoder = json.JSONDecoder()
+for idx in range(len(text) - 1, -1, -1):
+    if text[idx] != "{":
+        continue
+    try:
+        obj, _ = decoder.raw_decode(text[idx:])
+    except json.JSONDecodeError:
+        continue
+    json_path.write_text(json.dumps(obj, indent=2), encoding="utf-8")
+    break
+PY
+          send_status="failure"
+          document_id=""
+          invoice_id=""
+          external_reference=""
+          send_channel=""
+          vat_variant=""
+          if [ -f "${send_json}" ] && jq -e '.success == true' "${send_json}" >/dev/null 2>&1; then
+            send_status="success"
+            document_id=$(jq -r '.documentId' "${send_json}")
+            invoice_id=$(jq -r '.invoiceId' "${send_json}")
+            external_reference=$(jq -r '.externalReference' "${send_json}")
+            send_channel=$(jq -r '.channel' "${send_json}")
+            vat_variant=$(jq -r '.vatVariant' "${send_json}")
+            jq '.' "${send_json}"
+          else
+            if [ -f "${send_json}" ]; then
+              jq '.' "${send_json}" || true
+            fi
+          fi
+          echo "send_status=${send_status}" >> "$GITHUB_OUTPUT"
+          echo "send_exit=${send_exit}" >> "$GITHUB_OUTPUT"
           echo "document_id=${document_id}" >> "$GITHUB_OUTPUT"
           echo "invoice_id=${invoice_id}" >> "$GITHUB_OUTPUT"
           echo "external_reference=${external_reference}" >> "$GITHUB_OUTPUT"
           echo "send_channel=${send_channel}" >> "$GITHUB_OUTPUT"
           echo "vat_variant=${vat_variant}" >> "$GITHUB_OUTPUT"
+          if [ "${send_status}" != "success" ]; then
+            echo "Scrada send (9925) did not complete successfully (exit=${send_exit})." >&2
+          fi
 
       - name: Poll Scrada status and archive (9925)
         id: scrada_status_9925
+        if: ${{ steps.scrada_send_9925.outputs.send_status == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
