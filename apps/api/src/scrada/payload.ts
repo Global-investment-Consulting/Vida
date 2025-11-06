@@ -12,10 +12,43 @@ const TAX_SCHEME_ID = "VAT";
 const DEFAULT_UNIT_CODE = "EA";
 const DEFAULT_UNIT_TYPE = 1;
 
-const RECEIVER_SCHEME = "iso6523-actorid-upis";
-const RECEIVER_ID = "0208:0755799452";
-const RECEIVER_PEPPOL_ID = `${RECEIVER_SCHEME}:${RECEIVER_ID}`;
-const RECEIVER_VAT = "BE0755799452";
+type ReceiverProfile = {
+  headerScheme: string;
+  headerId: string;
+  endpointScheme: string;
+  endpointId: string;
+  peppolId: string;
+  vat: string;
+  includeVat: boolean;
+};
+
+const RECEIVER_PROFILES: Record<string, ReceiverProfile> = {
+  "0208": {
+    headerScheme: "iso6523-actorid-upis",
+    headerId: "0208:0755799452",
+    endpointScheme: "0208",
+    endpointId: "0755799452",
+    peppolId: "0208:0755799452",
+    vat: "BE0755799452",
+    includeVat: false
+  },
+  "9925": {
+    headerScheme: "iso6523-actorid-upis",
+    headerId: "9925:BE0755799452",
+    endpointScheme: "9925",
+    endpointId: "BE0755799452",
+    peppolId: "9925:BE0755799452",
+    vat: "BE0755799452",
+    includeVat: true
+  }
+};
+
+function resolveReceiverProfile(): ReceiverProfile {
+  const key = (process.env.SCRADA_RECEIVER_PROFILE ?? "0208").trim();
+  return RECEIVER_PROFILES[key] ?? RECEIVER_PROFILES["0208"];
+}
+
+const RECEIVER_PROFILE = resolveReceiverProfile();
 
 const NET_AMOUNT = 100;
 const VAT_RATE = 21;
@@ -46,6 +79,7 @@ type PartyContext = {
   peppolId: string;
   vatNumber?: string;
   ublVatNumber?: string;
+  includeVat?: boolean;
   contactName?: string;
   contactEmail?: string;
   address: PartyAddressContext;
@@ -193,20 +227,21 @@ function buildSupplierContext(): PartyContext {
   };
 }
 
-function buildBuyerContext(buyerVat: string | null | undefined): PartyContext {
+function buildBuyerContext(receiver: ReceiverProfile, buyerVat: string | null | undefined): PartyContext {
   const name = optionalEnv("SCRADA_RECEIVER_NAME", "Vida Sandbox Buyer")!;
   const vat =
     typeof buyerVat === "string" && buyerVat.trim().length > 0
       ? buyerVat.trim()
-      : RECEIVER_VAT;
+      : receiver.vat;
 
   return {
     name,
-    scheme: RECEIVER_SCHEME,
-    id: RECEIVER_ID,
-    peppolId: RECEIVER_PEPPOL_ID,
+    scheme: receiver.endpointScheme,
+    id: receiver.endpointId,
+    peppolId: receiver.peppolId,
     vatNumber: vat,
-    ublVatNumber: compactVat(vat),
+    ublVatNumber: receiver.includeVat ? compactVat(vat) : undefined,
+    includeVat: receiver.includeVat,
     contactName: optionalEnv("SCRADA_RECEIVER_CONTACT"),
     contactEmail: optionalEnv("SCRADA_RECEIVER_EMAIL"),
     address: {
@@ -247,16 +282,13 @@ function buildLineContext(): InvoiceLineContext {
 }
 
 function buildInvoiceContext(options: InvoiceBuildOptions = {}): ScradaInvoiceContext {
+  const receiverProfile = RECEIVER_PROFILE;
   const invoiceId = resolveInvoiceId(options);
   const externalReference = resolveReference(invoiceId, options);
   const { issueDate, dueDate } = resolveDates(options);
-  const buyerVatOverride =
-    typeof options.buyerVat === "string" && options.buyerVat.trim().length > 0
-      ? options.buyerVat.trim()
-      : undefined;
 
   const supplier = buildSupplierContext();
-  const customer = buildBuyerContext(buyerVatOverride);
+  const customer = buildBuyerContext(receiverProfile, options.buyerVat ?? undefined);
   const payment = buildPaymentContext(externalReference, dueDate);
   const line = buildLineContext();
 
@@ -394,11 +426,12 @@ function appendParty(root: any, role: "supplier" | "customer", context: ScradaIn
   addressElement.ele("cbc:PostalZone").txt(address.postalZone).up();
   addressElement.ele("cac:Country").ele("cbc:IdentificationCode").txt(address.countryCode).up().up();
 
+  const includeCustomerVat = isCustomer && Boolean(party.includeVat);
   let vatValue: string | undefined;
   if (!isCustomer) {
     vatValue = compactVat(party.vatNumber) || compactVat(requireEnv("SCRADA_SUPPLIER_VAT"));
-  } else {
-    vatValue = compactVat(party.ublVatNumber) || compactVat(RECEIVER_VAT);
+  } else if (includeCustomerVat) {
+    vatValue = compactVat(party.ublVatNumber) || compactVat(RECEIVER_PROFILE.vat);
   }
 
   if (vatValue) {

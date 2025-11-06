@@ -16,7 +16,7 @@ describe("scrada payload builders (BIS 3.0)", () => {
     const invoice = buildScradaJsonInvoice({ invoiceId: "INV-JSON" });
 
     expect(invoice.number).toBe("INV-JSON");
-    expect(invoice.customer.peppolID).toBe("iso6523-actorid-upis:0208:0755799452");
+    expect(invoice.customer.peppolID).toBe("0208:0755799452");
     expect(invoice.customer.vatNumber).toBe("BE0755799452");
     expect(invoice.supplier.vatNumber).toBe(SUPPLIER_VAT);
     expect(invoice.lines).toHaveLength(1);
@@ -28,10 +28,9 @@ describe("scrada payload builders (BIS 3.0)", () => {
 
     expect(ubl).toContain("<cbc:CustomizationID>urn:cen.eu:en16931:2017</cbc:CustomizationID>");
     expect(ubl).toContain("<cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:ProfileID>");
-    expect(ubl).toContain('<cbc:EndpointID schemeID="iso6523-actorid-upis">0208:0755799452</cbc:EndpointID>');
-    expect(ubl).toContain('<cbc:CompanyID schemeID="iso6523-actorid-upis">0208:0755799452</cbc:CompanyID>');
-    expect(ubl).toContain('<cbc:CompanyID schemeID="VAT">BE0755799452</cbc:CompanyID>');
-    expect(ubl).toContain("<cac:PartyTaxScheme>");
+    expect(ubl).toContain('<cbc:EndpointID schemeID="0208">0755799452</cbc:EndpointID>');
+    expect(ubl).toContain('<cbc:CompanyID schemeID="0208">0755799452</cbc:CompanyID>');
+    expect(ubl).not.toMatch(/AccountingCustomerParty[\s\S]*PartyTaxScheme/);
     expect(ubl).toContain("<cac:PaymentTerms>");
   });
 });

@@ -114,7 +114,7 @@ describeIfEnabled("Scrada sandbox flow", () => {
       const jsonPayload = await readFile(path.join(artifactDir, "json-sent.json"), "utf8");
       const parsedInvoice = JSON.parse(jsonPayload);
       expect(parsedInvoice.customer?.vatNumber).toBe("BE0755799452");
-      expect(parsedInvoice.customer?.peppolID).toBe("iso6523-actorid-upis:0208:0755799452");
+      expect(parsedInvoice.customer?.peppolID).toBe("0208:0755799452");
 
       if (archiveResult.driver === "local") {
         const ublContents = await readFile(archiveResult.location, "utf8");
