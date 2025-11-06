@@ -11,7 +11,11 @@ const VAT_CATEGORY = "S";
 const TAX_SCHEME_ID = "VAT";
 const DEFAULT_UNIT_CODE = "EA";
 const DEFAULT_UNIT_TYPE = 1;
-export const OMIT_BUYER_VAT_VARIANT = "omit-buyer-vat";
+
+const RECEIVER_SCHEME = "iso6523-actorid-upis";
+const RECEIVER_ID = "0208:0755799452";
+const RECEIVER_PEPPOL_ID = `${RECEIVER_SCHEME}:${RECEIVER_ID}`;
+const RECEIVER_VAT = "BE0755799452";
 
 const NET_AMOUNT = 100;
 const VAT_RATE = 21;
@@ -42,7 +46,6 @@ type PartyContext = {
   peppolId: string;
   vatNumber?: string;
   ublVatNumber?: string;
-  buyerVatVariant?: string;
   contactName?: string;
   contactEmail?: string;
   address: PartyAddressContext;
@@ -121,98 +124,8 @@ export function generateInvoiceId(): string {
   return `VIDA-${now}-${suffix}`;
 }
 
-export function resolveBuyerVatVariants(source?: string): string[] {
-  const raw = (source ?? process.env.SCRADA_RECEIVER_VAT ?? "").trim();
-  const compact = raw.replace(/\s+/g, "");
-  const variants: string[] = [];
-
-  const pushUnique = (value: string | undefined) => {
-    if (!value) {
-      return;
-    }
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return;
-    }
-    if (!variants.includes(trimmed)) {
-      variants.push(trimmed);
-    }
-  };
-
-  if (compact) {
-    if (compact.startsWith("BE") && compact.length > 2) {
-      pushUnique(compact);
-      const digits = compact.slice(2);
-      pushUnique(digits);
-      if (digits.length === 10) {
-        pushUnique(`BE ${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`);
-      }
-    } else {
-      pushUnique(compact);
-    }
-  }
-
-  if (raw && raw !== compact) {
-    pushUnique(raw);
-  }
-
-  if (variants.length === 0) {
-    variants.push(OMIT_BUYER_VAT_VARIANT);
-  }
-
-  return variants.slice(0, 3);
-}
-
-export function isOmitBuyerVatVariant(value: string | null | undefined): boolean {
-  return value === OMIT_BUYER_VAT_VARIANT;
-}
-
 function compactVat(value: string | undefined): string {
   return value ? value.replace(/\s+/g, "") : "";
-}
-
-function canonicalizeBuyerVat(value: string | null | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-  if (isOmitBuyerVatVariant(value)) {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  const normalizedVariants = resolveBuyerVatVariants();
-  const targetCore = compactVat(trimmed).replace(/^BE/i, "");
-
-  for (const variant of normalizedVariants) {
-    if (!variant) {
-      continue;
-    }
-    const normalizedVariant = variant.trim();
-    if (normalizedVariant === trimmed) {
-      return normalizedVariant;
-    }
-    const variantCore = compactVat(normalizedVariant).replace(/^BE/i, "");
-    if (variantCore === targetCore && variantCore.length > 0) {
-      return normalizedVariant;
-    }
-  }
-
-  return trimmed;
-}
-
-function resolveJsonBuyerVat(options: InvoiceBuildOptions): string | undefined {
-  const raw = options.buyerVat ?? resolveBuyerVatVariants()[0];
-  if (isOmitBuyerVatVariant(raw)) {
-    return undefined;
-  }
-  return raw;
-}
-
-function resolveUblBuyerVat(options: InvoiceBuildOptions): string | undefined {
-  const raw = options.buyerVat ?? resolveBuyerVatVariants()[0];
-  if (isOmitBuyerVatVariant(raw)) {
-    return undefined;
-  }
-  return canonicalizeBuyerVat(raw);
 }
 
 function resolveInvoiceId(options: InvoiceBuildOptions): string {
@@ -280,33 +193,20 @@ function buildSupplierContext(): PartyContext {
   };
 }
 
-function buildBuyerContext(
-  jsonBuyerVat: string | undefined,
-  ublBuyerVat: string | undefined,
-  buyerVatVariant: string
-): PartyContext {
-  let receiverScheme = requireEnv("SCRADA_TEST_RECEIVER_SCHEME");
-  let receiverId = requireEnv("SCRADA_TEST_RECEIVER_ID");
-
-  const participantRaw = optionalEnv("SCRADA_PARTICIPANT_ID");
-  if (participantRaw && participantRaw.includes(":")) {
-    const [schemePart, valuePart] = participantRaw.split(":", 2);
-    if (schemePart && valuePart) {
-      receiverScheme = schemePart.trim() || receiverScheme;
-      receiverId = valuePart.trim() || receiverId;
-    }
-  }
-
+function buildBuyerContext(buyerVat: string | null | undefined): PartyContext {
   const name = optionalEnv("SCRADA_RECEIVER_NAME", "Vida Sandbox Buyer")!;
+  const vat =
+    typeof buyerVat === "string" && buyerVat.trim().length > 0
+      ? buyerVat.trim()
+      : RECEIVER_VAT;
 
   return {
     name,
-    scheme: receiverScheme,
-    id: receiverId,
-    peppolId: `${receiverScheme}:${receiverId}`,
-    vatNumber: jsonBuyerVat,
-    ublVatNumber: ublBuyerVat ? compactVat(ublBuyerVat) : undefined,
-    buyerVatVariant,
+    scheme: RECEIVER_SCHEME,
+    id: RECEIVER_ID,
+    peppolId: RECEIVER_PEPPOL_ID,
+    vatNumber: vat,
+    ublVatNumber: compactVat(vat),
     contactName: optionalEnv("SCRADA_RECEIVER_CONTACT"),
     contactEmail: optionalEnv("SCRADA_RECEIVER_EMAIL"),
     address: {
@@ -350,13 +250,13 @@ function buildInvoiceContext(options: InvoiceBuildOptions = {}): ScradaInvoiceCo
   const invoiceId = resolveInvoiceId(options);
   const externalReference = resolveReference(invoiceId, options);
   const { issueDate, dueDate } = resolveDates(options);
-  const buyerVatVariantRaw = options.buyerVat ?? resolveBuyerVatVariants()[0];
-  const buyerVatVariant = buyerVatVariantRaw ?? OMIT_BUYER_VAT_VARIANT;
-  const jsonBuyerVat = resolveJsonBuyerVat(options);
-  const ublBuyerVat = resolveUblBuyerVat(options);
+  const buyerVatOverride =
+    typeof options.buyerVat === "string" && options.buyerVat.trim().length > 0
+      ? options.buyerVat.trim()
+      : undefined;
 
   const supplier = buildSupplierContext();
-  const customer = buildBuyerContext(jsonBuyerVat, ublBuyerVat, buyerVatVariant);
+  const customer = buildBuyerContext(buyerVatOverride);
   const payment = buildPaymentContext(externalReference, dueDate);
   const line = buildLineContext();
 
@@ -455,6 +355,7 @@ function buildJsonInvoice(context: ScradaInvoiceContext): ScradaSalesInvoice {
 }
 
 function appendParty(root: any, role: "supplier" | "customer", context: ScradaInvoiceContext) {
+  const isCustomer = role === "customer";
   const party = role === "supplier" ? context.supplier : context.customer;
   const containerName = role === "supplier" ? "cac:AccountingSupplierParty" : "cac:AccountingCustomerParty";
   const container = root.ele(containerName);
@@ -493,23 +394,11 @@ function appendParty(root: any, role: "supplier" | "customer", context: ScradaIn
   addressElement.ele("cbc:PostalZone").txt(address.postalZone).up();
   addressElement.ele("cac:Country").ele("cbc:IdentificationCode").txt(address.countryCode).up().up();
 
-  const isCustomer = role === "customer";
-  const customerScheme = isCustomer ? context.customer.scheme?.trim() ?? "" : "";
-  const buyerVariant = isCustomer ? party.buyerVatVariant ?? OMIT_BUYER_VAT_VARIANT : undefined;
-  const includeCustomerVat =
-    isCustomer && (customerScheme === "9925" || buyerVariant !== OMIT_BUYER_VAT_VARIANT);
-  const receiverVatEnv = process.env.SCRADA_RECEIVER_VAT?.trim();
-
   let vatValue: string | undefined;
-  if (role === "supplier") {
+  if (!isCustomer) {
     vatValue = compactVat(party.vatNumber) || compactVat(requireEnv("SCRADA_SUPPLIER_VAT"));
-  } else if (includeCustomerVat) {
-    const normalizedCustomerVat = compactVat(party.ublVatNumber);
-    const normalizedReceiverVat = compactVat(receiverVatEnv);
-    vatValue =
-      normalizedCustomerVat ||
-      normalizedReceiverVat ||
-      (receiverVatEnv && receiverVatEnv.trim().length > 0 ? receiverVatEnv.trim() : undefined);
+  } else {
+    vatValue = compactVat(party.ublVatNumber) || compactVat(RECEIVER_VAT);
   }
 
   if (vatValue) {
