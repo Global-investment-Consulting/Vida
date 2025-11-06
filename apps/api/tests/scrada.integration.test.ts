@@ -3,12 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import axios from "axios";
-import {
-  fetchAndArchiveOutboundUbl,
-  pollOutboundDocument,
-  sendInvoiceWithFallback
-} from "../src/adapters/scrada.ts";
-import { OMIT_BUYER_VAT_VARIANT } from "../src/scrada/payload.ts";
+import { fetchAndArchiveOutboundUbl, pollOutboundDocument, sendInvoiceWithFallback } from "../src/adapters/scrada.ts";
 
 const RUN_INTEGRATION = process.env.RUN_SCRADA_INTEGRATION === "true";
 const describeIfEnabled = RUN_INTEGRATION ? describe : describe.skip;
@@ -27,10 +22,7 @@ describeIfEnabled("Scrada sandbox flow", () => {
       "SCRADA_COMPANY_ID",
       "SCRADA_SUPPLIER_SCHEME",
       "SCRADA_SUPPLIER_ID",
-      "SCRADA_SUPPLIER_VAT",
-      "SCRADA_TEST_RECEIVER_SCHEME",
-      "SCRADA_TEST_RECEIVER_ID",
-      "SCRADA_RECEIVER_VAT"
+      "SCRADA_SUPPLIER_VAT"
     ]) {
       ensureEnv(envName);
     }
@@ -121,12 +113,8 @@ describeIfEnabled("Scrada sandbox flow", () => {
 
       const jsonPayload = await readFile(path.join(artifactDir, "json-sent.json"), "utf8");
       const parsedInvoice = JSON.parse(jsonPayload);
-      if (sendResult.vatVariant === OMIT_BUYER_VAT_VARIANT) {
-        expect(parsedInvoice.customer?.vatNumber).toBeUndefined();
-      } else {
-        expect(parsedInvoice.customer?.vatNumber).toBe(sendResult.vatVariant);
-      }
-      expect(parsedInvoice.customer?.peppolID).toMatch(/^0208:/);
+      expect(parsedInvoice.customer?.vatNumber).toBe("BE0755799452");
+      expect(parsedInvoice.customer?.peppolID).toBe("iso6523-actorid-upis:0208:0755799452");
 
       if (archiveResult.driver === "local") {
         const ublContents = await readFile(archiveResult.location, "utf8");
