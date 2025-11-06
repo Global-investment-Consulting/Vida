@@ -28,6 +28,11 @@ const JSON_ARTIFACT_NAME = "json-sent.json";
 const UBL_ARTIFACT_NAME = "ubl-sent.xml";
 const UBL_HEADERS_ARTIFACT_NAME = "headers-sent.txt";
 const ERROR_ARTIFACT_NAME = "error-body.txt";
+const RECEIVER_HEADER_SCHEME = "iso6523-actorid-upis";
+const RECEIVER_ENDPOINT_SCHEME = "0208";
+const RECEIVER_ENDPOINT_ID = "0755799452";
+const RECEIVER_HEADER_ID = `${RECEIVER_ENDPOINT_SCHEME}:${RECEIVER_ENDPOINT_ID}`;
+
 const REQUIRED_UBL_HEADER_NAMES = [
   "content-type",
   "x-scrada-external-reference",
@@ -36,7 +41,8 @@ const REQUIRED_UBL_HEADER_NAMES = [
   "x-scrada-peppol-document-type-value",
   "x-scrada-peppol-process-scheme",
   "x-scrada-peppol-process-value",
-  "x-scrada-peppol-receiver-party-id"
+  "x-scrada-peppol-receiver-scheme",
+  "x-scrada-peppol-receiver-id"
 ] as const;
 const OPTIONAL_UBL_HEADER_NAMES = [
   "x-scrada-peppol-sender-scheme",
@@ -55,8 +61,6 @@ const REQUIRED_SANITIZED_UBL_HEADER_NAMES = REQUIRED_UBL_HEADER_NAMES.filter(
   (name) => name !== "content-type"
 );
 
-const RECEIVER_SCHEME = "iso6523-actorid-upis";
-const RECEIVER_ID = "0208:0755799452";
 const RECEIVER_VAT = "BE0755799452";
 const SENDER_SCHEME = "iso6523-actorid-upis";
 const SENDER_ID = "0208:0755799452";
@@ -385,6 +389,10 @@ async function writeHeaderPreview(filePath: string, headers: Record<string, stri
 
 function detectForbiddenUblHeaders(headerNames: string[]): string[] {
   const forbidden: string[] = [];
+  const allowedReceiverHeaders = new Set([
+    "x-scrada-peppol-receiver-scheme",
+    "x-scrada-peppol-receiver-id"
+  ]);
   for (const name of headerNames) {
     const normalized = name.toLowerCase();
     if (
@@ -396,7 +404,7 @@ function detectForbiddenUblHeaders(headerNames: string[]): string[] {
     }
     if (
       normalized.startsWith("x-scrada-peppol-receiver-") &&
-      normalized !== "x-scrada-peppol-receiver-party-id"
+      !allowedReceiverHeaders.has(normalized)
     ) {
       forbidden.push(normalized);
     }
@@ -575,7 +583,7 @@ export async function lookupParticipantById(peppolId: string): Promise<ScradaPar
   }
   const [schemePart, idPart] = trimmed.includes(":")
     ? trimmed.split(":", 2)
-    : [RECEIVER_SCHEME, trimmed];
+    : [RECEIVER_ENDPOINT_SCHEME, trimmed];
   const scheme = schemePart?.trim();
   const value = idPart?.trim();
   if (!scheme || !value) {
@@ -726,7 +734,8 @@ function buildScradaPeppolHeaders(
     "x-scrada-peppol-document-type-value": DOC_TYPE_VALUE,
     "x-scrada-peppol-process-scheme": PROCESS_SCHEME,
     "x-scrada-peppol-process-value": PROCESS_VALUE,
-    "x-scrada-peppol-receiver-party-id": `${RECEIVER_SCHEME}:${RECEIVER_ID}`,
+    "x-scrada-peppol-receiver-scheme": RECEIVER_HEADER_SCHEME,
+    "x-scrada-peppol-receiver-id": RECEIVER_HEADER_ID,
     "x-scrada-peppol-c1-country-code": COUNTRY_CODE,
     "x-scrada-peppol-sender-scheme": SENDER_SCHEME,
     "x-scrada-peppol-sender-id": SENDER_ID,
