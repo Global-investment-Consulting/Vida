@@ -81,7 +81,9 @@ describe("sendInvoiceWithFallback (BIS 3.0)", () => {
 
     const headersPreview = await readFile(path.join(tempDir, "headers-sent.txt"), "utf8");
     expect(headersPreview).toContain("x-scrada-peppol-sender-scheme: iso6523-actorid-upis");
-    expect(headersPreview).toContain("x-scrada-peppol-receiver-party-id: iso6523-actorid-upis:0208:0755799452");
+    expect(headersPreview).toContain("x-scrada-peppol-receiver-scheme: iso6523-actorid-upis");
+    expect(headersPreview).toContain("x-scrada-peppol-receiver-id: 0208:0755799452");
+    expect(headersPreview).not.toContain("x-scrada-peppol-receiver-party-id");
   });
 
   it("surfaces non-400 errors without retrying UBL", async () => {
