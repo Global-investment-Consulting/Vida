@@ -1,0 +1,43 @@
+name: Send Peppol UBL via Scrada
+
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: 'Path to UBL invoice XML in repo'
+        required: true
+        default: 'invoice_peppol_bis3.xml'
+      environment:
+        description: 'test or prod'
+        required: false
+        default: 'test'
+      externalRef:
+        description: 'External reference (optional)'
+        required: false
+      buyerReference:
+        description: 'cbc:BuyerReference (leave blank to use OrderId or auto)'
+        required: false
+      orderId:
+        description: 'cac:OrderReference/cbc:ID (optional alternative)'
+        required: false
+
+jobs:
+  send:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send UBL via Scrada
+        shell: pwsh
+        env:
+          SCRADA_COMPANY_ID:         ${{ secrets.SCRADA_COMPANY_ID }}
+          SCRADA_API_KEY:            ${{ secrets.SCRADA_API_KEY }}
+          SCRADA_API_PASSWORD:       ${{ secrets.SCRADA_API_PASSWORD }}
+          SCRADA_PEPPOL_SENDER_ID:   ${{ secrets.SCRADA_PEPPOL_SENDER_ID }}
+          SCRADA_PEPPOL_RECEIVER_ID: ${{ secrets.SCRADA_PEPPOL_RECEIVER_ID }}
+        run: >
+          ./tools/scrada-peppol/Send-PeppolUbl.ps1
+          -InputPath "${{ github.event.inputs.file }}"
+          -Environment "${{ github.event.inputs.environment }}"
+          -BuyerReference "${{ github.event.inputs.buyerReference }}"
+          -OrderId "${{ github.event.inputs.orderId }}"
+          -ExternalReference "${{ github.event.inputs.externalRef }}"
