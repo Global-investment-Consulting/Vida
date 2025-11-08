@@ -60,6 +60,9 @@
           <cbc:ID>VAT</cbc:ID>
         </cac:TaxScheme>
       </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>Scrada Sandbox Buyer</cbc:RegistrationName>
+      </cac:PartyLegalEntity>
     </cac:Party>
   </cac:AccountingCustomerParty>
 
