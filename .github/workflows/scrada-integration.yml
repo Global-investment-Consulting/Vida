@@ -1,0 +1,381 @@
+name: Scrada Integration
+
+on:
+  push:
+    branches:
+      - main
+      - feat/scrada-e2e-clean
+      - feat/scrada-final-bis3
+  workflow_dispatch:
+    inputs:
+      run_ref:
+        description: "Git ref to run (default feat/scrada-final-bis3)"
+        required: false
+        default: "feat/scrada-final-bis3"
+
+jobs:
+  scrada:
+    runs-on: ubuntu-latest
+    env:
+      VIDA_AP_ADAPTER: scrada
+      SCRADA_API_KEY: ${{ secrets.SCRADA_API_KEY }}
+      SCRADA_API_PASSWORD: ${{ secrets.SCRADA_API_PASSWORD }}
+      SCRADA_COMPANY_ID: ${{ secrets.SCRADA_COMPANY_ID }}
+      SCRADA_WEBHOOK_SECRET: ${{ secrets.SCRADA_WEBHOOK_SECRET }}
+      SCRADA_API_BASE: ${{ vars.SCRADA_API_BASE }}
+      SCRADA_LANGUAGE: ${{ vars.SCRADA_LANGUAGE }}
+      SCRADA_SUPPLIER_SCHEME: ${{ vars.SCRADA_SUPPLIER_SCHEME }}
+      SCRADA_SUPPLIER_ID: ${{ vars.SCRADA_SUPPLIER_ID }}
+      SCRADA_SUPPLIER_VAT: ${{ vars.SCRADA_SUPPLIER_VAT }}
+      SCRADA_SKIP_PARTICIPANT_PREFLIGHT: ${{ vars.SCRADA_SKIP_PARTICIPANT_PREFLIGHT }}
+      ARCHIVE_BUCKET: ${{ vars.ARCHIVE_BUCKET }}
+      SCRADA_HEADER_SWEEP: "true"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_ref || github.ref }}
+
+      - name: Use Node.js 20.19
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.0"
+          cache: "npm"
+
+      - name: Mask Scrada secrets
+        run: |
+          echo "::add-mask::${SCRADA_API_KEY}"
+          echo "::add-mask::${SCRADA_API_PASSWORD}"
+          echo "::add-mask::${SCRADA_COMPANY_ID}"
+          echo "::add-mask::${SCRADA_WEBHOOK_SECRET}"
+
+      - name: Verify adapter
+        shell: bash
+        run: |
+          echo "Adapter=${VIDA_AP_ADAPTER}"
+          [ "${VIDA_AP_ADAPTER}" = "scrada" ] || (echo "::error::Unexpected adapter"; exit 1)
+          echo "ADAPTER_CHECK=Adapter=${VIDA_AP_ADAPTER}" >> "$GITHUB_ENV"
+
+      - name: Isolation check (no Billit vars)
+        shell: bash
+        run: |
+          LEAKS=$(env | awk -F= '/^BILLIT_/ {print $1}')
+          if [ -z "$LEAKS" ]; then
+            echo "Isolation=OK"
+            echo "ISOLATION_RESULT=Isolation=OK" >> "$GITHUB_ENV"
+          else
+            echo "::error::$LEAKS"
+            exit 1
+          fi
+
+      - name: env-presence (VAR=OK)
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_vars=(
+            VIDA_AP_ADAPTER
+            SCRADA_API_KEY
+            SCRADA_API_PASSWORD
+            SCRADA_COMPANY_ID
+            SCRADA_API_BASE
+            SCRADA_LANGUAGE
+            SCRADA_SUPPLIER_SCHEME
+            SCRADA_SUPPLIER_ID
+            SCRADA_SUPPLIER_VAT
+          )
+          missing=0
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Missing required environment variable $var"
+              missing=1
+            else
+              echo "${var}=OK"
+            fi
+          done
+          if [ "${missing}" -ne 0 ]; then
+            exit 1
+          fi
+
+      - run: rm -rf apps/api/node_modules apps/api/dist
+        shell: bash
+
+      - run: npm ci --workspaces || (npm ci && (cd apps/api && npm install --no-audit --no-fund))
+        shell: bash
+
+      - run: npm run build --workspaces || (npm run build && (cd apps/api && npm run build))
+        shell: bash
+
+      - name: Show revision
+        shell: bash
+        run: |
+          echo "Adapter=${VIDA_AP_ADAPTER}"
+          echo "REF=${GITHUB_REF}"
+          echo "SHA=${GITHUB_SHA}"
+          git rev-parse HEAD
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test -- --run apps/api/tests/scrada.*
+
+      - name: Scrada smoke send
+        id: scrada_send
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCRADA_ARTIFACT_DIR="artifacts/scrada"
+          mkdir -p "${SCRADA_ARTIFACT_DIR}"
+          send_log="${SCRADA_ARTIFACT_DIR}/scrada-send-output.log"
+          send_json="${SCRADA_ARTIFACT_DIR}/scrada-send-output.json"
+          rm -f "${send_log}" "${send_json}"
+          set +e
+          node apps/api/scripts/scrada-send.mjs --artifact-dir "${SCRADA_ARTIFACT_DIR}" > "${send_log}" 2>&1
+          send_exit=$?
+          set -e
+          cat "${send_log}"
+          node - <<'NODE' "${send_log}" "${send_json}"
+            const fs = require("fs");
+            const [logPath, jsonPath] = process.argv.slice(2);
+            if (!fs.existsSync(logPath)) {
+              process.exit(0);
+            }
+            const text = fs.readFileSync(logPath, "utf8");
+            for (let idx = text.length - 1; idx >= 0; idx -= 1) {
+              if (text[idx] !== "{") {
+                continue;
+              }
+              try {
+                const data = JSON.parse(text.slice(idx));
+                fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
+                break;
+              } catch (error) {
+                continue;
+              }
+            }
+          NODE
+          send_status="failure"
+          document_id=""
+          invoice_id=""
+          external_reference=""
+          send_channel=""
+          vat_variant=""
+          if [ -f "${send_json}" ] && jq -e '.success == true' "${send_json}" >/dev/null 2>&1; then
+            send_status="success"
+            document_id=$(jq -r '.documentId' "${send_json}")
+            invoice_id=$(jq -r '.invoiceId' "${send_json}")
+            external_reference=$(jq -r '.externalReference' "${send_json}")
+            send_channel=$(jq -r '.channel' "${send_json}")
+            vat_variant=$(jq -r '.vatVariant' "${send_json}")
+            jq '.' "${send_json}"
+          else
+            if [ -f "${send_json}" ]; then
+              jq '.' "${send_json}" || true
+            fi
+          fi
+          echo "SCRADA_ARTIFACT_DIR=${SCRADA_ARTIFACT_DIR}" >> "$GITHUB_ENV"
+          echo "send_status=${send_status}" >> "$GITHUB_OUTPUT"
+          echo "send_exit=${send_exit}" >> "$GITHUB_OUTPUT"
+          echo "document_id=${document_id}" >> "$GITHUB_OUTPUT"
+          echo "invoice_id=${invoice_id}" >> "$GITHUB_OUTPUT"
+          echo "external_reference=${external_reference}" >> "$GITHUB_OUTPUT"
+          echo "send_channel=${send_channel}" >> "$GITHUB_OUTPUT"
+          echo "vat_variant=${vat_variant}" >> "$GITHUB_OUTPUT"
+          if [ "${send_status}" != "success" ]; then
+            echo "Scrada send did not complete successfully (exit=${send_exit})." >&2
+          fi
+
+      - name: Assemble Scrada summary
+        if: always()
+        shell: bash
+        env:
+          RUN_URL: ${{ format('https://github.com/{0}/actions/runs/{1}', github.repository, github.run_id) }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISOLATION_RESULT: ${{ env.ISOLATION_RESULT }}
+          ADAPTER_CHECK: ${{ env.ADAPTER_CHECK }}
+          SEND_STATUS: ${{ steps.scrada_send.outputs.send_status }}
+          SEND_CHANNEL: ${{ steps.scrada_send.outputs.send_channel }}
+          SEND_EXIT: ${{ steps.scrada_send.outputs.send_exit }}
+          SEND_DOCUMENT_ID: ${{ steps.scrada_send.outputs.document_id }}
+          SEND_INVOICE_ID: ${{ steps.scrada_send.outputs.invoice_id }}
+          SEND_EXTERNAL_REFERENCE: ${{ steps.scrada_send.outputs.external_reference }}
+          SEND_VAT_VARIANT: ${{ steps.scrada_send.outputs.vat_variant }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs/promises");
+          const path = require("path");
+          const { promisify } = require("util");
+          const { execFile } = require("child_process");
+          const execFileAsync = promisify(execFile);
+
+          async function pathExists(targetPath) {
+            try {
+              await fs.access(targetPath);
+              return true;
+            } catch {
+              return false;
+            }
+          }
+
+          async function readLines(filePath) {
+            if (!(await pathExists(filePath))) {
+              return [];
+            }
+            const text = await fs.readFile(filePath, "utf8");
+            return text
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0);
+          }
+
+          async function readErrorPreview(filePath, limit) {
+            if (!(await pathExists(filePath))) {
+              return [];
+            }
+            const text = await fs.readFile(filePath, "utf8");
+            const rawLines = text.split(/\r?\n/);
+            const preview = [];
+            for (let i = 0; i < rawLines.length && preview.length < limit; i += 1) {
+              const raw = rawLines[i];
+              preview.push(raw.length > 0 ? raw : "(blank line)");
+            }
+            return preview;
+          }
+
+          async function collectExistingPaths(root, items) {
+            const results = [];
+            for (const relative of items) {
+              const target = path.join(root, relative);
+              if (await pathExists(target)) {
+                results.push(path.relative(process.cwd(), target));
+              }
+            }
+            if (results.length === 0 && (await pathExists(root))) {
+              const names = await fs.readdir(root);
+              names.sort((a, b) => a.localeCompare(b, "en"));
+              for (const name of names) {
+                results.push(path.relative(process.cwd(), path.join(root, name)));
+              }
+            }
+            return results;
+          }
+
+          (async () => {
+            const repoRoot = process.cwd();
+            const outputDir = path.join(repoRoot, "output");
+            await fs.mkdir(outputDir, { recursive: true });
+
+            const runId = process.env.GITHUB_RUN_ID ?? "unknown";
+            const repository = process.env.GITHUB_REPOSITORY ?? "";
+            const runUrl =
+              process.env.RUN_URL ||
+              (repository ? `https://github.com/${repository}/actions/runs/${runId}` : `actions/runs/${runId}`);
+            const sha = process.env.GITHUB_SHA ?? "unknown";
+            const isolation = process.env.ISOLATION_RESULT ?? "Isolation=UNKNOWN";
+            const adapterLine = process.env.ADAPTER_CHECK ?? "";
+
+            const artifactDirEnv = process.env.SCRADA_ARTIFACT_DIR;
+            const artifactDir = artifactDirEnv
+              ? path.resolve(artifactDirEnv)
+              : path.join(repoRoot, "artifacts", "scrada");
+
+            const headerLines = await readLines(path.join(artifactDir, "headers-sent.txt"));
+            const errorPreview = await readErrorPreview(path.join(artifactDir, "error-body.txt"), 2);
+            const artifactPaths = await collectExistingPaths(artifactDir, [
+              "json-sent.json",
+              "ubl-sent.xml",
+              "headers-sent.txt",
+              "error-body.txt",
+              "scrada-send-output.log",
+              "scrada-send-output.json"
+            ]);
+
+            let supportBundlePath = "";
+            let supportBundleError = "";
+            const sendStatus = (process.env.SEND_STATUS || "").toLowerCase();
+            if (sendStatus !== "success" && (await pathExists(artifactDir))) {
+              const zipName = `scrada_support_bundle_${runId}.zip`;
+              const zipPath = path.join(outputDir, zipName);
+              try {
+                await fs.unlink(zipPath).catch(() => {});
+                await execFileAsync("zip", ["-r", zipPath, "."], { cwd: artifactDir });
+                supportBundlePath = path.relative(repoRoot, zipPath);
+                console.log(`Support bundle created: ${supportBundlePath}`);
+              } catch (error) {
+                supportBundleError =
+                  error && error.message ? error.message : String(error ?? "unknown error");
+                console.error(`Failed to create support bundle: ${supportBundleError}`);
+              }
+            }
+
+            const summaryLines = [];
+            summaryLines.push("# Summary");
+            summaryLines.push(`- Run URL: ${runUrl}`);
+            summaryLines.push(`- SHA: ${sha}`);
+            if (adapterLine) {
+              summaryLines.push(`- ${adapterLine}`);
+            }
+            summaryLines.push(`- Isolation: ${isolation}`);
+
+            const appendBlankLine = () => {
+              if (summaryLines.length > 0 && summaryLines[summaryLines.length - 1] !== "") {
+                summaryLines.push("");
+              }
+            };
+
+            appendBlankLine();
+            summaryLines.push("## Header values");
+            if (headerLines.length > 0) {
+              for (const line of headerLines) {
+                summaryLines.push(`- ${line}`);
+              }
+            } else {
+              summaryLines.push("- (no UBL header preview captured)");
+            }
+
+            appendBlankLine();
+            summaryLines.push("## Send Result");
+            summaryLines.push(`- Channel: ${process.env.SEND_CHANNEL || "unknown"}`);
+            summaryLines.push(`- Final status: ${process.env.SEND_STATUS || "unknown"}`);
+            if (process.env.SEND_DOCUMENT_ID) {
+              summaryLines.push(`- Document ID: ${process.env.SEND_DOCUMENT_ID}`);
+            }
+            if (artifactPaths.length > 0) {
+              summaryLines.push(`- Artifacts: ${artifactPaths.join("; ")}`);
+            }
+            if (errorPreview.length > 0) {
+              summaryLines.push("- Error preview:");
+              for (const line of errorPreview) {
+                summaryLines.push(`  - ${line}`);
+              }
+            }
+            if (supportBundlePath) {
+              summaryLines.push(`- Support bundle: ${supportBundlePath}`);
+            } else if (supportBundleError) {
+              summaryLines.push(`- Support bundle: failed (${supportBundleError})`);
+            }
+
+            appendBlankLine();
+            const summaryPath = path.join(outputDir, "scrada_run_summary.md");
+            await fs.writeFile(summaryPath, `${summaryLines.join("\n")}\n`, "utf8");
+            console.log(`Summary written to ${path.relative(repoRoot, summaryPath)}`);
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+          cat output/scrada_run_summary.md
+
+      - name: Upload Scrada artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrada-flow-artifacts
+          if-no-files-found: warn
+          path: |
+            artifacts/scrada
+            output/scrada_run_summary.md
+            ${{ format('output/scrada_support_bundle_{0}.zip', github.run_id) }}
+            ${{ steps.scrada_send.outputs.document_id && format('.data/archive/peppol/{0}.xml', steps.scrada_send.outputs.document_id) }}
