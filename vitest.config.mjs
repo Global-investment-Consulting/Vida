@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { defineConfig, configDefaults } from "vitest/config";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const distSrcDir = path.join(rootDir, "dist", "src");
@@ -55,6 +55,7 @@ export default defineConfig({
     reporters: "default",
     restoreMocks: true,
     isolate: true,
+    exclude: [...configDefaults.exclude, "legacy/**"],
     pool: "vmThreads",
     maxConcurrency: isPrismaBackend ? 1 : undefined,
     poolOptions: {
