@@ -20,7 +20,8 @@ describe("scrada payload builders (BIS 3.0)", () => {
     expect(invoice.customer.vatNumber).toBe("BE0755799452");
     expect(invoice.supplier.vatNumber).toBe(SUPPLIER_VAT);
     expect(invoice.lines).toHaveLength(1);
-    expect(invoice.totalInclVat).toBeCloseTo(121);
+    expect(invoice.totalExclVat).toBeCloseTo(100);
+    expect(invoice.totalInclVat).toBeUndefined();
   });
 
   it("builds a UBL invoice with the final BIS 3.0 identifiers", () => {

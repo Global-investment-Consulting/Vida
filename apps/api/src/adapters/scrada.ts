@@ -72,6 +72,12 @@ const PROCESS_SCHEME = "cenbii-procid-ubl";
 const PROCESS_VALUE = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0";
 const HEADER_SWEEP_DOC_VALUES = [DOC_TYPE_VALUE] as const;
 const HEADER_SWEEP_PROCESS_VALUES = [PROCESS_VALUE] as const;
+const DEBUG_ENABLED = process.env.SCRADA_DEBUG === "1";
+const PREFERRED_FORMAT =
+  (process.env.SCRADA_PREFERRED_FORMAT ?? "xml").trim().toLowerCase() === "json" ? "json" : "ubl";
+const FAILOVER_TO_UBL = process.env.SCRADA_FAILOVER_TO_UBL === "1";
+const DEBUG_ROOT = path.resolve(process.cwd(), "output", "scrada-debug");
+const DEBUG_RESPONSE_SNIPPET_BYTES = 1_024;
 
 const SUCCESS_STATUSES = new Set([
   "DELIVERED",
@@ -385,6 +391,69 @@ async function writeHeaderPreview(filePath: string, headers: Record<string, stri
   } else {
     console.warn("[scrada-ubl] header preview: <empty>");
   }
+}
+
+function scrubDebugHeaders(headers: Record<string, string | undefined>): Record<string, string> {
+  const blocked = new Set(["authorization", "x-api-key", "x-password", "x-password1", "x-password2"]);
+  const sanitized: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (!value) {
+      continue;
+    }
+    if (blocked.has(name.toLowerCase())) {
+      continue;
+    }
+    sanitized[name] = value;
+  }
+  return sanitized;
+}
+
+function summarizeTotalsForDebug(invoice: ScradaSalesInvoice): string {
+  const parts = [`isInclVat=${invoice.isInclVat === true}`];
+  if (typeof invoice.totalExclVat === "number") {
+    parts.push(`totalExclVat=${invoice.totalExclVat.toFixed(2)}`);
+  }
+  if (typeof invoice.totalInclVat === "number") {
+    parts.push(`totalInclVat=${invoice.totalInclVat.toFixed(2)}`);
+  }
+  parts.push(`totalVat=${invoice.totalVat.toFixed(2)}`);
+  return parts.join(" ");
+}
+
+async function writeDebugArtifact(
+  baseDir: string | null,
+  attemptLabel: string,
+  fileName: string,
+  contents: string
+): Promise<void> {
+  if (!baseDir) {
+    return;
+  }
+  const attemptDir = path.join(baseDir, attemptLabel);
+  await ensureArtifactDir(attemptDir);
+  await writeFile(path.join(attemptDir, fileName), contents, "utf8");
+}
+
+function debugAttemptLabel(attempt: ScradaSendAttempt): string {
+  return `${attempt.channel}-${attempt.attempt}`;
+}
+
+async function createDebugRunDir(invoiceId: string): Promise<string> {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const dir = path.join(DEBUG_ROOT, `${stamp}-${invoiceId}`);
+  await ensureArtifactDir(dir);
+  return dir;
+}
+
+function bodySnippet(payload: unknown, limit = DEBUG_RESPONSE_SNIPPET_BYTES): string {
+  const raw = scrubbedStringify(payload) ?? "";
+  if (!raw) {
+    return "<empty>";
+  }
+  if (raw.length <= limit) {
+    return raw;
+  }
+  return `${raw.slice(0, limit)}…`;
 }
 
 function detectForbiddenUblHeaders(headerNames: string[]): string[] {
@@ -792,76 +861,111 @@ export async function sendInvoiceWithFallback(
   const client = options.client ?? getScradaClient();
   const headerSweepEnabled = isTruthyFlag(process.env.SCRADA_HEADER_SWEEP);
   const vatVariant = RECEIVER_VAT;
+  const preferJson = PREFERRED_FORMAT === "json";
+  const allowUblFailover = FAILOVER_TO_UBL || preferJson;
+  const debugRunDir = DEBUG_ENABLED ? await createDebugRunDir(invoiceId) : null;
 
   let lastError: unknown;
   let finalDocumentId: string | null = null;
-  let finalChannel: Channel = "json";
+  let finalChannel: Channel = preferJson ? "json" : "ubl";
   let finalDocIndex: number | null = null;
   let finalProcessIndex: number | null = null;
-  let shouldAttemptUbl = false;
+  let shouldAttemptUbl = !preferJson;
 
-  const jsonAttempt: ScradaSendAttempt = {
-    attempt: attempts.length + 1,
-    channel: "json",
-    vatVariant,
-    success: false
-  };
-  attempts.push(jsonAttempt);
+  if (preferJson) {
+    const jsonAttempt: ScradaSendAttempt = {
+      attempt: attempts.length + 1,
+      channel: "json",
+      vatVariant,
+      success: false
+    };
+    attempts.push(jsonAttempt);
+    const jsonHeaders: Record<string, string> = {
+      "Content-Type": "application/json"
+    };
+    const requestBody = withExternalReference(invoice, externalReference);
+    if (DEBUG_ENABLED && debugRunDir) {
+      const label = debugAttemptLabel(jsonAttempt);
+      await writeDebugArtifact(debugRunDir, label, "request.json", JSON.stringify(requestBody, null, 2));
+      console.log(
+        `[scrada-debug] attempt=${jsonAttempt.attempt} channel=json headers=${JSON.stringify(
+          scrubDebugHeaders(jsonHeaders)
+        )} totals=${summarizeTotalsForDebug(invoice)}`
+      );
+    }
 
-  try {
-    const response = await client.post(
-      companyPath("peppol/outbound/salesInvoice"),
-      withExternalReference(invoice, externalReference),
-      {
-        headers: {
-          "Content-Type": "application/json"
+    try {
+      const response = await client.post(companyPath("peppol/outbound/salesInvoice"), requestBody, {
+        headers: jsonHeaders
+      });
+      if (DEBUG_ENABLED && debugRunDir) {
+        const label = debugAttemptLabel(jsonAttempt);
+        await writeDebugArtifact(
+          debugRunDir,
+          label,
+          "response.txt",
+          `Status: ${response.status}\nBody:\n${bodySnippet(response.data)}`
+        );
+      }
+      finalDocumentId = extractDocumentId(response.data);
+      finalChannel = "json";
+      jsonAttempt.success = true;
+    } catch (error) {
+      const wrappedError = wrapAxiosError(error, "send sales invoice JSON");
+      lastError = wrappedError;
+      const axiosError = unwrapAxiosError(wrappedError);
+      jsonAttempt.statusCode = axiosError?.response?.status ?? null;
+      jsonAttempt.errorMessage =
+        wrappedError instanceof Error ? wrappedError.message : String(wrappedError ?? "unknown error");
+      const errorBody = stringifyErrorBody(wrappedError);
+      const entryParts = [
+        `[${new Date().toISOString()}] attempt=${jsonAttempt.attempt}`,
+        "channel=json",
+        `vatVariant=${vatVariant}`
+      ];
+      if (typeof jsonAttempt.statusCode === "number") {
+        entryParts.push(`status=${jsonAttempt.statusCode}`);
+      }
+      if (jsonAttempt.errorMessage) {
+        entryParts.push(`error=${jsonAttempt.errorMessage}`);
+      }
+      const rawData = scrubbedStringify(axiosError?.response?.data);
+      if (rawData) {
+        entryParts.push(`data=${rawData}`);
+        console.error(`[scrada-json] response data: ${rawData}`);
+      }
+      const headerHint = headersToHint(axiosError?.response?.headers);
+      if (headerHint) {
+        entryParts.push(`headers=${headerHint}`);
+        console.error(`[scrada] response headers: ${headerHint}`);
+      }
+      if (axiosError && typeof axiosError.toJSON === "function") {
+        try {
+          console.error(`[scrada] axios error: ${JSON.stringify(axiosError.toJSON())}`);
+        } catch {
+          // ignore serialization issues
         }
       }
-    );
-    finalDocumentId = extractDocumentId(response.data);
-    jsonAttempt.success = true;
-  } catch (error) {
-    const wrappedError = wrapAxiosError(error, "send sales invoice JSON");
-    lastError = wrappedError;
-    const axiosError = unwrapAxiosError(wrappedError);
-    jsonAttempt.statusCode = axiosError?.response?.status ?? null;
-    jsonAttempt.errorMessage =
-      wrappedError instanceof Error ? wrappedError.message : String(wrappedError ?? "unknown error");
-    const errorBody = stringifyErrorBody(wrappedError);
-    const entryParts = [
-      `[${new Date().toISOString()}] attempt=${jsonAttempt.attempt}`,
-      "channel=json",
-      `vatVariant=${vatVariant}`
-    ];
-    if (typeof jsonAttempt.statusCode === "number") {
-      entryParts.push(`status=${jsonAttempt.statusCode}`);
-    }
-    if (jsonAttempt.errorMessage) {
-      entryParts.push(`error=${jsonAttempt.errorMessage}`);
-    }
-    const rawData = scrubbedStringify(axiosError?.response?.data);
-    if (rawData) {
-      entryParts.push(`data=${rawData}`);
-      console.error(`[scrada-json] response data: ${rawData}`);
-    }
-    const headerHint = headersToHint(axiosError?.response?.headers);
-    if (headerHint) {
-      entryParts.push(`headers=${headerHint}`);
-      console.error(`[scrada] response headers: ${headerHint}`);
-    }
-    if (axiosError && typeof axiosError.toJSON === "function") {
-      try {
-        console.error(`[scrada] axios error: ${JSON.stringify(axiosError.toJSON())}`);
-      } catch {
-        // ignore serialization issues
+      const entry = entryParts.join(" ");
+      await appendTextArtifact(errorPath, `${entry}\n${errorBody}\n\n`);
+      if (DEBUG_ENABLED && debugRunDir) {
+        const label = debugAttemptLabel(jsonAttempt);
+        const debugStatus = axiosError?.response?.status ?? "n/a";
+        const debugBody = axiosError?.response?.data ?? errorBody;
+        await writeDebugArtifact(
+          debugRunDir,
+          label,
+          "response.txt",
+          `Status: ${debugStatus}\nBody:\n${bodySnippet(debugBody)}`
+        );
+      }
+      if (allowUblFailover || jsonAttempt.statusCode === 400) {
+        shouldAttemptUbl = true;
+        console.warn(
+          `[scrada] JSON send failed (status=${jsonAttempt.statusCode ?? "unknown"}) — attempting UBL fallback`
+        );
       }
     }
-    const entry = entryParts.join(" ");
-    await appendTextArtifact(errorPath, `${entry}\n${errorBody}\n\n`);
-  }
-
-  if (!jsonAttempt.success && jsonAttempt.statusCode === 400) {
-    shouldAttemptUbl = true;
   }
 
   if (!finalDocumentId && shouldAttemptUbl) {
@@ -883,12 +987,16 @@ export async function sendInvoiceWithFallback(
           processValueIndex: headerSweepEnabled ? processIndex : undefined
         };
         attempts.push(attemptRecord);
+        const attemptLabel = debugAttemptLabel(attemptRecord);
 
         const attemptUblPath = path.join(artifactDir, `ubl-sent-${attemptIndex}.xml`);
         const attemptHeadersPath = path.join(artifactDir, `header-names-${attemptIndex}.txt`);
         const attemptErrorPath = path.join(artifactDir, `error-body-${attemptIndex}.txt`);
 
         await writeTextArtifact(attemptUblPath, ublXml);
+        if (DEBUG_ENABLED && debugRunDir) {
+          await writeDebugArtifact(debugRunDir, attemptLabel, "request.xml", ublXml);
+        }
 
         try {
           const finalHeaders: Record<string, string> = {
@@ -898,6 +1006,13 @@ export async function sendInvoiceWithFallback(
               processValue: processCandidates[processIndex]
             })
           };
+          if (DEBUG_ENABLED && debugRunDir) {
+            console.log(
+              `[scrada-debug] attempt=${attemptRecord.attempt} channel=ubl headers=${JSON.stringify(
+                scrubDebugHeaders(finalHeaders)
+              )} totals=${summarizeTotalsForDebug(invoice)}`
+            );
+          }
 
           const normalizedHeaderNames = enforceUblHeaderAllowList(finalHeaders);
           await writeTextArtifact(attemptHeadersPath, normalizedHeaderNames.join("\n"));
@@ -913,6 +1028,14 @@ export async function sendInvoiceWithFallback(
               headers: finalHeaders
             }
           );
+          if (DEBUG_ENABLED && debugRunDir) {
+            await writeDebugArtifact(
+              debugRunDir,
+              attemptLabel,
+              "response.txt",
+              `Status: ${response.status}\nBody:\n${bodySnippet(response.data)}`
+            );
+          }
           finalDocumentId = extractDocumentId(response.data);
           attemptRecord.success = true;
           finalChannel = "ubl";
@@ -965,6 +1088,16 @@ export async function sendInvoiceWithFallback(
           const entry = entryParts.join(" ");
           await appendTextArtifact(errorPath, `${entry}\n${errorBody}\n\n`);
           await writeTextArtifact(attemptErrorPath, `${entry}\n${errorBody}\n`);
+          if (DEBUG_ENABLED && debugRunDir) {
+            const debugStatus = axiosError?.response?.status ?? "n/a";
+            const debugBody = axiosError?.response?.data ?? errorBody;
+            await writeDebugArtifact(
+              debugRunDir,
+              attemptLabel,
+              "response.txt",
+              `Status: ${debugStatus}\nBody:\n${bodySnippet(debugBody)}`
+            );
+          }
 
           if (attemptRecord.statusCode !== 400) {
             break outer;
@@ -992,6 +1125,10 @@ export async function sendInvoiceWithFallback(
       }
     );
   }
+
+  console.log(
+    `[scrada] send success channel=${finalChannel} documentId=${finalDocumentId} attempts=${attempts.length}`
+  );
 
   return {
     invoice,

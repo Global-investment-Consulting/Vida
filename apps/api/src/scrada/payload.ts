@@ -54,6 +54,7 @@ const NET_AMOUNT = 100;
 const VAT_RATE = 21;
 const VAT_AMOUNT = Number((NET_AMOUNT * (VAT_RATE / 100)).toFixed(2));
 const GROSS_AMOUNT = Number((NET_AMOUNT + VAT_AMOUNT).toFixed(2));
+type TotalsMode = "incl" | "excl";
 
 export type InvoiceBuildOptions = {
   invoiceId?: string;
@@ -309,6 +310,25 @@ function buildInvoiceContext(options: InvoiceBuildOptions = {}): ScradaInvoiceCo
   };
 }
 
+function resolveTotalsMode(context: ScradaInvoiceContext): TotalsMode {
+  return context.customer.includeVat ? "incl" : "excl";
+}
+
+type JsonInvoiceTotals = Pick<ScradaSalesInvoice, "isInclVat" | "totalExclVat" | "totalInclVat" | "totalVat">;
+
+function buildInvoiceTotals(context: ScradaInvoiceContext, mode: TotalsMode): JsonInvoiceTotals {
+  const totals: JsonInvoiceTotals = {
+    isInclVat: mode === "incl",
+    totalVat: context.vatAmount
+  };
+  if (mode === "incl") {
+    totals.totalInclVat = context.grossAmount;
+  } else {
+    totals.totalExclVat = context.netAmount;
+  }
+  return totals;
+}
+
 type JsonParty = ScradaSalesInvoice["supplier"];
 type JsonLine = ScradaSalesInvoice["lines"][number];
 type JsonVatTotal = ScradaSalesInvoice["vatTotals"][number];
@@ -330,30 +350,36 @@ function mapPartyToJson(context: PartyContext): JsonParty {
   };
 }
 
-function mapLineToJson(context: ScradaInvoiceContext): JsonLine {
-  return {
+function mapLineToJson(context: ScradaInvoiceContext, mode: TotalsMode): JsonLine {
+  const line: JsonLine = {
     lineNumber: context.line.id,
     itemName: context.line.description,
     quantity: context.line.quantity,
     unitType: context.line.unitType,
     itemExclVat: context.line.unitPrice,
-    totalExclVat: context.netAmount,
-    totalInclVat: context.grossAmount,
     vatType: 1,
     vatPercentage: Number(context.vatRate.toFixed(2))
   };
+  if (mode === "incl") {
+    line.totalInclVat = context.grossAmount;
+  } else {
+    line.totalExclVat = context.netAmount;
+  }
+  return line;
 }
 
-function mapVatTotalsToJson(context: ScradaInvoiceContext): JsonVatTotal[] {
-  return [
-    {
-      vatType: 1,
-      vatPercentage: Number(context.vatRate.toFixed(2)),
-      totalExclVat: context.netAmount,
-      totalVat: context.vatAmount,
-      totalInclVat: context.grossAmount
-    }
-  ];
+function mapVatTotalsToJson(context: ScradaInvoiceContext, mode: TotalsMode): JsonVatTotal[] {
+  const vatTotal: JsonVatTotal = {
+    vatType: 1,
+    vatPercentage: Number(context.vatRate.toFixed(2)),
+    totalVat: context.vatAmount
+  };
+  if (mode === "incl") {
+    vatTotal.totalInclVat = context.grossAmount;
+  } else {
+    vatTotal.totalExclVat = context.netAmount;
+  }
+  return [vatTotal];
 }
 
 function buildJsonInvoice(context: ScradaInvoiceContext): ScradaSalesInvoice {
@@ -366,6 +392,9 @@ function buildJsonInvoice(context: ScradaInvoiceContext): ScradaSalesInvoice {
     customer.peppolID = `${context.customer.scheme}:${context.customer.id}`;
   }
 
+  const totalsMode = resolveTotalsMode(context);
+  const invoiceTotals = buildInvoiceTotals(context, totalsMode);
+
   return {
     number: context.invoiceId,
     externalReference: context.externalReference,
@@ -374,14 +403,11 @@ function buildJsonInvoice(context: ScradaInvoiceContext): ScradaSalesInvoice {
     supplier,
     customer,
     currency: context.currency,
-    totalExclVat: context.netAmount,
-    totalVat: context.vatAmount,
-    totalInclVat: context.grossAmount,
-    isInclVat: false,
+    ...invoiceTotals,
     buyerReference: context.externalReference,
     note: optionalEnv("SCRADA_INVOICE_NOTE") ?? undefined,
-    lines: [mapLineToJson(context)],
-    vatTotals: mapVatTotalsToJson(context),
+    lines: [mapLineToJson(context, totalsMode)],
+    vatTotals: mapVatTotalsToJson(context, totalsMode),
     paymentTerms: context.payment.note
   };
 }

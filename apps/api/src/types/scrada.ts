@@ -58,9 +58,9 @@ export interface ScradaInvoiceLine extends UnknownRecord {
 export interface ScradaVatTotal extends UnknownRecord {
   vatType: number;
   vatPercentage: number;
-  totalExclVat: number;
+  totalExclVat?: number;
   totalVat: number;
-  totalInclVat: number;
+  totalInclVat?: number;
   note?: string;
 }
 
@@ -88,8 +88,8 @@ export interface ScradaSalesInvoice extends UnknownRecord {
   supplier: ScradaInvoiceParty;
   customer: ScradaInvoiceParty;
   delivery?: UnknownRecord;
-  totalExclVat: number;
-  totalInclVat: number;
+  totalExclVat?: number;
+  totalInclVat?: number;
   totalVat: number;
   currency?: string;
   payableRoundingAmount?: number;
