@@ -25,6 +25,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Compute UBL artifact paths
+        id: ubl_paths
+        shell: pwsh
+        run: |
+          $input = '${{ github.event.inputs.file }}'
+          if (-not $input -or $input.Trim().Length -eq 0) { throw "Missing input path" }
+          $patched = [System.IO.Path]::ChangeExtension($input, 'send.xml')
+          "patched=$patched" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: Send UBL via Scrada
         shell: pwsh
         env:
@@ -36,7 +44,17 @@ jobs:
         run: >
           ./tools/scrada-peppol/Send-PeppolUbl.ps1
           -InputPath "${{ github.event.inputs.file }}"
+          -OutputPath "${{ steps.ubl_paths.outputs.patched }}"
           -Environment "${{ github.event.inputs.environment }}"
           -BuyerReference "${{ github.event.inputs.buyerReference }}"
           -OrderId "${{ github.event.inputs.orderId }}"
           -ExternalReference "${{ github.event.inputs.externalRef }}"
+      - name: Upload UBL artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrada-ubl-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            ${{ github.event.inputs.file }}
+            ${{ steps.ubl_paths.outputs.patched }}
