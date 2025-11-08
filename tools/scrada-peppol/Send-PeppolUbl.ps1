@@ -15,15 +15,14 @@ param(
   [string]$DocType   = 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1',
   [string]$ProcessId = 'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0',
 
-[ValidateSet('test','apitest','prod')]
-[string]$Environment = 'apitest',
+  [ValidateSet('test','apitest','prod')]
+  [string]$Environment = 'apitest',
 
   [string]$BuyerReference,
   [string]$OrderId,
 
   [string]$DocumentCurrencyCode = 'EUR',
-  [int]$PollSeconds = 300,
-  [int]$PollIntervalSeconds = 5,
+  [int]$TimeoutSec = 600,
   [string]$ExternalReference
 )
 
@@ -37,7 +36,15 @@ function Write-Err ($msg){ Write-Host "[error] $msg" -ForegroundColor Red }
 if (-not $CompanyId -or -not $ApiKey -or -not $Password) { throw "Missing SCRADA_* credentials. Provide params or set env vars." }
 if (-not $SenderId  -or -not $ReceiverId) { throw "Missing SenderId/ReceiverId. Provide params or set env vars SCRADA_PEPPOL_SENDER_ID / SCRADA_PEPPOL_RECEIVER_ID." }
 
-$baseUri = if ($Environment -eq 'prod') { 'https://api.scrada.be' } else { 'https://apitest.scrada.be' }
+if ($SenderId.Trim() -eq $ReceiverId.Trim()) {
+  Write-Error "Sender and Receiver cannot be the same"
+  exit 2
+}
+
+if ($TimeoutSec -le 0) { $TimeoutSec = 600 }
+
+$apiHost = if ($Environment -eq 'prod') { 'api.scrada.be' } else { 'apitest.scrada.be' }
+$baseUri = "https://$apiHost"
 if (-not $OutputPath) { $OutputPath = [IO.Path]::ChangeExtension($InputPath, 'send.xml') }
 if (-not $ExternalReference -or $ExternalReference.Trim().Length -eq 0) {
   $ExternalReference = 'TEST-' + (Get-Date -f yyyyMMdd-HHmmss)
@@ -150,19 +157,39 @@ Write-Host "DOC: $docId  (extRef=$ExternalReference)" -ForegroundColor Yellow
 if (-not $docId -or $docId.Length -lt 16) { throw "Unexpected docId returned from Scrada." }
 
 # --- Poll status
-$polls = [Math]::Max(1, [Math]::Floor($PollSeconds / $PollIntervalSeconds))
+$deadline = (Get-Date).AddSeconds([Math]::Max(5, $TimeoutSec))
 $info = $null
-for ($i=0; $i -lt $polls; $i++){
-  Start-Sleep -Seconds $PollIntervalSeconds
+$terminalStatuses = @('Processed','Delivered','Error')
+do {
+  Start-Sleep -Seconds 5
   $rawInfo = & "$env:WINDIR\System32\curl.exe" -s "$baseUri/v1/company/$CompanyId/peppol/outbound/document/$docId/info" `
               -H "X-API-KEY: $ApiKey" -H "X-PASSWORD: $Password"
   try { $info = $rawInfo | ConvertFrom-Json } catch { $info = $null }
   $att = if ($info) { $info.attempt } else { '' }
   $st  = if ($info) { $info.status }  else { 'Unknown' }
   $err = if ($info) { $info.errorMessage } else { '' }
-  Write-Host "[status=$st; attempt=$att; err=$err]" 
-  if ($info -and ($info.status -eq 'Delivered' -or $info.status -eq 'Processed' -or $info.status -eq 'Error')) { break }
+  Write-Host "[status=$st; attempt=$att; err=$err]"
+} while ((Get-Date) -lt $deadline -and (-not $info -or ($info.status -notin $terminalStatuses)))
+
+if (-not $info -or ($info.status -notin $terminalStatuses)) {
+  $finalStatus = if ($info) { $info.status } else { 'Unknown' }
+  if ($env:GITHUB_OUTPUT) {
+    "docId=$docId" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+    "finalStatus=$finalStatus" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+  }
+  Write-Error "Timed out waiting for terminal status (last status=$finalStatus)"
+  exit 124
+}
+
+if ($env:GITHUB_OUTPUT) {
+  "docId=$docId" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+  "finalStatus=$($info.status)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 }
 
 Write-Host "[Result] DOC=$docId STATUS=$($info.status) ATTEMPT=$($info.attempt) ERR=$($info.errorMessage)" -ForegroundColor Green
-if ($info -and $info.status -eq 'Error') { exit 1 } else { exit 0 }
+if ($info.status -eq 'Error') {
+  Write-Error ($info.errorMessage ?? 'Scrada returned Error status')
+  exit 1
+}
+
+exit 0

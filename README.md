@@ -153,3 +153,16 @@ Snippet of the XML you should receive:
 
 ## Authentication
 All mutating endpoints (`POST /api/invoice`, `POST /webhook/order-created`, etc.) require a valid API key. Configure keys via `VIDA_API_KEYS` (comma-separated) and supply one of them in the `x-api-key` header for every request. For legacy clients, `Authorization: Bearer <key>` is still accepted, but new integrations should move to `x-api-key` exclusively.
+
+## Sending a test invoice (Scrada)
+Use the **Send Peppol UBL via Scrada** workflow when you need a verifiable UBL send through Scrada without redeploying:
+
+1. Commit or upload the UBL you want to send (e.g. `peppol/fixtures/invoice_peppol_bis3.xml`).
+2. In **GitHub → Actions → Send Peppol UBL via Scrada → Run workflow**, set:
+   - `file`: relative path to the XML.
+   - `environment`: `apitest` (default) or `prod`.
+   - Optional overrides: `senderId`, `receiverId`, `pollMinutes`, `buyerReference`, `orderId`, `extRef`.
+3. The workflow resolves blank sender/receiver IDs in this order: workflow input → secret (`SCRADA_SENDER_ID` / `SCRADA_TEST_RECEIVER_ID`) → repo variable (`SCRADA_SENDER_ID` / `SCRADA_TEST_RECEIVER_ID`) → fallback `0208:0755799452` / `9925:BE0749521473`.
+4. A guard step prints the effective sender/receiver and fails fast (exit code `2`) if they match, preventing accidental self-sends.
+5. The PowerShell sender patches BIS headers, posts to Scrada, and polls for up to `pollMinutes` (default 12 minutes) until Scrada returns `Processed`, `Delivered`, or `Error`. A timeout exits with `124`.
+6. Every run prints `DOC: <uuid>` plus `[status=…; attempt=…; err=…]` lines, uploads both the original and patched `.send.xml` as `scrada-ubl-<run-id>`, and writes `Scrada DOC=<uuid> FINAL=<status>` to the run summary for quick reference.
