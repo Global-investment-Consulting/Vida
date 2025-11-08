@@ -8,10 +8,24 @@ on:
         required: true
       environment:
         description: 'apitest or prod'
+        type: choice
+        options:
+          - apitest
+          - prod
         required: true
-        default: 'apitest'
-      externalRef:
-        description: 'External reference (optional)'
+        default: apitest
+      senderId:
+        description: 'Optional override for sender (defaults to secrets/vars fallback)'
+        required: false
+      receiverId:
+        description: 'Optional override for receiver (defaults to secrets/vars fallback)'
+        required: false
+      pollMinutes:
+        description: 'Minutes to poll for a terminal Scrada status'
+        required: false
+        default: '12'
+      extRef:
+        description: 'External reference (defaults to TEST-<run-id>)'
         required: false
       buyerReference:
         description: 'cbc:BuyerReference (leave blank to use OrderId or auto)'
@@ -25,30 +39,132 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compute UBL artifact paths
-        id: ubl_paths
+      - name: Prepare workflow inputs
+        id: prep
         shell: pwsh
+        env:
+          INPUT_FILE: ${{ github.event.inputs.file }}
+          INPUT_SENDER: ${{ github.event.inputs.senderId }}
+          INPUT_RECEIVER: ${{ github.event.inputs.receiverId }}
+          INPUT_EXTREF: ${{ github.event.inputs.extRef }}
+          INPUT_POLL_MINUTES: ${{ github.event.inputs.pollMinutes }}
+          SECRET_SENDER: ${{ secrets.SCRADA_SENDER_ID }}
+          SECRET_PEPPOL_SENDER: ${{ secrets.SCRADA_PEPPOL_SENDER_ID }}
+          SECRET_RECEIVER: ${{ secrets.SCRADA_TEST_RECEIVER_ID }}
+          SECRET_PEPPOL_RECEIVER: ${{ secrets.SCRADA_PEPPOL_RECEIVER_ID }}
+          VAR_SENDER: ${{ vars.SCRADA_SENDER_ID }}
+          VAR_SENDER_ID: ${{ vars.SCRADA_SUPPLIER_ID }}
+          VAR_SENDER_SCHEME: ${{ vars.SCRADA_SUPPLIER_SCHEME }}
+          VAR_RECEIVER: ${{ vars.SCRADA_TEST_RECEIVER_ID }}
+          VAR_RECEIVER_SCHEME: ${{ vars.SCRADA_TEST_RECEIVER_SCHEME }}
         run: |
-          $input = '${{ github.event.inputs.file }}'
-          if (-not $input -or $input.Trim().Length -eq 0) { throw "Missing input path" }
-          $patched = [System.IO.Path]::ChangeExtension($input, 'send.xml')
+          Set-StrictMode -Version Latest
+          function FirstValue([string[]]$values){
+            foreach($candidate in $values){
+              if (-not [string]::IsNullOrWhiteSpace($candidate)){ return $candidate.Trim() }
+            }
+            return ""
+          }
+          function BuildComposite($scheme,$id){
+            if (-not [string]::IsNullOrWhiteSpace($scheme) -and -not [string]::IsNullOrWhiteSpace($id)){
+              return ("{0}:{1}" -f $scheme.Trim(), $id.Trim())
+            }
+            return ""
+          }
+          $file = $env:INPUT_FILE
+          if ([string]::IsNullOrWhiteSpace($file)){
+            throw "Input 'file' is required"
+          }
+          $patched = [System.IO.Path]::ChangeExtension($file.Trim(), 'send.xml')
+          $explicitReceiverInput = (-not [string]::IsNullOrWhiteSpace($env:INPUT_RECEIVER)) -or (-not [string]::IsNullOrWhiteSpace($env:SECRET_RECEIVER)) -or (-not [string]::IsNullOrWhiteSpace($env:SECRET_PEPPOL_RECEIVER))
+          $senderCandidates = @(
+            $env:INPUT_SENDER,
+            $env:SECRET_SENDER,
+            $env:SECRET_PEPPOL_SENDER,
+            $env:VAR_SENDER,
+            (BuildComposite $env:VAR_SENDER_SCHEME $env:VAR_SENDER_ID),
+            '0208:0755799452'
+          )
+          $sender = FirstValue $senderCandidates
+          if ($sender -and $sender -notlike '*:*'){
+            $senderScheme = FirstValue @($env:VAR_SENDER_SCHEME, '0208')
+            $sender = "{0}:{1}" -f $senderScheme, $sender
+          }
+          if ([string]::IsNullOrWhiteSpace($sender)){
+            $sender = '0208:0755799452'
+          }
+          $receiverCandidates = @(
+            $env:INPUT_RECEIVER,
+            $env:SECRET_RECEIVER,
+            $env:SECRET_PEPPOL_RECEIVER,
+            $env:VAR_RECEIVER,
+            (BuildComposite $env:VAR_RECEIVER_SCHEME $env:VAR_RECEIVER),
+            '9925:BE0749521473'
+          )
+          $receiver = FirstValue $receiverCandidates
+          if ($receiver -and $receiver -notlike '*:*'){
+            $receiverScheme = FirstValue @($env:VAR_RECEIVER_SCHEME, '9925')
+            $receiver = "{0}:{1}" -f $receiverScheme, $receiver
+          }
+          if ([string]::IsNullOrWhiteSpace($receiver)){
+            $receiver = '9925:BE0749521473'
+          }
+          if (-not $explicitReceiverInput -and $receiver -eq $sender){
+            Write-Host "Receiver resolved to sender fallback; forcing default test receiver"
+            $receiver = '9925:BE0749521473'
+          }
+          $rawPoll = $env:INPUT_POLL_MINUTES
+          $pollMinutes = 12
+          if (-not [string]::IsNullOrWhiteSpace($rawPoll)){
+            $parsed = 0
+            if ([int]::TryParse($rawPoll, [ref]$parsed) -and $parsed -gt 0){
+              $pollMinutes = $parsed
+            } else {
+              Write-Host "pollMinutes input '$rawPoll' is invalid, defaulting to $pollMinutes"
+            }
+          }
+          $pollSeconds = $pollMinutes * 60
+          $extRef = if ([string]::IsNullOrWhiteSpace($env:INPUT_EXTREF)) { "TEST-$($env:GITHUB_RUN_ID)" } else { $env:INPUT_EXTREF.Trim() }
+          "file=$file" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "patched=$patched" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "sender=$sender" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "receiver=$receiver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "pollSeconds=$pollSeconds" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "extRef=$extRef" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Guard sender vs receiver
+        shell: pwsh
+        env:
+          SENDER_ID: ${{ steps.prep.outputs.sender }}
+          RECEIVER_ID: ${{ steps.prep.outputs.receiver }}
+        run: |
+          $sender = $env:SENDER_ID
+          $receiver = $env:RECEIVER_ID
+          Write-Host "Resolved senderId: $sender"
+          Write-Host "Resolved receiverId: $receiver"
+          if ($sender -eq $receiver) {
+            Write-Error "senderId and receiverId cannot be the same"
+            exit 2
+          }
       - name: Send UBL via Scrada
+        id: send
         shell: pwsh
         env:
           SCRADA_COMPANY_ID:         ${{ secrets.SCRADA_COMPANY_ID }}
           SCRADA_API_KEY:            ${{ secrets.SCRADA_API_KEY }}
           SCRADA_API_PASSWORD:       ${{ secrets.SCRADA_API_PASSWORD }}
-          SCRADA_PEPPOL_SENDER_ID:   ${{ secrets.SCRADA_PEPPOL_SENDER_ID || format('{0}:{1}', vars.SCRADA_SUPPLIER_SCHEME, vars.SCRADA_SUPPLIER_ID) }}
-          SCRADA_PEPPOL_RECEIVER_ID: ${{ secrets.SCRADA_PEPPOL_RECEIVER_ID || format('{0}:{1}', vars.SCRADA_TEST_RECEIVER_SCHEME, vars.SCRADA_TEST_RECEIVER_ID) }}
+          SCRADA_PEPPOL_SENDER_ID:   ${{ steps.prep.outputs.sender }}
+          SCRADA_PEPPOL_RECEIVER_ID: ${{ steps.prep.outputs.receiver }}
         run: >
           ./tools/scrada-peppol/Send-PeppolUbl.ps1
-          -InputPath "${{ github.event.inputs.file }}"
-          -OutputPath "${{ steps.ubl_paths.outputs.patched }}"
+          -InputPath "${{ steps.prep.outputs.file }}"
+          -OutputPath "${{ steps.prep.outputs.patched }}"
+          -SenderId "${{ steps.prep.outputs.sender }}"
+          -ReceiverId "${{ steps.prep.outputs.receiver }}"
           -Environment "${{ github.event.inputs.environment }}"
           -BuyerReference "${{ github.event.inputs.buyerReference }}"
           -OrderId "${{ github.event.inputs.orderId }}"
-          -ExternalReference "${{ github.event.inputs.externalRef }}"
+          -ExternalReference "${{ steps.prep.outputs.extRef }}"
+          -TimeoutSec ${{ steps.prep.outputs.pollSeconds }}
       - name: Upload UBL artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -56,5 +172,10 @@ jobs:
           name: scrada-ubl-${{ github.run_id }}
           if-no-files-found: warn
           path: |
-            ${{ github.event.inputs.file }}
-            ${{ steps.ubl_paths.outputs.patched }}
+            ${{ steps.prep.outputs.file }}
+            ${{ steps.prep.outputs.patched }}
+      - name: Scrada summary
+        if: always()
+        shell: bash
+        run: |
+          echo "Scrada DOC=${{ steps.send.outputs.docId || 'unknown' }} FINAL=${{ steps.send.outputs.finalStatus || 'pending' }}" >> "$GITHUB_STEP_SUMMARY"
