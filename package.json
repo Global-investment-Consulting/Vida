@@ -23,6 +23,7 @@
     "test": "vitest run",
     "test:ci": "vitest run --reporter=dot --silent",
     "peppol:gen": "node --import tsx scripts/peppol-generate.mjs",
+    "scrada:send": "pwsh ./tools/scrada-peppol/Send-PeppolUbl.ps1",
     "codex": "node scripts/codex.mjs",
     "history:list": "tsx src/cli/history-list.ts",
     "dlq:list": "tsx src/cli/dlq-list.ts",
