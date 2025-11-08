@@ -34,6 +34,9 @@ jobs:
       SCRADA_SKIP_PARTICIPANT_PREFLIGHT: ${{ vars.SCRADA_SKIP_PARTICIPANT_PREFLIGHT }}
       ARCHIVE_BUCKET: ${{ vars.ARCHIVE_BUCKET }}
       SCRADA_HEADER_SWEEP: "true"
+      SCRADA_PREFERRED_FORMAT: xml
+      SCRADA_FAILOVER_TO_UBL: "1"
+      SCRADA_DEBUG: "1"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -387,3 +390,11 @@ jobs:
             output/scrada_run_summary.md
             ${{ format('output/scrada_support_bundle_{0}.zip', github.run_id) }}
             ${{ steps.scrada_send.outputs.document_id && format('.data/archive/peppol/{0}.xml', steps.scrada_send.outputs.document_id) }}
+
+      - name: Upload Scrada debug logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrada-debug
+          path: output/scrada-debug
+          if-no-files-found: ignore
