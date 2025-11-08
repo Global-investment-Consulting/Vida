@@ -13,16 +13,40 @@ on:
 permissions:
   contents: read
 
-env:
-  VIDA_AP_ADAPTER: ${{ contains(github.ref, '/scrada') && 'scrada' || '' }}
-
 jobs:
-  ci:
-    name: Build & Test (Node 20)
+  plan:
+    name: Evaluate optional jobs
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        backend: [file, prisma]
+    outputs:
+      run_optional: ${{ steps.eval.outputs.run_optional }}
+    steps:
+      - id: eval
+        name: Detect scrada branches
+        run: |
+          if [[ "${GITHUB_REF}" == *"/scrada"* ]]; then
+            echo "run_optional=false" >> "$GITHUB_OUTPUT"
+            echo "Optional jobs disabled for ${GITHUB_REF}"
+          else
+            echo "run_optional=true" >> "$GITHUB_OUTPUT"
+            echo "Optional jobs enabled for ${GITHUB_REF}"
+          fi
+
+  actionlint:
+    name: Workflow Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actionlint
+        run: |
+          curl -sSfL https://github.com/rhysd/actionlint/releases/download/v1.7.1/actionlint_1.7.1_linux_amd64.tar.gz \
+            | tar -xz -C /usr/local/bin -f - actionlint
+      - name: Lint GitHub workflows
+        run: actionlint -color -shellcheck=
+
+  ci-file:
+    name: Build & Test (file backend)
+    needs: [plan, actionlint]
+    runs-on: ubuntu-latest
     env:
       CI: true
       TZ: UTC
@@ -32,34 +56,64 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version: '20.19.0'
           cache: 'npm'
       - name: Verify Node toolchain
         run: node scripts/verify-node.mjs
       - run: npm ci
-      - run: npm run lint -- --max-warnings=0
-        if: matrix.backend == 'file'
+      - name: Install apps/api dependencies
+        run: |
+          cd apps/api
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+      - run: npm run -s lint
       - run: npm run build
-        if: matrix.backend == 'file'
+      - name: Run tests (file backend)
+        env:
+          VIDA_STORAGE_BACKEND: file
+        run: npm test -- --run
+
+  ci-prisma:
+    name: Build & Test (prisma backend)
+    needs: [plan, actionlint]
+    if: ${{ needs.plan.outputs.run_optional == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      TZ: UTC
+      NODE_ENV: test
+      VIDA_API_KEYS: ci-test-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+          cache: 'npm'
+      - name: Verify Node toolchain
+        run: node scripts/verify-node.mjs
+      - run: npm ci
+      - name: Install apps/api dependencies
+        run: |
+          cd apps/api
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
       - name: Prisma Generate
-        if: matrix.backend == 'prisma' && env.VIDA_AP_ADAPTER != 'scrada'
         run: npx prisma generate
       - name: Prisma Migrate Deploy
-        if: matrix.backend == 'prisma' && env.VIDA_AP_ADAPTER != 'scrada'
         env:
           DATABASE_URL: file:./ci.db
         run: npx prisma migrate deploy
-      - name: Run tests (file backend)
-        if: matrix.backend == 'file'
-        env:
-          VIDA_STORAGE_BACKEND: file
-        run: npm run test:ci
       - name: Run tests (prisma backend)
-        if: matrix.backend == 'prisma' && env.VIDA_AP_ADAPTER != 'scrada'
         env:
           VIDA_STORAGE_BACKEND: prisma
           DATABASE_URL: file:./ci.db
-        run: npm run test:ci
+        run: npm test -- --run
 
   docker:
     name: Build Docker image (main)
@@ -89,8 +143,9 @@ jobs:
 
   billit-gate:
     name: Billit Contract Gate
+    needs: plan
     runs-on: ubuntu-latest
-    if: ${{ env.VIDA_AP_ADAPTER != 'scrada' }}
+    if: ${{ needs.plan.outputs.run_optional == 'true' }}
     outputs:
       enabled: ${{ steps.gate.outputs.enabled }}
     steps:
@@ -113,8 +168,10 @@ jobs:
   billit-contract:
     name: Billit Contract (gated)
     runs-on: ubuntu-latest
-    needs: billit-gate
-    if: ${{ needs.billit-gate.outputs.enabled == 'true' && env.VIDA_AP_ADAPTER != 'scrada' }}
+    needs:
+      - plan
+      - billit-gate
+    if: ${{ needs.plan.outputs.run_optional == 'true' && needs.billit-gate.outputs.enabled == 'true' }}
     env:
       BILLIT_SANDBOX: ${{ vars.BILLIT_SANDBOX }}
       AP_BASE_URL:    ${{ secrets.AP_BASE_URL }}
@@ -129,7 +186,7 @@ jobs:
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version: '20.19.0'
 
       - name: Verify Node toolchain
         run: node scripts/verify-node.mjs
