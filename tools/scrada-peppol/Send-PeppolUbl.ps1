@@ -159,7 +159,8 @@ for ($i=0; $i -lt $polls; $i++){
   try { $info = $rawInfo | ConvertFrom-Json } catch { $info = $null }
   $att = if ($info) { $info.attempt } else { '' }
   $st  = if ($info) { $info.status }  else { 'Unknown' }
-  Write-Host "[status=$st; attempt=$att]" 
+  $err = if ($info) { $info.errorMessage } else { '' }
+  Write-Host "[status=$st; attempt=$att; err=$err]" 
   if ($info -and ($info.status -eq 'Delivered' -or $info.status -eq 'Processed' -or $info.status -eq 'Error')) { break }
 }
 
