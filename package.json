@@ -22,6 +22,8 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
     "test:ci": "vitest run --reporter=dot --silent",
+    "test:scrada:mock": "vitest run tests/integration/scrada.sender.mock.spec.ts",
+    "test:scrada:e2e": "SCRADA_RUN_E2E=true vitest run tests/e2e/scrada.e2e.spec.ts",
     "peppol:gen": "node --import tsx scripts/peppol-generate.mjs",
     "scrada:send": "pwsh ./tools/scrada-peppol/Send-PeppolUbl.ps1",
     "codex": "node scripts/codex.mjs",
@@ -54,6 +56,7 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",
     "undici": "^6.22.0",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "nock": "^14.0.0"
   }
 }
