@@ -1,4 +1,3 @@
-import { billitAdapter } from "./billit.js";
 import { banqupAdapter } from "./banqup.js";
 import { mockAdapter } from "./mock.js";
 import { type ApAdapter } from "./types.js";
@@ -19,8 +18,7 @@ const mockErrorAdapter: ApAdapter = {
 const registry = new Map<string, AdapterFactory>([
   ["mock", () => mockAdapter],
   ["mock_error", () => mockErrorAdapter],
-  ["banqup", () => banqupAdapter],
-  ["billit", () => billitAdapter]
+  ["banqup", () => banqupAdapter]
 ]);
 
 export function getAdapter(name?: string): ApAdapter {

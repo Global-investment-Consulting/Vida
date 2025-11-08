@@ -1,0 +1,35 @@
+{
+  "name": "@vida/api",
+  "version": "0.6.0",
+  "description": "ViDA API – Scrada integration utilities",
+  "type": "module",
+  "private": true,
+  "main": "dist/src/server.js",
+  "types": "dist/src/server.d.ts",
+  "engines": {
+    "node": ">=20.19.0 <21",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
+    "test": "vitest run",
+    "test:ci": "vitest run --reporter=dot --silent",
+    "scrada:send": "node scripts/scrada-send.mjs",
+    "scrada:status": "node scripts/scrada-status.mjs",
+    "scrada:wait-participant": "node scripts/scrada-wait-participant.mjs"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.15.0",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.5",
+    "xmlbuilder2": "^3.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "tsx": "^4.20.6",
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig, configDefaults } from "vitest/config";
+import { defineConfig } from "vitest/config";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const distSrcDir = path.join(rootDir, "dist", "src");
-const useDistSrc = (process.env.CI === "true" || process.env.VITEST_USE_DIST === "true") && fs.existsSync(distSrcDir);
+const useDistSrc =
+  (process.env.CI === "true" || process.env.VITEST_USE_DIST === "true") && fs.existsSync(distSrcDir);
 const sourceRoot = useDistSrc ? distSrcDir : path.join(rootDir, "src");
-const isPrismaBackend = (process.env.VIDA_STORAGE_BACKEND ?? "").trim().toLowerCase() === "prisma";
 
 export default defineConfig({
   resolve: {
@@ -53,16 +53,7 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./tests/setup.mjs"],
     reporters: "default",
-    restoreMocks: true,
     isolate: true,
-    exclude: [...configDefaults.exclude, "legacy/**"],
-    pool: "vmThreads",
-    maxConcurrency: isPrismaBackend ? 1 : undefined,
-    poolOptions: {
-      threads: {
-        maxWorkers: isPrismaBackend ? 1 : undefined,
-        minWorkers: isPrismaBackend ? 1 : undefined
-      }
-    }
+    restoreMocks: true
   }
 });
