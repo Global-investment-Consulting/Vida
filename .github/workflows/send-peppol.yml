@@ -4,13 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       file:
-        description: 'Path to UBL invoice XML in repo'
+        description: 'Path to UBL file'
         required: true
-        default: 'invoice_peppol_bis3.xml'
       environment:
-        description: 'test or prod'
-        required: false
-        default: 'test'
+        description: 'apitest or prod'
+        required: true
+        default: 'apitest'
       externalRef:
         description: 'External reference (optional)'
         required: false
