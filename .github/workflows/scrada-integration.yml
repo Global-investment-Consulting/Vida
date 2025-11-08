@@ -34,7 +34,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_ref || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_ref
+            || github.ref }}
 
       - name: Use Node.js 20.19
         uses: actions/setup-node@v4
@@ -99,10 +100,12 @@ jobs:
       - run: rm -rf apps/api/node_modules apps/api/dist
         shell: bash
 
-      - run: npm ci --workspaces || (npm ci && (cd apps/api && npm install --no-audit --no-fund))
+      - run: npm ci --workspaces || (npm ci && (cd apps/api && npm install --no-audit
+          --no-fund))
         shell: bash
 
-      - run: npm run build --workspaces || (npm run build && (cd apps/api && npm run build))
+      - run: npm run build --workspaces || (npm run build && (cd apps/api && npm run
+          build))
         shell: bash
 
       - name: Show revision
@@ -188,7 +191,8 @@ jobs:
         if: always()
         shell: bash
         env:
-          RUN_URL: ${{ format('https://github.com/{0}/actions/runs/{1}', github.repository, github.run_id) }}
+          RUN_URL: ${{ format('https://github.com/{0}/actions/runs/{1}',
+            github.repository, github.run_id) }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_REPOSITORY: ${{ github.repository }}
