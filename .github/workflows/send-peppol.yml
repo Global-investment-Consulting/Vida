@@ -31,8 +31,8 @@ jobs:
           SCRADA_COMPANY_ID:         ${{ secrets.SCRADA_COMPANY_ID }}
           SCRADA_API_KEY:            ${{ secrets.SCRADA_API_KEY }}
           SCRADA_API_PASSWORD:       ${{ secrets.SCRADA_API_PASSWORD }}
-          SCRADA_PEPPOL_SENDER_ID:   ${{ secrets.SCRADA_PEPPOL_SENDER_ID }}
-          SCRADA_PEPPOL_RECEIVER_ID: ${{ secrets.SCRADA_PEPPOL_RECEIVER_ID }}
+          SCRADA_PEPPOL_SENDER_ID:   ${{ secrets.SCRADA_PEPPOL_SENDER_ID || format('{0}:{1}', vars.SCRADA_SUPPLIER_SCHEME, vars.SCRADA_SUPPLIER_ID) }}
+          SCRADA_PEPPOL_RECEIVER_ID: ${{ secrets.SCRADA_PEPPOL_RECEIVER_ID || format('{0}:{1}', vars.SCRADA_TEST_RECEIVER_SCHEME, vars.SCRADA_TEST_RECEIVER_ID) }}
         run: >
           ./tools/scrada-peppol/Send-PeppolUbl.ps1
           -InputPath "${{ github.event.inputs.file }}"
