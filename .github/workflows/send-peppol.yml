@@ -10,6 +10,7 @@ on:
         description: 'apitest or prod'
         type: choice
         options:
+          - test
           - apitest
           - prod
         required: true
