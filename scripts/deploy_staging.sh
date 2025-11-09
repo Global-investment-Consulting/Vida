@@ -65,9 +65,14 @@ read_inputs() {
   LOG_LEVEL="${LOG_LEVEL:-info}"
   NODE_ENV="${NODE_ENV:-production}"
   AP_WEBHOOK_SECRET="${AP_WEBHOOK_SECRET:-}"
-  VIDA_AP_ADAPTER="${VIDA_AP_ADAPTER:-mock}"
+  VIDA_AP_ADAPTER="${VIDA_AP_ADAPTER:-scrada}"
   VIDA_AP_SEND_ON_CREATE="${VIDA_AP_SEND_ON_CREATE:-true}"
   AGENTS_ENABLED="${AGENTS_ENABLED:-false}"
+
+  if [[ "${VIDA_AP_ADAPTER}" != "scrada" && "${VIDA_AP_ADAPTER}" != "mock" ]]; then
+    echo "invalid adapter: ${VIDA_AP_ADAPTER}"
+    exit 1
+  fi
 
   # Fall back to the known staging bucket if not provided.
   CLOUD_BUILD_BUCKET="${CLOUD_BUILD_BUCKET:-vida-staging-1760866919-cb-src}"
