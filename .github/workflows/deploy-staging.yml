@@ -39,7 +39,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_run' && inputs.force == true) }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID != '' && vars.GCP_PROJECT_ID || 'vida-staging-1760866919' }}
@@ -49,7 +49,7 @@ jobs:
       CLOUD_BUILD_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET != '' && vars.CLOUD_BUILD_BUCKET || 'vida-staging-1760866919-cb-src' }}
       IMAGE_TAG:  staging-${{ github.sha }}
       AGENTS_ENABLED: ${{ vars.AGENTS_ENABLED != '' && vars.AGENTS_ENABLED || 'false' }}
-      VIDA_AP_ADAPTER: ${{ inputs.adapter || vars.STAGING_AP_ADAPTER || 'scrada' }}
+      VIDA_AP_ADAPTER: ${{ inputs.adapter || 'scrada' }}
       VIDA_AP_SEND_ON_CREATE: 'true'
       COMMIT_SHA: ${{ github.sha }}
       BUILT_AT: ${{ github.event.head_commit.timestamp || github.event.workflow_run.run_started_at || github.run_id }}
@@ -143,7 +143,6 @@ jobs:
           NODE_ENV: production
           VERSION: ${{ env.VERSION }}
           AGENTS_ENABLED: ${{ env.AGENTS_ENABLED }}
-          STAGING_AP_ADAPTER: ${{ env.STAGING_AP_ADAPTER }}
         run: ./scripts/deploy_staging.sh
 
       - name: Ensure env on service
