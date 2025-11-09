@@ -4,12 +4,23 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const postMock = vi.fn();
+const ORIGINAL_PREFERRED_FORMAT = process.env.SCRADA_PREFERRED_FORMAT;
 
 vi.mock("../../src/lib/http.ts", () => ({
   getScradaClient: () => ({
     post: postMock
   })
 }));
+
+vi.mock(
+  "../../dist/src/lib/http.js",
+  () => ({
+    getScradaClient: () => ({
+      post: postMock
+    })
+  }),
+  { virtual: true }
+);
 
 function createAxiosError(status: number, message: string) {
   const error = new Error(message);
@@ -26,14 +37,21 @@ function createAxiosError(status: number, message: string) {
 
 describe("sendInvoiceWithFallback (BIS 3.0)", () => {
   beforeEach(() => {
+    vi.resetModules();
     postMock.mockReset();
     process.env.SCRADA_COMPANY_ID = "0208:COMPANY";
     process.env.SCRADA_SUPPLIER_SCHEME = "0208";
     process.env.SCRADA_SUPPLIER_ID = "0123456789";
     process.env.SCRADA_SUPPLIER_VAT = "BE0123456789";
+    process.env.SCRADA_PREFERRED_FORMAT = "json";
   });
 
   afterEach(() => {
+    if (ORIGINAL_PREFERRED_FORMAT === undefined) {
+      delete process.env.SCRADA_PREFERRED_FORMAT;
+    } else {
+      process.env.SCRADA_PREFERRED_FORMAT = ORIGINAL_PREFERRED_FORMAT;
+    }
     delete process.env.SCRADA_COMPANY_ID;
     delete process.env.SCRADA_SUPPLIER_SCHEME;
     delete process.env.SCRADA_SUPPLIER_ID;
@@ -89,6 +107,7 @@ describe("sendInvoiceWithFallback (BIS 3.0)", () => {
   it("surfaces non-400 errors without retrying UBL", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "scrada-send-"));
     postMock.mockRejectedValue(createAxiosError(422, "Unprocessable"));
+    process.env.SCRADA_PREFERRED_FORMAT = "ubl";
 
     const { sendInvoiceWithFallback } = await import("../../src/adapters/scrada.ts");
 
