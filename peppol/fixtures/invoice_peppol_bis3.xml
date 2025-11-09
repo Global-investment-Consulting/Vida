@@ -12,9 +12,6 @@
   <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
   <cbc:BuyerReference>BR-REF-001</cbc:BuyerReference>
-  <cac:PaymentTerms>
-    <cbc:Note>Net 30</cbc:Note>
-  </cac:PaymentTerms>
 
   <cac:AccountingSupplierParty>
     <cac:Party>
