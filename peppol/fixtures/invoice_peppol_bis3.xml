@@ -8,9 +8,13 @@
   <cbc:ProfileExecutionID>1</cbc:ProfileExecutionID>
   <cbc:ID>TEST-INV-0001</cbc:ID>
   <cbc:IssueDate>2025-11-07</cbc:IssueDate>
+  <cbc:DueDate>2025-12-07</cbc:DueDate>
   <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
   <cbc:BuyerReference>BR-REF-001</cbc:BuyerReference>
+  <cac:PaymentTerms>
+    <cbc:Note>Net 30</cbc:Note>
+  </cac:PaymentTerms>
 
   <cac:AccountingSupplierParty>
     <cac:Party>

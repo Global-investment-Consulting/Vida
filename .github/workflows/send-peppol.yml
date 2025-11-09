@@ -24,6 +24,10 @@ on:
         description: 'Minutes to poll for a terminal Scrada status'
         required: false
         default: '12'
+      dueInDays:
+        description: 'Auto-insert DueDate if missing (days after IssueDate)'
+        required: false
+        default: '30'
       extRef:
         description: 'External reference (defaults to TEST-<run-id>)'
         required: false
@@ -48,6 +52,7 @@ jobs:
           INPUT_RECEIVER: ${{ github.event.inputs.receiverId }}
           INPUT_EXTREF: ${{ github.event.inputs.extRef }}
           INPUT_POLL_MINUTES: ${{ github.event.inputs.pollMinutes }}
+          INPUT_DUE_DAYS: ${{ github.event.inputs.dueInDays }}
           SECRET_SENDER: ${{ secrets.SCRADA_SENDER_ID }}
           SECRET_PEPPOL_SENDER: ${{ secrets.SCRADA_PEPPOL_SENDER_ID }}
           SECRET_RECEIVER: ${{ secrets.SCRADA_TEST_RECEIVER_ID }}
@@ -123,6 +128,16 @@ jobs:
               Write-Host "pollMinutes input '$rawPoll' is invalid, defaulting to $pollMinutes"
             }
           }
+          $rawDue = $env:INPUT_DUE_DAYS
+          $dueInDays = 30
+          if (-not [string]::IsNullOrWhiteSpace($rawDue)){
+            $parsedDue = 0
+            if ([int]::TryParse($rawDue, [ref]$parsedDue) -and $parsedDue -gt 0){
+              $dueInDays = $parsedDue
+            } else {
+              Write-Host "dueInDays input '$rawDue' is invalid, defaulting to $dueInDays"
+            }
+          }
           $pollSeconds = $pollMinutes * 60
           $extRef = if ([string]::IsNullOrWhiteSpace($env:INPUT_EXTREF)) { "TEST-$($env:GITHUB_RUN_ID)" } else { $env:INPUT_EXTREF.Trim() }
           "file=$file" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
@@ -131,6 +146,7 @@ jobs:
           "receiver=$receiver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "pollSeconds=$pollSeconds" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "extRef=$extRef" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "dueInDays=$dueInDays" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: Guard sender vs receiver
         shell: pwsh
         env:
@@ -165,6 +181,7 @@ jobs:
           -OrderId "${{ github.event.inputs.orderId }}"
           -ExternalReference "${{ steps.prep.outputs.extRef }}"
           -TimeoutSec ${{ steps.prep.outputs.pollSeconds }}
+          -DueInDays ${{ steps.prep.outputs.dueInDays }}
       - name: Upload UBL artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -178,4 +195,4 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo "Scrada DOC=${{ steps.send.outputs.docId || 'unknown' }} FINAL=${{ steps.send.outputs.finalStatus || 'pending' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "DOC: ${{ steps.send.outputs.docId || 'unknown' }} FINAL: ${{ steps.send.outputs.finalStatus || 'pending' }}" >> "$GITHUB_STEP_SUMMARY"

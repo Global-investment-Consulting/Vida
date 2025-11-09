@@ -17,4 +17,5 @@ pwsh ./tools/scrada-peppol/Send-PeppolUbl.ps1 `
   -InputPath .\invoice_peppol_bis3.xml `
   -Environment test `
   -BuyerReference 'BR-REF-001'   # or -OrderId 'PO-12345'
+  -DueInDays 30                  # auto-insert DueDate when neither DueDate nor PaymentTerms exist
 ```
