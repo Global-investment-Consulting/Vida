@@ -1,6 +1,6 @@
 import type { Order } from "../peppol/convert.js";
 
-export type ApAdapterName = "mock" | "mock_error" | "banqup" | "billit";
+export type ApAdapterName = "mock" | "mock_error" | "banqup";
 
 export type ApSendStatus = "queued" | "sent" | "error";
 export type ApDeliveryStatus = "queued" | "sent" | "delivered" | "error";
@@ -51,12 +51,6 @@ export const apProviderCatalog: Record<ApAdapterName, ApProviderMetadata> = {
     label: "Banqup",
     status: "stub",
     description: "Placeholder integration; awaiting credentials and shared contract."
-  },
-  billit: {
-    name: "billit",
-    label: "Billit",
-    status: "available",
-    description: "Production adapter backed by the Billit API."
   }
 };
 

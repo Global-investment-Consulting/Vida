@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "types": ["node"],
+    "noEmit": false,
+    "outDir": "dist",
+    "allowImportingTsExtensions": false,
+    "moduleSuffixes": [".ts", ".tsx", ".d.ts", ""],
+    "baseUrl": ".",
+    "paths": {
+      "src/*": ["src/*"]
+    }
+  },
+  "ts-node": {
+    "esm": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["tests", "dist"]
+}

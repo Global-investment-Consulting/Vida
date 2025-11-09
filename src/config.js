@@ -69,9 +69,7 @@ export const resolveDlqPath = () =>
     ? path.resolve(process.env.VIDA_DLQ_PATH)
     : path.resolve(process.cwd(), "data", "dlq.jsonl");
 export const resolveApAdapterName = () =>
-  normalizeAdapterName(process.env.STAGING_AP_ADAPTER) ??
-  normalizeAdapterName(process.env.VIDA_AP_ADAPTER) ??
-  "mock";
+  normalizeAdapterName(process.env.VIDA_AP_ADAPTER) ?? "mock";
 export const isApSendOnCreateEnabled = () =>
   normalizeBoolean(process.env.VIDA_AP_SEND_ON_CREATE, false);
 export const resolveApWebhookSecret = () => {
