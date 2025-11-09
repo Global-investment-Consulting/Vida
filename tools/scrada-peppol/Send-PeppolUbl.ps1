@@ -23,6 +23,7 @@ param(
 
   [string]$DocumentCurrencyCode = 'EUR',
   [int]$TimeoutSec = 600,
+  [int]$DueInDays = 30,
   [string]$ExternalReference
 )
 
@@ -42,6 +43,7 @@ if ($SenderId.Trim() -eq $ReceiverId.Trim()) {
 }
 
 if ($TimeoutSec -le 0) { $TimeoutSec = 600 }
+if ($DueInDays -le 0) { $DueInDays = 30 }
 
 $apiHost = if ($Environment -eq 'prod') { 'api.scrada.be' } else { 'apitest.scrada.be' }
 $baseUri = "https://$apiHost"
@@ -106,6 +108,31 @@ $docCur = $inv.SelectSingleNode('./cbc:DocumentCurrencyCode',$ns)
 if(-not $docCur){
   $docCur = New-Cbc 'DocumentCurrencyCode' $DocumentCurrencyCode
   $inv.InsertAfter($docCur,$itc) | Out-Null
+}
+
+# --- Ensure DueDate/PaymentTerms for positive payable
+$payableAmountNode = $inv.SelectSingleNode('./cac:LegalMonetaryTotal/cbc:PayableAmount',$ns)
+$payableAmount = 0
+if ($payableAmountNode) {
+  [decimal]::TryParse($payableAmountNode.InnerText, [ref]$payableAmount) | Out-Null
+}
+$hasDueDate = $inv.SelectSingleNode('./cbc:DueDate',$ns)
+$hasPaymentTerms = $inv.SelectSingleNode('./cac:PaymentTerms',$ns)
+if ($payableAmount -gt 0 -and -not $hasDueDate -and -not $hasPaymentTerms) {
+  $issueDateValue = $issue?.InnerText
+  $issueDate = $null
+  if ($issueDateValue) {
+    try { $issueDate = [datetime]::Parse($issueDateValue) } catch { $issueDate = Get-Date }
+  } else {
+    $issueDate = Get-Date
+  }
+  $dueDateValue = $issueDate.AddDays($DueInDays).ToString('yyyy-MM-dd')
+  $dueNode = New-Cbc 'DueDate' $dueDateValue
+  if ($issue) {
+    $inv.InsertAfter($dueNode,$issue) | Out-Null
+  } else {
+    $inv.InsertBefore($dueNode,$inv.FirstChild) | Out-Null
+  }
 }
 
 # --- R003: BuyerReference OR OrderReference directly after DocumentCurrencyCode
