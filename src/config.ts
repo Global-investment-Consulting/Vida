@@ -39,6 +39,14 @@ const normalizeAdapterName = (value: string | undefined): string | undefined => 
   return trimmed.toLowerCase();
 };
 
+const normalizeSecret = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 export const VIDA_API_KEYS = normalizeCsv(process.env.VIDA_API_KEYS); // migrated
 export const PORT = normalizeNumber(process.env.PORT, 3001); // migrated
 export const NODE_ENV = process.env.NODE_ENV ?? "development"; // migrated
@@ -80,4 +88,12 @@ export const resolveApWebhookSecret = (): string | undefined => {
   const trimmed = secret.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 };
-export const VIDA_PUBLIC_RATE_LIMIT = Number.parseInt(process.env.VIDA_PUBLIC_RATE_LIMIT || "120", 10);
+export const resolvePublicApiKey = (): string | undefined => normalizeSecret(process.env.VIDA_PUBLIC_API_KEY);
+export const resolveShopifyWebhookSecret = (): string | undefined =>
+  normalizeSecret(process.env.SHOPIFY_WEBHOOK_SECRET);
+export const VIDA_PUBLIC_RATE_LIMIT =
+  Number.parseInt(process.env.VIDA_PUBLIC_RATE_LIMIT ?? "", 10) || 120;
+export const VIDA_PUBLIC_RATE_LIMIT_WINDOW_MS =
+  Number.parseInt(process.env.VIDA_PUBLIC_RATE_LIMIT_WINDOW_MS ?? "", 10) || 60000;
+export const OPS_DASHBOARD_ENABLED = normalizeBoolean(process.env.OPS_DASHBOARD_ENABLED, false);
+export const ADMIN_DASHBOARD_KEY = process.env.ADMIN_DASHBOARD_KEY ?? "";

@@ -3,7 +3,8 @@
   "include": [
     "src/**/*.ts",
     "peppol/**/*.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "apps/api/src/**/*.ts"
   ],
   "exclude": [
     "dist",
