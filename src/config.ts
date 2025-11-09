@@ -39,6 +39,14 @@ const normalizeAdapterName = (value: string | undefined): string | undefined => 
   return trimmed.toLowerCase();
 };
 
+const normalizeSecret = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 export const VIDA_API_KEYS = normalizeCsv(process.env.VIDA_API_KEYS); // migrated
 export const PORT = normalizeNumber(process.env.PORT, 3001); // migrated
 export const NODE_ENV = process.env.NODE_ENV ?? "development"; // migrated
@@ -69,7 +77,7 @@ export const resolveDlqPath = (): string =>
     ? path.resolve(process.env.VIDA_DLQ_PATH)
     : path.resolve(process.cwd(), "data", "dlq.jsonl");
 export const resolveApAdapterName = (): string =>
-  normalizeAdapterName(process.env.VIDA_AP_ADAPTER) ?? "mock";
+  normalizeAdapterName(process.env.VIDA_AP_ADAPTER) ?? "scrada";
 export const isApSendOnCreateEnabled = (): boolean =>
   normalizeBoolean(process.env.VIDA_AP_SEND_ON_CREATE, false);
 export const resolveApWebhookSecret = (): string | undefined => {
@@ -80,3 +88,6 @@ export const resolveApWebhookSecret = (): string | undefined => {
   const trimmed = secret.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 };
+export const resolvePublicApiKey = (): string | undefined => normalizeSecret(process.env.VIDA_PUBLIC_API_KEY);
+export const resolveShopifyWebhookSecret = (): string | undefined =>
+  normalizeSecret(process.env.SHOPIFY_WEBHOOK_SECRET);

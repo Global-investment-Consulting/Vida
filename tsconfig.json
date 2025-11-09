@@ -21,6 +21,6 @@
   "ts-node": {
     "esm": true
   },
-  "include": ["src/**/*.ts", "peppol/**/*.ts"],
+  "include": ["src/**/*.ts", "peppol/**/*.ts", "apps/api/src/**/*.ts"],
   "exclude": ["tests", "legacy", "dist"]
 }

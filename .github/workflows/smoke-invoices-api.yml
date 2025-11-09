@@ -1,0 +1,72 @@
+name: Smoke - Invoices API
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke invoices v0
+    runs-on: ubuntu-latest
+    env:
+      PORT: 4100
+      VIDA_PUBLIC_API_KEY: ${{ secrets.VIDA_PUBLIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.0"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build service
+        run: npm run build
+      - name: Start API
+        run: |
+          node dist/src/server.js > server.log 2>&1 &
+          echo $! > server.pid
+          sleep 5
+      - name: Send sample invoice
+        env:
+          VIDA_PUBLIC_API_KEY: ${{ secrets.VIDA_PUBLIC_API_KEY }}
+        run: |
+          test -n "${VIDA_PUBLIC_API_KEY}" || { echo "VIDA_PUBLIC_API_KEY secret missing"; exit 1; }
+          payload='{"currency":"EUR","issueDate":"2025-02-01","seller":{"name":"Vida Supplier","endpoint":{"scheme":"0208","id":"0755799452"}},"buyer":{"name":"Acme BV","endpoint":{"scheme":"0208","id":"0999999999"}},"lines":[{"description":"Smoke test","quantity":1,"unitPriceMinor":10000,"vatRate":21}]}'
+          curl -fsS -H "Authorization: Bearer ${VIDA_PUBLIC_API_KEY}" -H "Content-Type: application/json" \
+            --data "${payload}" "http://127.0.0.1:${PORT}/v0/invoices" | tee response.json
+      - name: Poll status
+        env:
+          VIDA_PUBLIC_API_KEY: ${{ secrets.VIDA_PUBLIC_API_KEY }}
+        run: |
+          invoiceId=$(jq -r '.invoiceId' response.json)
+          test -n "${invoiceId}" || { echo "Missing invoiceId"; exit 1; }
+          for attempt in $(seq 1 10); do
+            data=$(curl -fsS -H "Authorization: Bearer ${VIDA_PUBLIC_API_KEY}" \
+              "http://127.0.0.1:${PORT}/v0/invoices/${invoiceId}")
+            status=$(echo "${data}" | jq -r '.status')
+            echo "Attempt ${attempt}: status=${status}"
+            if [[ "${status}" != "PENDING" ]]; then
+              echo "${data}" > status.json
+              break
+            fi
+            sleep 5
+          done
+      - name: Upload history artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoices-history
+          path: data/history
+          if-no-files-found: warn
+      - name: Show logs
+        if: always()
+        run: |
+          cat server.log || true
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" || true
+          fi
