@@ -13,6 +13,19 @@ on:
         description: Optional context for manual staging deployment
         required: false
         type: string
+      adapter:
+        description: ap adapter
+        required: false
+        type: choice
+        default: scrada
+        options:
+          - scrada
+          - mock
+      force:
+        description: override branch gate for workflow_run
+        required: false
+        type: boolean
+        default: false
   workflow_run:
     workflows: ["CI"]
     types: [completed]
@@ -26,7 +39,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_run' && inputs.force == true) }}
     runs-on: ubuntu-latest
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID != '' && vars.GCP_PROJECT_ID || 'vida-staging-1760866919' }}
@@ -36,8 +49,7 @@ jobs:
       CLOUD_BUILD_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET != '' && vars.CLOUD_BUILD_BUCKET || 'vida-staging-1760866919-cb-src' }}
       IMAGE_TAG:  staging-${{ github.sha }}
       AGENTS_ENABLED: ${{ vars.AGENTS_ENABLED != '' && vars.AGENTS_ENABLED || 'false' }}
-      STAGING_AP_ADAPTER: ${{ vars.STAGING_AP_ADAPTER || 'mock' }}
-      VIDA_AP_ADAPTER: ${{ vars.STAGING_AP_ADAPTER || 'mock' }}
+      VIDA_AP_ADAPTER: ${{ inputs.adapter || vars.STAGING_AP_ADAPTER || 'scrada' }}
       VIDA_AP_SEND_ON_CREATE: 'true'
       COMMIT_SHA: ${{ github.sha }}
       BUILT_AT: ${{ github.event.head_commit.timestamp || github.event.workflow_run.run_started_at || github.run_id }}
@@ -63,14 +75,13 @@ jobs:
           CLOUD_BUILD_BUCKET:  ${{ env.CLOUD_BUILD_BUCKET }}
           IMAGE_TAG:           ${{ env.IMAGE_TAG }}
           AGENTS_ENABLED:      ${{ env.AGENTS_ENABLED }}
-          STAGING_AP_ADAPTER:  ${{ env.STAGING_AP_ADAPTER }}
           VIDA_AP_ADAPTER:     ${{ env.VIDA_AP_ADAPTER }}
           VIDA_AP_SEND_ON_CREATE: ${{ env.VIDA_AP_SEND_ON_CREATE }}
           # presence check only; never echo content:
           GCP_SA_KEY:          ${{ secrets.GCP_SA_KEY }}
         run: |
           set -Eeuo pipefail
-          declare -a keys=(PROJECT_ID REGION SERVICE CLOUD_BUILD_BUCKET IMAGE_TAG AGENTS_ENABLED STAGING_AP_ADAPTER VIDA_AP_ADAPTER VIDA_AP_SEND_ON_CREATE)
+          declare -a keys=(PROJECT_ID REGION SERVICE CLOUD_BUILD_BUCKET IMAGE_TAG AGENTS_ENABLED VIDA_AP_ADAPTER VIDA_AP_SEND_ON_CREATE)
           for key in "${keys[@]}"; do
             if [[ -n "${!key:-}" ]]; then
               printf "%s: present\n" "$key"
@@ -145,7 +156,6 @@ jobs:
           AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET }}
           VIDA_STAGING_API_KEYS: ${{ secrets.VIDA_STAGING_API_KEYS }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          STAGING_AP_ADAPTER: ${{ env.STAGING_AP_ADAPTER }}
           VIDA_AP_ADAPTER: ${{ env.VIDA_AP_ADAPTER }}
           VIDA_AP_SEND_ON_CREATE: ${{ env.VIDA_AP_SEND_ON_CREATE }}
           AGENTS_ENABLED: ${{ env.AGENTS_ENABLED }}
@@ -154,4 +164,10 @@ jobs:
           gcloud run services update "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
-            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_STAGING_API_KEYS},LOG_LEVEL=info,NODE_ENV=production,VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},STAGING_AP_ADAPTER=${STAGING_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE},PEPPOL_MODE=sandbox,JWT_SECRET=${JWT_SECRET},AGENTS_ENABLED=${AGENTS_ENABLED}"
+            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_STAGING_API_KEYS},LOG_LEVEL=info,NODE_ENV=production,VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE},PEPPOL_MODE=sandbox,JWT_SECRET=${JWT_SECRET},AGENTS_ENABLED=${AGENTS_ENABLED}"
+      - name: Adapter preflight
+        shell: bash
+        env:
+          VIDA_AP_ADAPTER: ${{ env.VIDA_AP_ADAPTER }}
+        run: |
+          echo "Deploying with VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER}"
