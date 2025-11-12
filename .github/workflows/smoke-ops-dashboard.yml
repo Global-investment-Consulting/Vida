@@ -1,5 +1,4 @@
 name: Smoke Ops Dashboard
-<<<<<<< HEAD
 
 on:
   workflow_dispatch:
@@ -45,7 +44,7 @@ jobs:
             echo "::error title=Resolve service URL failed::Cloud Run service ${SERVICE} missing URL"
             exit 1
           fi
-          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "url=${URL}" >> "${GITHUB_OUTPUT}"
 
       - name: GET /_health
         shell: bash
@@ -61,30 +60,3 @@ jobs:
         run: |
           set -Eeuo pipefail
           curl -fsS -H "X-Admin-Key: ${ADMIN_KEY}" "${{ steps.url.outputs.url }}/ops/submissions?limit=1" | sed -n '1,80p'
-=======
-on:
-  workflow_dispatch: {}
-jobs:
-  smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Curl /ops/health
-        env:
-          ADMIN_DASHBOARD_KEY: ${{ secrets.ADMIN_DASHBOARD_KEY }}
-          SERVICE_HOST: ${{ vars.SERVICE_HOST || '' }}
-        run: |
-          set -Eeuo pipefail
-          if [[ -z "${SERVICE_HOST}" ]]; then
-            echo "::error title=Missing SERVICE_HOST::Define repository variable SERVICE_HOST (e.g., https://vida-staging-xxxxxxxx.a.run.app)"; exit 1
-          fi
-          code=$(curl -sS -o /dev/null -w "%{http_code}" -H "X-Admin-Key: ${ADMIN_DASHBOARD_KEY}" "${SERVICE_HOST}/ops/health")
-          echo "HEALTH_HTTP=${code}"
-          test "${code}" = "200"
-      - name: Curl /ops/submissions
-        env:
-          ADMIN_DASHBOARD_KEY: ${{ secrets.ADMIN_DASHBOARD_KEY }}
-          SERVICE_HOST: ${{ vars.SERVICE_HOST || '' }}
-        run: |
-          set -Eeuo pipefail
-          curl -sS -H "X-Admin-Key: ${ADMIN_DASHBOARD_KEY}" "${SERVICE_HOST}/ops/submissions?limit=5" | head -n 60
->>>>>>> 13eb356 (chore(ops): add ops dashboard smoke workflow)

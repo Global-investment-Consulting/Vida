@@ -50,7 +50,6 @@ jobs:
       IMAGE_TAG: staging-${{ github.sha }}
       AGENTS_ENABLED: ${{ vars.AGENTS_ENABLED != '' && vars.AGENTS_ENABLED || 'false' }}
       VIDA_AP_ADAPTER: ${{ inputs.adapter || 'scrada' }}
-<<<<<<< HEAD
       OPS_DASHBOARD_ENABLED: ${{ vars.OPS_DASHBOARD_ENABLED || 'false' }}
       OPS_DASHBOARD_IPS: ${{ vars.OPS_DASHBOARD_IPS || '' }}
       ADMIN_DASHBOARD_KEY: ${{ secrets.ADMIN_DASHBOARD_KEY }}
