@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Request, type Response } from "express";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -18,13 +18,16 @@ import { getInvoiceStatus, setInvoiceStatus } from "./history/invoiceStatus.js";
 import { sendWithRetry } from "./services/apDelivery.js";
 import { hasEvent, rememberEvent } from "./services/replayGuard.js";
 import {
+  OPS_DASHBOARD_ENABLED,
   PORT,
   isApSendOnCreateEnabled,
   isUblValidationEnabled,
-  resolveApWebhookSecret
+  resolveApWebhookSecret,
+  resolveHistoryDir
 } from "./config.js"; // migrated
 import { requireApiKey } from "./mw_auth.js"; // migrated
 import { createApiKeyRateLimiter } from "./middleware/rateLimiter.js";
+import { requireAdminAuth } from "./middleware/adminAuth.js";
 import { getCachedInvoice, storeCachedInvoice } from "./services/idempotencyCache.js";
 import {
   incrementApWebhookFail,
@@ -37,8 +40,14 @@ import { getStorage } from "./storage/index.js";
 import type { ApDeliveryStatus } from "./apadapters/types.js";
 import { invoicesV0Router } from "./routes/invoicesV0.js";
 import { shopifyWebhookRouter } from "./routes/shopifyWebhook.js";
+import { submissionsAdminRouter } from "./routes/submissionsAdmin.js";
+import { isStackdriverEnabled, patchLogging } from "./lib/logging.js";
+import { captureServerException, initSentry, isSentryEnabled } from "./lib/telemetry.js";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
+
+patchLogging();
+initSentry();
 
 class HttpError extends Error {
   status: number;
@@ -169,8 +178,87 @@ app.get("/", (_req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
 });
 
+type HealthCheck = {
+  name: string;
+  status: "ok" | "warn" | "error";
+  details?: string;
+};
+
+async function evaluateHistoryDir(): Promise<HealthCheck> {
+  try {
+    const dir = resolveHistoryDir();
+    await mkdir(dir, { recursive: true });
+    await access(dir);
+    return { name: "history_dir", status: "ok" };
+  } catch (error) {
+    return {
+      name: "history_dir",
+      status: "error",
+      details: error instanceof Error ? error.message : "unavailable"
+    };
+  }
+}
+
+function evaluateSentry(): HealthCheck {
+  return {
+    name: "sentry",
+    status: isSentryEnabled() ? "ok" : "warn",
+    details: isSentryEnabled() ? "enabled" : "disabled"
+  };
+}
+
+function evaluateStackdriver(): HealthCheck {
+  return {
+    name: "stackdriver",
+    status: isStackdriverEnabled() ? "ok" : "warn",
+    details: isStackdriverEnabled() ? "logger ready" : "logger disabled"
+  };
+}
+
+app.get("/health/ready", async (_req, res) => {
+  const checks = [await evaluateHistoryDir(), evaluateSentry(), evaluateStackdriver()];
+  const failures = checks.filter((check) => check.status === "error");
+  res.status(failures.length === 0 ? 200 : 503).json({
+    ok: failures.length === 0,
+    checks
+  });
+});
+
 app.use(invoicesV0Router);
 app.use(shopifyWebhookRouter);
+
+if (OPS_DASHBOARD_ENABLED) {
+  const opsDashboardRoot = path.resolve(process.cwd(), "dashboard", "dist");
+  app.use(submissionsAdminRouter);
+  app.use(
+    "/ops",
+    requireAdminAuth,
+    express.static(opsDashboardRoot, { index: "index.html", fallthrough: true })
+  );
+  app.get("/ops/*", requireAdminAuth, (req, res, next) => {
+    res.sendFile(path.join(opsDashboardRoot, "index.html"), (error) => {
+      if (error) {
+        next(error);
+      }
+    });
+  });
+}
+
+app.use((error: unknown, req: Request, res: Response, next: express.NextFunction) => {
+  if (res.headersSent) {
+    next(error);
+    return;
+  }
+  if (error instanceof HttpError) {
+    if (error.status >= 500) {
+      captureServerException(error, req);
+    }
+    res.status(error.status).json({ error: error.message });
+    return;
+  }
+  captureServerException(error, req);
+  res.status(500).json({ error: "internal_error" });
+});
 
 type ValidationErrorShape = {
   path: string;
