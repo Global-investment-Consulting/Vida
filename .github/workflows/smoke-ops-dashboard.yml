@@ -14,10 +14,15 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    env:
+      REGION: ${{ vars.REGION != '' && vars.REGION || 'europe-west1' }}
+      SERVICE: ${{ vars.SERVICE != '' && vars.SERVICE || 'vida-staging' }}
+      OPS_DASHBOARD_ENABLED: ${{ vars.OPS_DASHBOARD_ENABLED || 'false' }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.ref }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -27,25 +32,31 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: ${{ vars.GCP_PROJECT_ID || vars.GCP_PROJECT_ID_STAGING || 'vida-staging-1760866919' }}
+          project_id: ${{ vars.GCP_PROJECT_ID != '' && vars.GCP_PROJECT_ID || 'vida-staging-1760866919' }}
 
       - name: Resolve service URL
         id: url
         shell: bash
         run: |
-          set -euo pipefail
-          URL=$(gcloud run services describe "${{ vars.SERVICE }}" --region="${{ vars.REGION }}" --format='value(status.url)')
+          set -Eeuo pipefail
+          URL=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format='value(status.url)')
+          if [[ -z "${URL}" ]]; then
+            echo "::error title=Resolve service URL failed::Cloud Run service ${SERVICE} missing URL"
+            exit 1
+          fi
           echo "url=${URL}" >> "$GITHUB_OUTPUT"
 
       - name: GET /_health
         shell: bash
         run: |
-          set -euo pipefail
-          curl -fsS "${{ steps.url.outputs.url }}/_health"
+          set -Eeuo pipefail
+          curl -fsS "${{ steps.url.outputs.url }}/_health" | sed -n '1,40p'
 
       - name: GET /ops/submissions (tail)
-        if: ${{ vars.OPS_DASHBOARD_ENABLED == 'true' }}
+        if: ${{ env.OPS_DASHBOARD_ENABLED == 'true' }}
         shell: bash
+        env:
+          ADMIN_KEY: ${{ secrets.ADMIN_DASHBOARD_KEY }}
         run: |
-          set -euo pipefail
-          curl -fsS -H "X-Admin-Key: ${{ secrets.ADMIN_DASHBOARD_KEY }}" "${{ steps.url.outputs.url }}/ops/submissions?limit=5" | jq .
+          set -Eeuo pipefail
+          curl -fsS -H "X-Admin-Key: ${ADMIN_KEY}" "${{ steps.url.outputs.url }}/ops/submissions?limit=1" | sed -n '1,80p'
