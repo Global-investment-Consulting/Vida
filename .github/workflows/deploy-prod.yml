@@ -1,0 +1,151 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Optional context for manual production deployment
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-prod-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    runs-on: ubuntu-latest
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID_PROD != '' && vars.GCP_PROJECT_ID_PROD || 'vida-prod' }}
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID_PROD != '' && vars.GCP_PROJECT_ID_PROD || 'vida-prod' }}
+      REGION:     ${{ vars.REGION_PROD != '' && vars.REGION_PROD || 'europe-west1' }}
+      SERVICE:    ${{ vars.SERVICE_PROD != '' && vars.SERVICE_PROD || 'vida-prod' }}
+      CLOUD_BUILD_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET_PROD != '' && vars.CLOUD_BUILD_BUCKET_PROD || 'vida-prod-cb-src' }}
+      IMAGE_TAG:  prod-${{ github.sha }}
+      VIDA_AP_ADAPTER: scrada
+      VIDA_AP_SEND_ON_CREATE: 'true'
+      COMMIT_SHA: ${{ github.sha }}
+      BUILT_AT: ${{ github.event.head_commit.timestamp || github.event.workflow_run.run_started_at || github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate build metadata
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash scripts/make_build_env.sh
+          VERSION_LINE=$(grep -E "^VERSION=" build.env | head -n1)
+          if [[ -z "${VERSION_LINE}" ]]; then
+            VERSION_LINE="VERSION=0.0.0"
+          fi
+          printf '%s\n' "${VERSION_LINE}" >> "${GITHUB_ENV}"
+
+      - name: Preflight context (names only)
+        shell: bash
+        env:
+          PROJECT_ID:          ${{ env.GCP_PROJECT_ID }}
+          REGION:              ${{ env.REGION }}
+          SERVICE:             ${{ env.SERVICE }}
+          CLOUD_BUILD_BUCKET:  ${{ env.CLOUD_BUILD_BUCKET }}
+          IMAGE_TAG:           ${{ env.IMAGE_TAG }}
+          VIDA_AP_ADAPTER:     ${{ env.VIDA_AP_ADAPTER }}
+          VIDA_AP_SEND_ON_CREATE: ${{ env.VIDA_AP_SEND_ON_CREATE }}
+          GCP_SA_KEY:          ${{ secrets.GCP_SA_KEY_PROD }}
+        run: |
+          set -Eeuo pipefail
+          declare -a keys=(PROJECT_ID REGION SERVICE CLOUD_BUILD_BUCKET IMAGE_TAG VIDA_AP_ADAPTER VIDA_AP_SEND_ON_CREATE)
+          for key in "${keys[@]}"; do
+            if [[ -n "${!key:-}" ]]; then
+              printf "%s: present\n" "$key"
+            else
+              printf "%s: missing\n" "$key"
+            fi
+          done
+          if [[ -n "${GCP_SA_KEY:-}" ]]; then
+            echo "service_account_secret_present: true"
+          else
+            echo "service_account_secret_present: false"
+          fi
+
+      - name: Sanity check secret parse (no output)
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY_PROD }}
+        run: node -e "JSON.parse(process.env.GCP_SA_KEY || '{}'); process.stdout.write('ok\n')"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Ensure required Google APIs are enabled
+        shell: bash
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+        run: |
+          set -Eeuo pipefail
+          for svc in run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com; do
+            if gcloud services enable "$svc" --project "$PROJECT_ID"; then
+              echo "Ensured $svc enabled for $PROJECT_ID"
+            else
+              echo "::error title=Enable API failed::$svc could not be enabled. Ensure the deploy service account has roles/serviceusage.serviceUsageAdmin." >&2
+              exit 1
+            fi
+          done
+
+      - name: Ensure Artifact Registry auth
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Deploy via Cloud Build and Cloud Run
+        shell: bash
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+          REGION: ${{ env.REGION }}
+          SERVICE: ${{ env.SERVICE }}
+          CLOUD_BUILD_BUCKET: ${{ env.CLOUD_BUILD_BUCKET }}
+          IMAGE_URI: ${{ format('{0}-docker.pkg.dev/{1}/vida/vida:{2}', env.REGION, env.PROJECT_ID, env.IMAGE_TAG) }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET_PROD }}
+          VIDA_API_KEYS: ${{ secrets.VIDA_PROD_API_KEYS }}
+          AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET_PROD }}
+          LOG_LEVEL: info
+          NODE_ENV: production
+          VERSION: ${{ env.VERSION }}
+        run: ./scripts/deploy_staging.sh
+
+      - name: Ensure env on service
+        if: always()
+        shell: bash
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+          REGION: ${{ env.REGION }}
+          SERVICE: ${{ env.SERVICE }}
+          AP_WEBHOOK_SECRET: ${{ secrets.AP_WEBHOOK_SECRET_PROD }}
+          VIDA_PROD_API_KEYS: ${{ secrets.VIDA_PROD_API_KEYS }}
+          VIDA_PUBLIC_API_KEY: ${{ secrets.VIDA_PUBLIC_API_KEY_PROD }}
+          SHOPIFY_WEBHOOK_SECRET: ${{ secrets.SHOPIFY_WEBHOOK_SECRET_PROD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET_PROD }}
+          VIDA_AP_ADAPTER: ${{ env.VIDA_AP_ADAPTER }}
+          VIDA_AP_SEND_ON_CREATE: ${{ env.VIDA_AP_SEND_ON_CREATE }}
+        run: |
+          set -Eeuo pipefail
+          gcloud run services update "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_PROD_API_KEYS},LOG_LEVEL=info,NODE_ENV=production,VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE},PEPPOL_MODE=production,JWT_SECRET=${JWT_SECRET},VIDA_PUBLIC_API_KEY=${VIDA_PUBLIC_API_KEY},SHOPIFY_WEBHOOK_SECRET=${SHOPIFY_WEBHOOK_SECRET}"
+
+      - name: Adapter preflight
+        shell: bash
+        env:
+          VIDA_AP_ADAPTER: ${{ env.VIDA_AP_ADAPTER }}
+        run: echo "Deploying with VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER}"

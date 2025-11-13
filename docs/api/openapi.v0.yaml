@@ -1,0 +1,434 @@
+openapi: 3.1.0
+info:
+  title: Vida Public API v0
+  version: 0.1.0
+  description: >
+    Minimal public surface for sending BIS 3 invoices through Scrada and receiving webhook updates.
+servers:
+  - url: https://api.vida.build
+paths:
+  /v0/invoices:
+    post:
+      summary: Submit invoice
+      description: >
+        Validates the invoice payload, converts it to UBL, sends it through Scrada, and records idempotent metadata.
+      operationId: submitInvoice
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceSubmission'
+      responses:
+        '200':
+          description: Duplicate submission (idempotency replay)
+          headers:
+            X-Idempotency-Key:
+              description: Idempotency key echoed back to the client.
+              schema:
+                type: string
+            X-Idempotent-Replay:
+              description: Present with value `true` when the request reused a cached submission.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceSubmissionResponse'
+        '202':
+          description: Invoice accepted and forwarded to Scrada
+          headers:
+            X-Idempotency-Key:
+              description: Idempotency key echoed back to the client.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceSubmissionResponse'
+        '400':
+          description: Invalid payload or missing idempotency key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Payload failed schema validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded for the API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: API key pool not configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v0/invoices/{invoiceId}:
+    get:
+      summary: Fetch invoice status
+      operationId: getInvoiceStatus
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Latest Scrada status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceStatusResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v0/webhooks/scrada:
+    post:
+      summary: Scrada status webhook
+      description: >
+        Scrada pushes delivery notifications to this endpoint. The `x-scrada-webhook-secret` header must match `AP_WEBHOOK_SECRET`.
+      operationId: scradaWebhook
+      security:
+        - ScradaWebhookSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScradaWebhookPayload'
+      responses:
+        '200':
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid shared secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Webhook secret not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v0/webhooks/shopify:
+    post:
+      summary: Shopify order webhook
+      description: >
+        Accepts `orders/create` or `orders/paid` webhooks, verifies the Shopify HMAC header, maps the payload to the invoice DTO, and reuses `/v0/invoices`.
+      operationId: shopifyWebhook
+      security:
+        - ShopifyWebhookHmac: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShopifyOrder'
+      responses:
+        '202':
+          description: Shopify order converted to an invoice submission
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoiceId:
+                    type: string
+                  status:
+                    type: string
+        '401':
+          description: Invalid HMAC header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid JSON payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Webhook secret not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Unique per-tenant key that ensures replay-safe submissions.
+      schema:
+        type: string
+        minLength: 1
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    ScradaWebhookSecret:
+      type: apiKey
+      in: header
+      name: x-scrada-webhook-secret
+    ShopifyWebhookHmac:
+      type: apiKey
+      in: header
+      name: X-Shopify-Hmac-Sha256
+  schemas:
+    Party:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        registrationName:
+          type: string
+        companyId:
+          type: string
+        vatId:
+          type: string
+        endpoint:
+          type: object
+          properties:
+            scheme:
+              type: string
+            id:
+              type: string
+        address:
+          type: object
+          properties:
+            streetName:
+              type: string
+            additionalStreetName:
+              type: string
+            buildingNumber:
+              type: string
+            cityName:
+              type: string
+            postalZone:
+              type: string
+            countryCode:
+              type: string
+        contact:
+          type: object
+          properties:
+            name:
+              type: string
+            telephone:
+              type: string
+            electronicMail:
+              type: string
+    InvoiceLine:
+      type: object
+      required: [description, quantity, unitPriceMinor]
+      properties:
+        description:
+          type: string
+        quantity:
+          type: number
+        unitCode:
+          type: string
+          default: EA
+        unitPriceMinor:
+          type: integer
+        discountMinor:
+          type: integer
+          default: 0
+        vatRate:
+          type: integer
+          minimum: 0
+          maximum: 100
+        vatCategory:
+          type: string
+        vatExemptionReason:
+          type: string
+        itemName:
+          type: string
+        buyerAccountingReference:
+          type: string
+    InvoiceSubmission:
+      type: object
+      required:
+        - currency
+        - issueDate
+        - seller
+        - buyer
+        - lines
+      properties:
+        externalReference:
+          type: string
+        currency:
+          type: string
+          description: ISO 4217 currency code
+          example: EUR
+        currencyMinorUnit:
+          type: integer
+          minimum: 0
+          maximum: 3
+          default: 2
+        issueDate:
+          type: string
+          format: date-time
+        dueDate:
+          type: string
+          format: date-time
+        seller:
+          $ref: '#/components/schemas/Party'
+        buyer:
+          $ref: '#/components/schemas/Party'
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceLine'
+        defaultVatRate:
+          type: integer
+        totals:
+          type: object
+          description: Optional invoice totals expressed in minor units.
+        meta:
+          type: object
+          additionalProperties: true
+    InvoiceSubmissionResponse:
+      type: object
+      required:
+        - invoiceId
+        - documentId
+        - status
+        - externalReference
+      properties:
+        invoiceId:
+          type: string
+        documentId:
+          type: string
+        status:
+          type: string
+          description: Normalized Scrada status (uppercase with underscores)
+        externalReference:
+          type: string
+    InvoiceStatusResponse:
+      type: object
+      required:
+        - invoiceId
+        - documentId
+        - status
+      properties:
+        invoiceId:
+          type: string
+        documentId:
+          type: string
+        status:
+          type: string
+        info:
+          type: object
+          description: Raw Scrada status payload (if available).
+          additionalProperties: true
+    ScradaWebhookPayload:
+      type: object
+      required:
+        - invoiceId
+        - documentId
+        - status
+      properties:
+        invoiceId:
+          type: string
+        documentId:
+          type: string
+        status:
+          type: string
+        info:
+          type: object
+          additionalProperties: true
+    ShopifyOrder:
+      type: object
+      description: Shopify `orders/create` payload (subset shown; full schema available from Shopify).
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        currency:
+          type: string
+        total_price:
+          type: string
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code (e.g. `invalid_payload`, `rate_limit_exceeded`).
+        details:
+          description: Optional validation details.
+          oneOf:
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+            - type: object
+              additionalProperties: true

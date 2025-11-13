@@ -1,0 +1,56 @@
+{
+  "number": "VIDA-20251108-DDAAB4",
+  "externalReference": "VIDA-20251108-DDAAB4",
+  "invoiceDate": "2025-11-08",
+  "invoiceExpiryDate": "2025-12-08",
+  "supplier": {
+    "name": "Vida Supplier NV",
+    "vatNumber": "BE0755799452",
+    "peppolID": "0208:0755799452",
+    "address": {
+      "street": "Koning Albert II-laan",
+      "streetNumber": "21",
+      "zipCode": "1000",
+      "city": "Brussels",
+      "countryCode": "BE"
+    }
+  },
+  "customer": {
+    "name": "Vida Sandbox Buyer",
+    "vatNumber": "BE0755799452",
+    "peppolID": "0208:0755799452",
+    "address": {
+      "street": "Receiverstraat",
+      "streetNumber": "5",
+      "zipCode": "2000",
+      "city": "Antwerpen",
+      "countryCode": "BE"
+    }
+  },
+  "currency": "EUR",
+  "isInclVat": false,
+  "totalVat": 21,
+  "totalExclVat": 100,
+  "buyerReference": "VIDA-20251108-DDAAB4",
+  "lines": [
+    {
+      "lineNumber": "1",
+      "itemName": "Scrada sandbox service",
+      "quantity": 1,
+      "unitType": 1,
+      "itemExclVat": 100,
+      "vatType": 1,
+      "vatPercentage": 21,
+      "totalExclVat": 100
+    }
+  ],
+  "vatTotals": [
+    {
+      "vatType": 1,
+      "vatPercentage": 21,
+      "totalVat": 21,
+      "totalExclVat": 100
+    }
+  ],
+  "paymentTerms": "Payment due within 30 days"
+}

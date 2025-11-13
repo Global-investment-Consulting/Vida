@@ -1,0 +1,117 @@
+[
+  {
+    "path": "MILESTONES_GITHUB.md",
+    "role": "Milestone log referencing Billit gating history",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "PROJECT_PLAN.md",
+    "role": "Project plan bullet describing Billit staging adapter switch",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "CHANGELOG.md",
+    "role": "Release notes mentioning Billit-ready toggles",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "REPORT.md",
+    "role": "PR/initiative report referencing Billit smoke gating",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "scripts/billit_send_smoke.mjs",
+    "role": "Legacy sandbox sender script for Billit smokes",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "tests/config/ap-adapter-name.test.ts",
+    "role": "Adapter selection unit test covering VIDA_AP_ADAPTER=billit",
+    "suggestedAction": "feature-flag only"
+  },
+  {
+    "path": "tests/apadapters/billit.contract.test.ts",
+    "role": "Billit contract test asserting request shape and headers",
+    "suggestedAction": "feature-flag only"
+  },
+  {
+    "path": "tests/apadapters/billit.test.ts",
+    "role": "Billit adapter unit tests for send/status flows",
+    "suggestedAction": "feature-flag only"
+  },
+  {
+    "path": "CI_DIAG.md",
+    "role": "CI diagnostics doc citing Billit workflow failures",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "tests/fixtures/billit_invoice_minimal.json",
+    "role": "Fixture payload for Billit contract/unit tests",
+    "suggestedAction": "feature-flag only"
+  },
+  {
+    "path": "README.md",
+    "role": "Environment doc describing how to enable the Billit adapter",
+    "suggestedAction": "feature-flag only"
+  },
+  {
+    "path": "src/apadapters/index.ts",
+    "role": "Registers the billit adapter in the AP adapter map",
+    "suggestedAction": "feature-flag only"
+  },
+  {
+    "path": "src/apadapters/billit.ts",
+    "role": "Primary Billit adapter implementation",
+    "suggestedAction": "feature-flag only"
+  },
+  {
+    "path": "REPORT_GITHUB.md",
+    "role": "Operational report listing Billit branches/workflows",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "src/apadapters/contracts.ts",
+    "role": "Adapter metadata declaring Billit label/description",
+    "suggestedAction": "feature-flag only"
+  },
+  {
+    "path": ".github/workflows/scrada-integration.yml",
+    "role": "Scrada workflow step verifying no BILLIT_* envs leak in",
+    "suggestedAction": "must-keep"
+  },
+  {
+    "path": ".github/workflows/smoke-ap-billit-sandbox.yml",
+    "role": "Scheduled/manual Billit sandbox smoke workflow (dry-run)",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": ".github/workflows/smoke-ap-billit.yml",
+    "role": "Manual Billit smoke ping workflow",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": ".github/workflows/ci.yml",
+    "role": "CI workflow containing gated Billit contract job",
+    "suggestedAction": "feature-flag only"
+  },
+  {
+    "path": ".github/workflows/smoke-ap-billit-sandbox-live.yml",
+    "role": "Manual Billit sandbox live-send workflow",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "reports/ci-latest.log",
+    "role": "Captured CI log referencing Billit harness branch",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "reports/deploy-staging-latest.log",
+    "role": "Deploy log mentioning Billit harness",
+    "suggestedAction": "can-remove"
+  },
+  {
+    "path": "docs/ADAPTERS.md",
+    "role": "Adapter documentation section for Billit setup",
+    "suggestedAction": "feature-flag only"
+  }
+]

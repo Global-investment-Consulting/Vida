@@ -1,0 +1,11 @@
+content-type
+x-scrada-external-reference
+x-scrada-peppol-c1-country-code
+x-scrada-peppol-document-type-scheme
+x-scrada-peppol-document-type-value
+x-scrada-peppol-process-scheme
+x-scrada-peppol-process-value
+x-scrada-peppol-receiver-id
+x-scrada-peppol-receiver-scheme
+x-scrada-peppol-sender-id
+x-scrada-peppol-sender-scheme

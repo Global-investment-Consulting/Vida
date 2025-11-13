@@ -80,3 +80,4 @@ export const resolveApWebhookSecret = (): string | undefined => {
   const trimmed = secret.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 };
+export const VIDA_PUBLIC_RATE_LIMIT = Number.parseInt(process.env.VIDA_PUBLIC_RATE_LIMIT || "120", 10);

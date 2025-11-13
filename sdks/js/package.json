@@ -1,0 +1,40 @@
+{
+  "name": "@vida/public-api-sdk",
+  "version": "0.1.0",
+  "description": "Vida v0 Public API client (TypeScript)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "example": "tsx examples/basic.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "vida",
+    "scrada",
+    "peppol",
+    "sdk",
+    "invoices"
+  ],
+  "author": "Vida Engineering",
+  "license": "MIT",
+  "devDependencies": {
+    "rimraf": "^5.0.5",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
