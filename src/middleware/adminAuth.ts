@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import {
   ADMIN_DASHBOARD_KEY,
+  OPS_DASHBOARD_IPS,
   resolveDashboardBasicCredentials,
   type DashboardBasicCredentials
 } from "../config.js";
@@ -10,6 +11,8 @@ const ADMIN_KEY_HEADER = "x-admin-key";
 const SESSION_COOKIE_NAME = "ops_admin_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60; // 1 hour
 const COOKIE_PATH = "/ops";
+const FORWARDED_HEADER = "x-forwarded-for";
+const allowedIpSet = new Set(OPS_DASHBOARD_IPS.map((ip) => ip.toLowerCase()));
 
 export type AdminAuthContext = {
   mode: "header" | "basic" | "cookie";
@@ -38,6 +41,43 @@ function constantTimeEquals(expected: string, provided: string): boolean {
 function respondUnauthorized(res: Response): void {
   res.setHeader("WWW-Authenticate", 'Basic realm="Vida Ops Dashboard"');
   res.status(401).json({ error: "unauthorized" });
+}
+
+function normalizeIp(ip: string | undefined): string | null {
+  if (!ip) {
+    return null;
+  }
+  return ip.replace(/^::ffff:/, "").trim().toLowerCase();
+}
+
+function isIpAllowed(req: Request): boolean {
+  if (allowedIpSet.size === 0) {
+    return true;
+  }
+  const candidates = new Set<string>();
+  const forwarded = req.header(FORWARDED_HEADER);
+  if (forwarded) {
+    for (const raw of forwarded.split(",").map((entry) => entry.trim())) {
+      const normalized = normalizeIp(raw);
+      if (normalized) {
+        candidates.add(normalized);
+      }
+    }
+  }
+  const requestIp = normalizeIp(req.ip);
+  if (requestIp) {
+    candidates.add(requestIp);
+  }
+  const socketIp = normalizeIp(req.socket.remoteAddress);
+  if (socketIp) {
+    candidates.add(socketIp);
+  }
+  for (const candidate of candidates) {
+    if (allowedIpSet.has(candidate)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function computeSessionToken(creds: DashboardBasicCredentials): string {
@@ -147,6 +187,11 @@ function tryBasicAuth(req: Request, res: Response, creds: DashboardBasicCredenti
 }
 
 export function requireAdminAuth(req: Request, res: Response, next: NextFunction): void {
+  if (!isIpAllowed(req)) {
+    res.status(403).json({ error: "forbidden_ip" });
+    return;
+  }
+
   const creds = resolveDashboardBasicCredentials();
   try {
     const headerAuth = tryHeaderAuth(req);
