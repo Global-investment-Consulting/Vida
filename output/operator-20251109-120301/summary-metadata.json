@@ -1,0 +1,8 @@
+{
+  "docId": "ffb54bb6-2d4c-4299-b54d-322b62d50dfc",
+  "statusLine": "[status=Processed; attempt=1; err=]",
+  "artifacts": {
+    "source": true,
+    "patched": true
+  }
+}

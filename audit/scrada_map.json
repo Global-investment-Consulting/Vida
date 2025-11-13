@@ -1,0 +1,98 @@
+[
+  {
+    "path": "output/api-test-final.bat",
+    "role": "Windows batch helper to post BIS 3.0 payloads to Scrada apitest endpoint"
+  },
+  {
+    "path": "output/scrada_final_report.md",
+    "role": "Recorded Scrada integration run report with headers/artifact references"
+  },
+  {
+    "path": "output/scrada_result.md",
+    "role": "Latest Scrada run summary capturing payload checks and artifacts"
+  },
+  {
+    "path": "CI_DIAG.md",
+    "role": "CI diagnostics doc referencing Scrada workflow validation state"
+  },
+  {
+    "path": "package.json",
+    "role": "Root npm scripts including scrada:send hook to the PowerShell sender"
+  },
+  {
+    "path": "tools/scrada-peppol/README.md",
+    "role": "Documentation for the Scrada PowerShell BIS 3.0 sender"
+  },
+  {
+    "path": "tools/scrada-peppol/Send-PeppolUbl.ps1",
+    "role": "PowerShell script that patches UBL invoices and calls Scrada"
+  },
+  {
+    "path": "tools/scrada-peppol/.env.example",
+    "role": "Sample environment variables required by the Scrada sender"
+  },
+  {
+    "path": ".github/workflows/scrada-integration.yml",
+    "role": "Linux workflow that runs Scrada-focused tests and live smoke send"
+  },
+  {
+    "path": ".github/workflows/send-peppol.yml",
+    "role": "Manual Windows workflow invoking Send-PeppolUbl.ps1 with secrets"
+  },
+  {
+    "path": ".github/workflows/ci.yml",
+    "role": "CI pipeline that detects /scrada branches to disable optional jobs"
+  },
+  {
+    "path": "docs/adr/0001-scrada-peppol-integration.md",
+    "role": "ADR documenting the Scrada BIS 3.0 integration decision"
+  },
+  {
+    "path": "apps/api/package.json",
+    "role": "Scrada helper package scripts (build, lint, scrada:* CLIs)"
+  },
+  {
+    "path": "docs/scrada_audit.md",
+    "role": "Scrada compliance audit checklist describing API coverage"
+  },
+  {
+    "path": "apps/api/src/types/scrada.ts",
+    "role": "Type definitions for Scrada invoices, participants, and webhooks"
+  },
+  {
+    "path": "apps/api/src/lib/http.ts",
+    "role": "Axios client with Scrada-specific headers, retries, and rate limits"
+  },
+  {
+    "path": "apps/api/tests/scrada.integration.test.ts",
+    "role": "Env-gated integration test that sends/polls Scrada sandbox invoices"
+  },
+  {
+    "path": "apps/api/scripts/scrada-send.mjs",
+    "role": "Node CLI that invokes sendInvoiceWithFallback and emits artifacts"
+  },
+  {
+    "path": "apps/api/scripts/scrada-status.mjs",
+    "role": "CLI to poll Scrada document status and optional archive fetches"
+  },
+  {
+    "path": "apps/api/tests/scrada.payload.test.ts",
+    "role": "Vitest coverage for Scrada JSON/UBL payload builders"
+  },
+  {
+    "path": "apps/api/src/scrada/payload.ts",
+    "role": "Builders that assemble Scrada JSON invoices and BIS 3.0 artifacts"
+  },
+  {
+    "path": "apps/api/scripts/scrada-wait-participant.mjs",
+    "role": "CLI polling Scrada participant lookup before sending"
+  },
+  {
+    "path": "apps/api/tests/adapters/scrada.adapter.test.ts",
+    "role": "Unit tests covering the Scrada adapter client behavior"
+  },
+  {
+    "path": "apps/api/src/adapters/scrada.ts",
+    "role": "Main Scrada adapter implementation (send, poll, archive, artifacts)"
+  }
+]

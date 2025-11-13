@@ -1,0 +1,80 @@
+scrada	Post Checkout repository	2025-11-08T21:39:47.7431569Z ##[debug]........Evaluating github:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7432050Z ##[debug]........=> Object
+scrada	Post Checkout repository	2025-11-08T21:39:47.7432502Z ##[debug]........Evaluating String:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7432959Z ##[debug]........=> 'event_name'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7433517Z ##[debug]......=> 'workflow_dispatch'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7433995Z ##[debug]......Evaluating String:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7434462Z ##[debug]......=> 'workflow_dispatch'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7434939Z ##[debug]....=> true
+scrada	Post Checkout repository	2025-11-08T21:39:47.7435345Z ##[debug]....Evaluating Index:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7435784Z ##[debug]......Evaluating Index:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7436233Z ##[debug]........Evaluating Index:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7436694Z ##[debug]..........Evaluating github:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7437281Z ##[debug]..........=> Object
+scrada	Post Checkout repository	2025-11-08T21:39:47.7437958Z ##[debug]..........Evaluating String:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7438410Z ##[debug]..........=> 'event'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7438857Z ##[debug]........=> Object
+scrada	Post Checkout repository	2025-11-08T21:39:47.7439287Z ##[debug]........Evaluating String:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7439741Z ##[debug]........=> 'inputs'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7440219Z ##[debug]......=> Object
+scrada	Post Checkout repository	2025-11-08T21:39:47.7440631Z ##[debug]......Evaluating String:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7441076Z ##[debug]......=> 'run_ref'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7441579Z ##[debug]....=> 'feat/scrada-final-bis3'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7442123Z ##[debug]..=> 'feat/scrada-final-bis3'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7442635Z ##[debug]=> 'feat/scrada-final-bis3'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7443600Z ##[debug]Expanded: ((('workflow_dispatch' == 'workflow_dispatch') && 'feat/scrada-final-bis3') || github['ref'])
+scrada	Post Checkout repository	2025-11-08T21:39:47.7444520Z ##[debug]Result: 'feat/scrada-final-bis3'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7445575Z ##[debug]Evaluating: github.repository
+scrada	Post Checkout repository	2025-11-08T21:39:47.7446095Z ##[debug]Evaluating Index:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7446529Z ##[debug]..Evaluating github:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7447007Z ##[debug]..=> Object
+scrada	Post Checkout repository	2025-11-08T21:39:47.7447408Z ##[debug]..Evaluating String:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7448194Z ##[debug]..=> 'repository'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7448710Z ##[debug]=> 'Global-investment-Consulting/Vida'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7449346Z ##[debug]Result: 'Global-investment-Consulting/Vida'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7451138Z ##[debug]Evaluating: github.token
+scrada	Post Checkout repository	2025-11-08T21:39:47.7451872Z ##[debug]Evaluating Index:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7452297Z ##[debug]..Evaluating github:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7452720Z ##[debug]..=> Object
+scrada	Post Checkout repository	2025-11-08T21:39:47.7453122Z ##[debug]..Evaluating String:
+scrada	Post Checkout repository	2025-11-08T21:39:47.7453541Z ##[debug]..=> 'token'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7454147Z ##[debug]=> '***'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7454687Z ##[debug]Result: '***'
+scrada	Post Checkout repository	2025-11-08T21:39:47.7467097Z ##[debug]Loading env
+scrada	Post Checkout repository	2025-11-08T21:39:47.7474159Z Post job cleanup.
+scrada	Post Checkout repository	2025-11-08T21:39:47.8666274Z ##[debug]Getting git version
+scrada	Post Checkout repository	2025-11-08T21:39:47.8684026Z [command]/usr/bin/git version
+scrada	Post Checkout repository	2025-11-08T21:39:47.8730989Z git version 2.51.2
+scrada	Post Checkout repository	2025-11-08T21:39:47.8756254Z ##[debug]0
+scrada	Post Checkout repository	2025-11-08T21:39:47.8765907Z ##[debug]git version 2.51.2
+scrada	Post Checkout repository	2025-11-08T21:39:47.8766339Z ##[debug]
+scrada	Post Checkout repository	2025-11-08T21:39:47.8767131Z ##[debug]Set git useragent to: git/2.51.2 (github-actions-checkout)
+scrada	Post Checkout repository	2025-11-08T21:39:47.8768278Z ::add-mask::***
+scrada	Post Checkout repository	2025-11-08T21:39:47.8798511Z Temporarily overriding HOME='/home/runner/work/_temp/8098b407-7c82-47c2-b8df-d0cc81a85522' before making global git config changes
+scrada	Post Checkout repository	2025-11-08T21:39:47.8882622Z Adding repository directory to the temporary git global config as a safe directory
+scrada	Post Checkout repository	2025-11-08T21:39:47.8883870Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Vida/Vida
+scrada	Post Checkout repository	2025-11-08T21:39:47.8884839Z ##[debug]0
+scrada	Post Checkout repository	2025-11-08T21:39:47.8885327Z ##[debug]
+scrada	Post Checkout repository	2025-11-08T21:39:47.8885935Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+scrada	Post Checkout repository	2025-11-08T21:39:47.8918180Z ##[debug]1
+scrada	Post Checkout repository	2025-11-08T21:39:47.8920759Z ##[debug]
+scrada	Post Checkout repository	2025-11-08T21:39:47.8926983Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+scrada	Post Checkout repository	2025-11-08T21:39:47.9172174Z ##[debug]0
+scrada	Post Checkout repository	2025-11-08T21:39:47.9173508Z ##[debug]
+scrada	Post Checkout repository	2025-11-08T21:39:47.9181464Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+scrada	Post Checkout repository	2025-11-08T21:39:47.9210597Z http.https://github.com/.extraheader
+scrada	Post Checkout repository	2025-11-08T21:39:47.9217334Z ##[debug]0
+scrada	Post Checkout repository	2025-11-08T21:39:47.9218674Z ##[debug]http.https://github.com/.extraheader
+scrada	Post Checkout repository	2025-11-08T21:39:47.9219159Z ##[debug]
+scrada	Post Checkout repository	2025-11-08T21:39:47.9226401Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+scrada	Post Checkout repository	2025-11-08T21:39:47.9254855Z ##[debug]0
+scrada	Post Checkout repository	2025-11-08T21:39:47.9256820Z ##[debug]
+scrada	Post Checkout repository	2025-11-08T21:39:47.9264009Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+scrada	Post Checkout repository	2025-11-08T21:39:47.9491984Z ##[debug]0
+scrada	Post Checkout repository	2025-11-08T21:39:47.9493031Z ##[debug]
+scrada	Post Checkout repository	2025-11-08T21:39:47.9495220Z ##[debug]Unsetting HOME override
+scrada	Post Checkout repository	2025-11-08T21:39:47.9563963Z ##[debug]Node Action run completed with exit code 0
+scrada	Post Checkout repository	2025-11-08T21:39:47.9566245Z ##[debug]Finishing: Post Checkout repository
+scrada	Complete job	﻿2025-11-08T21:39:47.9606289Z ##[debug]Starting: Complete job
+scrada	Complete job	2025-11-08T21:39:47.9608166Z Cleaning up orphan processes
+scrada	Complete job	2025-11-08T21:39:47.9842752Z ##[debug]Finishing: Complete job

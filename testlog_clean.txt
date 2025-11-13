@@ -1,0 +1,111 @@
+
+> vida-mvp-nodb@0.5.0 test:ci
+> vitest run --reporter=dot --silent
+
+
+ RUN  v3.2.4 /home/samgo/Vida
+
+················································-·--···········x·········xxxx···············
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/api/invoices.api.test.ts > v0 invoices API > enforces per-key rate limits
+Error: expected 202 "Accepted", got 429 "Too Many Requests"
+ ❯ tests/api/invoices.api.test.ts:183:10
+    181|         .set("Idempotency-Key", `rk-${i}`)
+    182|         .send(payload)
+    183|         .expect(i === 5 ? 429 : 202);
+       |          ^
+    184|     }
+    185|   });
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/api/invoices.api.test.ts > v0 invoices API > exposes submissions feed and allows resends
+Error: expected 202 "Accepted", got 429 "Too Many Requests"
+ ❯ tests/api/invoices.api.test.ts:194:8
+    192|       .set("Idempotency-Key", "dashboard-list")
+    193|       .send(payload)
+    194|       .expect(202);
+       |        ^
+    195| 
+    196|     const listResponse = await request(app)
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/api/invoices.api.test.ts > v0 invoices API > short-circuits duplicate submissions with the same idempotency key
+Error: expected 202 "Accepted", got 429 "Too Many Requests"
+ ❯ tests/api/invoices.api.test.ts:222:8
+    220|       .set("Idempotency-Key", "dup-key-1")
+    221|       .send(payload)
+    222|       .expect(202);
+       |        ^
+    223| 
+    224|     const secondResponse = await request(app)
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/api/invoices.api.test.ts > v0 invoices API > creates invoice, persists artifacts, and refreshes status
+Error: expected 202 "Accepted", got 429 "Too Many Requests"
+ ❯ tests/api/invoices.api.test.ts:247:8
+    245|       .set("Idempotency-Key", "idem-primary")
+    246|       .send(payload)
+    247|       .expect(202);
+       |        ^
+    248| 
+    249|     expect(sendMock).toHaveBeenCalledOnce();
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/api/status-routes.test.ts > AP status routes > returns stored invoice delivery status
+AssertionError: expected { status: 'delivered', …(1) } to deeply equal { status: 'queued', …(1) }
+
+- Expected
++ Received
+
+  {
+    "providerId": "mock-INV-001",
+-   "status": "queued",
++   "status": "delivered",
+  }
+
+ ❯ tests/api/status-routes.test.ts:81:27
+     79|       .expect(200);
+     80| 
+     81|     expect(response.body).toEqual({
+       |                           ^
+     82|       status: "queued",
+     83|       providerId: "mock-INV-001"
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  2 failed | 29 passed | 3 skipped (34)
+      Tests  5 failed | 84 passed | 3 skipped (92)
+   Start at  22:46:30
+   Duration  21.12s (transform 6.44s, setup 1.15s, collect 134.67s, tests 66.39s, environment 750ms, prepare 36.49s)
+

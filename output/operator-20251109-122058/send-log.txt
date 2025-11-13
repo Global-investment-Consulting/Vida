@@ -1,0 +1,1271 @@
+send	Set up job	﻿2025-11-09T12:31:32.2723501Z ##[debug]Starting: Set up job
+send	Set up job	2025-11-09T12:31:32.2725256Z Current runner version: '2.329.0'
+send	Set up job	2025-11-09T12:31:32.2927406Z ##[group]Runner Image Provisioner
+send	Set up job	2025-11-09T12:31:32.2928524Z Hosted Compute Agent
+send	Set up job	2025-11-09T12:31:32.2929393Z Version: 20251016.436
+send	Set up job	2025-11-09T12:31:32.2930274Z Commit: 8ab8ac8bfd662a3739dab9fe09456aba92132568
+send	Set up job	2025-11-09T12:31:32.2931821Z Build Date: 2025-10-15T20:44:12Z
+send	Set up job	2025-11-09T12:31:32.2933018Z ##[endgroup]
+send	Set up job	2025-11-09T12:31:32.2933914Z ##[group]Operating System
+send	Set up job	2025-11-09T12:31:32.2934898Z Microsoft Windows Server 2025
+send	Set up job	2025-11-09T12:31:32.2935979Z 10.0.26100
+send	Set up job	2025-11-09T12:31:32.2936743Z Datacenter
+send	Set up job	2025-11-09T12:31:32.2937548Z ##[endgroup]
+send	Set up job	2025-11-09T12:31:32.2938795Z ##[group]Runner Image
+send	Set up job	2025-11-09T12:31:32.2939715Z Image: windows-2025
+send	Set up job	2025-11-09T12:31:32.2940594Z Version: 20251102.77.1
+send	Set up job	2025-11-09T12:31:32.2942453Z Included Software: https://github.com/actions/runner-images/blob/win25/20251102.77/images/windows/Windows2025-Readme.md
+send	Set up job	2025-11-09T12:31:32.2945962Z Image Release: https://github.com/actions/runner-images/releases/tag/win25%2F20251102.77
+send	Set up job	2025-11-09T12:31:32.2947698Z ##[endgroup]
+send	Set up job	2025-11-09T12:31:32.2952202Z ##[group]GITHUB_TOKEN Permissions
+send	Set up job	2025-11-09T12:31:32.2955166Z Actions: write
+send	Set up job	2025-11-09T12:31:32.2956026Z Attestations: write
+send	Set up job	2025-11-09T12:31:32.2956830Z Checks: write
+send	Set up job	2025-11-09T12:31:32.2957547Z Contents: write
+send	Set up job	2025-11-09T12:31:32.2958783Z Deployments: write
+send	Set up job	2025-11-09T12:31:32.2959547Z Discussions: write
+send	Set up job	2025-11-09T12:31:32.2960681Z Issues: write
+send	Set up job	2025-11-09T12:31:32.2961527Z Metadata: read
+send	Set up job	2025-11-09T12:31:32.2962261Z Models: read
+send	Set up job	2025-11-09T12:31:32.2963018Z Packages: write
+send	Set up job	2025-11-09T12:31:32.2963865Z Pages: write
+send	Set up job	2025-11-09T12:31:32.2964755Z PullRequests: write
+send	Set up job	2025-11-09T12:31:32.2965568Z RepositoryProjects: write
+send	Set up job	2025-11-09T12:31:32.2966518Z SecurityEvents: write
+send	Set up job	2025-11-09T12:31:32.2967357Z Statuses: write
+send	Set up job	2025-11-09T12:31:32.2968123Z ##[endgroup]
+send	Set up job	2025-11-09T12:31:32.2971247Z Secret source: Actions
+send	Set up job	2025-11-09T12:31:32.2972911Z ##[debug]Primary repository: Global-investment-Consulting/Vida
+send	Set up job	2025-11-09T12:31:32.2974250Z Prepare workflow directory
+send	Set up job	2025-11-09T12:31:32.3275042Z ##[debug]Creating pipeline directory: 'D:\a\Vida'
+send	Set up job	2025-11-09T12:31:32.3398030Z ##[debug]Creating workspace directory: 'D:\a\Vida\Vida'
+send	Set up job	2025-11-09T12:31:32.3427475Z ##[debug]Update context data
+send	Set up job	2025-11-09T12:31:32.3522573Z ##[debug]Evaluating job-level environment variables
+send	Set up job	2025-11-09T12:31:32.3838296Z ##[debug]Evaluating job container
+send	Set up job	2025-11-09T12:31:32.3842692Z ##[debug]Evaluating job service containers
+send	Set up job	2025-11-09T12:31:32.3846219Z ##[debug]Evaluating job defaults
+send	Set up job	2025-11-09T12:31:32.3988772Z Prepare all required actions
+send	Set up job	2025-11-09T12:31:32.4026559Z Getting action download info
+send	Set up job	2025-11-09T12:31:32.6949452Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+send	Set up job	2025-11-09T12:31:32.7362195Z ##[debug]Copied action archive 'C:\actionarchivecache\actions_checkout\08eba0b27e820071cde6df949e0beb9ba4906955.zip' to 'D:\a\_actions\_temp_d467ff34-ef1b-402f-a9b4-16111b90212b\cda7d501-59c9-4fe9-9c4e-683c47534572.zip'
+send	Set up job	2025-11-09T12:31:32.7946682Z ##[debug]Unwrap 'actions-checkout-08eba0b' to 'D:\a\_actions\actions\checkout\v4'
+send	Set up job	2025-11-09T12:31:32.8432689Z ##[debug]Archive 'D:\a\_actions\_temp_d467ff34-ef1b-402f-a9b4-16111b90212b\cda7d501-59c9-4fe9-9c4e-683c47534572.zip' has been unzipped into 'D:\a\_actions\actions\checkout\v4'.
+send	Set up job	2025-11-09T12:31:32.8939087Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+send	Set up job	2025-11-09T12:31:32.9456715Z ##[debug]Copied action archive 'C:\actionarchivecache\actions_upload-artifact\ea165f8d65b6e75b540449e92b4886f43607fa02.zip' to 'D:\a\_actions\_temp_f323d2de-5ff4-4eef-98a9-b50f72b27135\ef5c652d-aecc-442b-8ec6-e64193f8696a.zip'
+send	Set up job	2025-11-09T12:31:33.0889442Z ##[debug]Unwrap 'actions-upload-artifact-ea165f8' to 'D:\a\_actions\actions\upload-artifact\v4'
+send	Set up job	2025-11-09T12:31:33.2141095Z ##[debug]Archive 'D:\a\_actions\_temp_f323d2de-5ff4-4eef-98a9-b50f72b27135\ef5c652d-aecc-442b-8ec6-e64193f8696a.zip' has been unzipped into 'D:\a\_actions\actions\upload-artifact\v4'.
+send	Set up job	2025-11-09T12:31:33.2684782Z ##[debug]action.yml for action: 'D:\a\_actions\actions\checkout\v4\action.yml'.
+send	Set up job	2025-11-09T12:31:33.4163370Z ##[debug]action.yml for action: 'D:\a\_actions\actions\upload-artifact\v4\action.yml'.
+send	Set up job	2025-11-09T12:31:33.5039905Z ##[debug]Set step '__actions_checkout' display name to: 'Run actions/checkout@v4'
+send	Set up job	2025-11-09T12:31:33.5067825Z ##[debug]Set step 'prep' display name to: 'Prepare workflow inputs'
+send	Set up job	2025-11-09T12:31:33.5090728Z ##[debug]Set step '__run' display name to: 'Guard sender vs receiver'
+send	Set up job	2025-11-09T12:31:33.5114089Z ##[debug]Set step 'send' display name to: 'Send UBL via Scrada'
+send	Set up job	2025-11-09T12:31:33.5141559Z ##[debug]Set step '__actions_upload-artifact' display name to: 'Upload UBL artifacts'
+send	Set up job	2025-11-09T12:31:33.5168378Z ##[debug]Set step '__run_2' display name to: 'Scrada summary'
+send	Set up job	2025-11-09T12:31:33.5169881Z Complete job name: send
+send	Set up job	2025-11-09T12:31:33.6080033Z ##[debug]Collect running processes for tracking orphan processes.
+send	Set up job	2025-11-09T12:31:33.6273700Z ##[debug]Finishing: Set up job
+send	Run actions/checkout@v4	﻿2025-11-09T12:31:33.6543032Z ##[debug]Evaluating condition for step: 'Run actions/checkout@v4'
+send	Run actions/checkout@v4	2025-11-09T12:31:33.6880872Z ##[debug]Evaluating: success()
+send	Run actions/checkout@v4	2025-11-09T12:31:33.6887548Z ##[debug]Evaluating success:
+send	Run actions/checkout@v4	2025-11-09T12:31:33.6903291Z ##[debug]=> true
+send	Run actions/checkout@v4	2025-11-09T12:31:33.6934508Z ##[debug]Result: true
+send	Run actions/checkout@v4	2025-11-09T12:31:33.6981049Z ##[debug]Starting: Run actions/checkout@v4
+send	Run actions/checkout@v4	2025-11-09T12:31:33.8719335Z ##[debug]Register post job cleanup for action: actions/checkout@v4
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9303454Z ##[debug]Loading inputs
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9313944Z ##[debug]Evaluating: github.repository
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9315668Z ##[debug]Evaluating Index:
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9318187Z ##[debug]..Evaluating github:
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9319959Z ##[debug]..=> Object
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9326309Z ##[debug]..Evaluating String:
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9327720Z ##[debug]..=> 'repository'
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9333491Z ##[debug]=> 'Global-investment-Consulting/Vida'
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9336034Z ##[debug]Result: 'Global-investment-Consulting/Vida'
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9385666Z ##[debug]Evaluating: github.token
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9386743Z ##[debug]Evaluating Index:
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9387676Z ##[debug]..Evaluating github:
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9388636Z ##[debug]..=> Object
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9389703Z ##[debug]..Evaluating String:
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9390642Z ##[debug]..=> 'token'
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9392097Z ##[debug]=> '***'
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9393219Z ##[debug]Result: '***'
+send	Run actions/checkout@v4	2025-11-09T12:31:33.9819947Z ##[debug]Loading env
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0382678Z ##[group]Run actions/checkout@v4
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0383878Z with:
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0384731Z   repository: Global-investment-Consulting/Vida
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0386193Z   token: ***
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0386955Z   ssh-strict: true
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0387701Z   ssh-user: git
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0388472Z   persist-credentials: true
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0389328Z   clean: true
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0390105Z   sparse-checkout-cone-mode: true
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0391022Z   fetch-depth: 1
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0391786Z   fetch-tags: false
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0392662Z   show-progress: true
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0393751Z   lfs: false
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0394460Z   submodules: false
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0395245Z   set-safe-directory: true
+send	Run actions/checkout@v4	2025-11-09T12:31:34.0396361Z ##[endgroup]
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8507187Z ##[debug]GITHUB_WORKSPACE = 'D:\a\Vida\Vida'
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8599261Z ##[debug]qualified repository = 'Global-investment-Consulting/Vida'
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8601092Z ##[debug]ref = 'refs/heads/main'
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8602211Z ##[debug]commit = '00010607541a689ea8d99b7b08ddbfca630ea9f1'
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8603872Z ##[debug]clean = true
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8607281Z ##[debug]filter = undefined
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8610333Z ##[debug]fetch depth = 1
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8610889Z ##[debug]fetch tags = false
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8611344Z ##[debug]show progress = true
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8611877Z ##[debug]lfs = false
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8612605Z ##[debug]submodules = false
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8613336Z ##[debug]recursive submodules = false
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8613820Z ##[debug]GitHub Host URL = 
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8614745Z ::add-matcher::D:\a\_actions\actions\checkout\v4\dist\problem-matcher.json
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8683821Z ##[debug]Added matchers: 'checkout-git'. Problem matchers scan action output for known warning or error strings and report these inline.
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8688159Z Syncing repository: Global-investment-Consulting/Vida
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8689289Z ::group::Getting Git version info
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8690560Z ##[group]Getting Git version info
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8690947Z Working directory is 'D:\a\Vida\Vida'
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8691517Z ##[debug]Getting git version
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8691908Z [command]"C:\Program Files\Git\bin\git.exe" version
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8740355Z git version 2.51.2.windows.1
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8801464Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8802852Z ##[debug]git version 2.51.2.windows.1
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8803402Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:34.8808143Z ##[debug]Set git useragent to: git/2.51.2 (github-actions-checkout)
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9358806Z ::endgroup::
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9359163Z ##[endgroup]
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9363510Z ::add-mask::***
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9365255Z Temporarily overriding HOME='D:\a\_temp\2d928e0e-f62a-43b9-83de-194bd3bf7cc7' before making global git config changes
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9366385Z Adding repository directory to the temporary git global config as a safe directory
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9367315Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\Vida\Vida
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9368189Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9368821Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9369308Z Deleting the contents of 'D:\a\Vida\Vida'
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9370194Z ::group::Initializing the repository
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9370478Z ##[group]Initializing the repository
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9371083Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\Vida\Vida
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9371747Z Initialized empty Git repository in D:/a/Vida/Vida/.git/
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9372537Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9373264Z ##[debug]Initialized empty Git repository in D:/a/Vida/Vida/.git/
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9373563Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9374295Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/Global-investment-Consulting/Vida
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9375209Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9375803Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9377088Z ::endgroup::
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9377349Z ##[endgroup]
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9378406Z ::group::Disabling automatic garbage collection
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9378881Z ##[group]Disabling automatic garbage collection
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9382300Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9383199Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9383983Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9384596Z ::endgroup::
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9384777Z ##[endgroup]
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9385407Z ::group::Setting up auth
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9385675Z ##[group]Setting up auth
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9386393Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9387273Z ##[debug]1
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9387851Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:35.9388830Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+send	Run actions/checkout@v4	2025-11-09T12:31:36.8806950Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:36.8823714Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:36.8848853Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+send	Run actions/checkout@v4	2025-11-09T12:31:36.9157759Z ##[debug]1
+send	Run actions/checkout@v4	2025-11-09T12:31:36.9195355Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:36.9212867Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+send	Run actions/checkout@v4	2025-11-09T12:31:37.4866425Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:37.4867886Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:37.4883603Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+send	Run actions/checkout@v4	2025-11-09T12:31:37.5193636Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:37.5194591Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:37.5208396Z ::endgroup::
+send	Run actions/checkout@v4	2025-11-09T12:31:37.5208694Z ##[endgroup]
+send	Run actions/checkout@v4	2025-11-09T12:31:37.5209522Z ::group::Fetching the repository
+send	Run actions/checkout@v4	2025-11-09T12:31:37.5209942Z ##[group]Fetching the repository
+send	Run actions/checkout@v4	2025-11-09T12:31:37.5224454Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +00010607541a689ea8d99b7b08ddbfca630ea9f1:refs/remotes/origin/main
+send	Run actions/checkout@v4	2025-11-09T12:31:38.8733543Z From https://github.com/Global-investment-Consulting/Vida
+send	Run actions/checkout@v4	2025-11-09T12:31:38.8734545Z  * [new ref]         00010607541a689ea8d99b7b08ddbfca630ea9f1 -> origin/main
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9060680Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9061687Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9062464Z ::endgroup::
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9062743Z ##[endgroup]
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9063468Z ::group::Determining the checkout info
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9063914Z ##[group]Determining the checkout info
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9064916Z ::endgroup::
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9065181Z ##[endgroup]
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9076834Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9560864Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9561829Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9573070Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9887708Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9888622Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9889785Z ::group::Checking out the ref
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9890163Z ##[group]Checking out the ref
+send	Run actions/checkout@v4	2025-11-09T12:31:38.9900678Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B main refs/remotes/origin/main
+send	Run actions/checkout@v4	2025-11-09T12:31:39.1427605Z branch 'main' set up to track 'origin/main'.
+send	Run actions/checkout@v4	2025-11-09T12:31:39.1438959Z Switched to a new branch 'main'
+send	Run actions/checkout@v4	2025-11-09T12:31:39.1498518Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:39.1547699Z ##[debug]branch 'main' set up to track 'origin/main'.
+send	Run actions/checkout@v4	2025-11-09T12:31:39.1548174Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:39.1569475Z ::endgroup::
+send	Run actions/checkout@v4	2025-11-09T12:31:39.1569775Z ##[endgroup]
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2054164Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2055415Z ##[debug]commit 00010607541a689ea8d99b7b08ddbfca630ea9f1
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2055944Z ##[debug]Author: Samcogtz <samgoetz@hotmail.com>
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2056380Z ##[debug]Date:   Sun Nov 9 12:05:05 2025 +0100
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2056921Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2057301Z ##[debug]    Deploy staging: clean adapter + reliable dispatch (#142)
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2057787Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2058156Z ##[debug]    * feat(scrada): add fallback flow and integration pipeline
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2058638Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2058966Z ##[debug]    * feat(scrada): add omit buyer VAT variant
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2059372Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2059675Z ##[debug]    * ci(scrada): update integration workflow
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2060076Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2060376Z ##[debug]    * fix(scrada): align buyer VAT handling
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2060766Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2062025Z ##[debug]    * chore(scrada): try omit VAT JSON retry
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2064352Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2064696Z ##[debug]    * test(scrada): log UBL preview on failure
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2065108Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2065389Z ##[debug]    * chore: isolate scrada pipeline
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2067348Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2067645Z ##[debug]    * fix: add scrada ubl headers
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2068016Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2068360Z ##[debug]    * fix(scrada): align integration with Scrada docs
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2068791Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2069111Z ##[debug]    * fix(scrada): relax UBL header typing
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2069499Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2069813Z ##[debug]    * fix(scrada): map header schemes to iso6523
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2070238Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2070580Z ##[debug]    * chore(scrada): log status in error artifacts
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2071361Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2071895Z ##[debug]    * chore(scrada): capture response body in logs
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2072317Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2072602Z ##[debug]    * chore(scrada): record error headers
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2072988Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2073325Z ##[debug]    * chore(scrada): surface response data on failure
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2073767Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2074087Z ##[debug]    * chore(scrada): dump axios error JSON on failure
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2074496Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2074807Z ##[debug]    * chore(scrada): record latest run outcome
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2075469Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2075793Z ##[debug]    * ci: streamline scrada integration workflow
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2076200Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2076518Z ##[debug]    * feat: harden scrada fallback and UBL headers
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2076922Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2077217Z ##[debug]    * feat: sweep scrada header variants
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2077606Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2077981Z ##[debug]    * chore: align scrada headers and dual pass workflow
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2078420Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2078734Z ##[debug]    * chore: capture scrada send failures in ci
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2079140Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2079466Z ##[debug]    * fix: use node to normalize scrada send output
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2079870Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2080200Z ##[debug]    * Adjust Scrada VAT handling and headers
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2080689Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2081009Z ##[debug]    * Finalize Scrada BIS 3.0 configuration
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2081439Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2081950Z ##[debug]    * Split receiver headers and normalize buyer identifiers
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2082434Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2082711Z ##[debug]    * Update API test script headers
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2083059Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2083376Z ##[debug]    * feat(peppol): scrada sender tooling
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2083780Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2084217Z ##[debug]    * ci: fix job-level if misuse (hashFiles/env), align Node 20 and add actionlint
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2084786Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2085294Z ##[debug]    * feat(einvoice): archive Billit; add Scrada mocked/E2E tests; keep isolation guard
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2085922Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2086361Z ##[debug]    * ci: add workflow_dispatch to scrada-integration.yml for manual runs
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2087614Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2088838Z ##[debug]    * scrada: prefer UBL on apitest, add JSON totals guard + debug, and enable failover
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2089481Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2089792Z ##[debug]    * Support apitest send-peppol dispatch
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2090203Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2090503Z ##[debug]    * Fallback Peppol IDs to repo vars
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2090883Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2091223Z ##[debug]    * Add supplier registration name to UBL fixture
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2091671Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2091940Z ##[debug]    * Upload UBL workflow artifacts
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2092322Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2092618Z ##[debug]    * Log err info in Scrada polling
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2093008Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2094382Z ##[debug]    * Add buyer registration name to UBL fixture
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2094806Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2095129Z ##[debug]    * Harden Scrada workflow guard and timeout
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2095560Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2095878Z ##[debug]    * Add ClassifiedTaxCategory to UBL fixture
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2096311Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2096637Z ##[debug]    * Add automatic due dates for BR-CO-25
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2097048Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2097349Z ##[debug]    * Allow 'test' environment choice
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2097731Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2098054Z ##[debug]    * Remove invalid PaymentTerms placement
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2098458Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2098953Z ##[debug]    * deploy(staging): allow manual runs, default adapter=scrada; remove Billit remnants
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2099561Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2100014Z ##[debug]    * deploy: clean adapter inputs, remove STAGING fallback; simplify job gate
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2100572Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2101002Z ##[debug]    * test(scrada): mock dist http.js in CI to intercept getScradaClient
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2101531Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2101810Z ##[debug]    ---------
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2102100Z ##[debug]    
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2102725Z ##[debug]    Co-authored-by: Codex Agent <codex-agent@example.com>
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2103122Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2103703Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2373087Z 00010607541a689ea8d99b7b08ddbfca630ea9f1
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2445283Z ##[debug]0
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2459023Z ##[debug]00010607541a689ea8d99b7b08ddbfca630ea9f1
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2459482Z ##[debug]
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2468147Z ##[debug]Unsetting HOME override
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2498406Z ::remove-matcher owner=checkout-git::
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2511887Z ##[debug]Removed matchers: 'checkout-git'
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2584670Z ##[debug]Node Action run completed with exit code 0
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2620234Z ##[debug]Save intra-action state isPost = true
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2620701Z ##[debug]Save intra-action state setSafeDirectory = true
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2621077Z ##[debug]Save intra-action state repositoryPath = D:\a\Vida\Vida
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2624968Z ##[debug]Set output commit = 00010607541a689ea8d99b7b08ddbfca630ea9f1
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2625612Z ##[debug]Set output ref = refs/heads/main
+send	Run actions/checkout@v4	2025-11-09T12:31:39.2628551Z ##[debug]Finishing: Run actions/checkout@v4
+send	Prepare workflow inputs	﻿2025-11-09T12:31:39.2657306Z ##[debug]Evaluating: github.event.inputs.file
+send	Prepare workflow inputs	2025-11-09T12:31:39.2657704Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2657931Z ##[debug]..Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2658133Z ##[debug]....Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2658335Z ##[debug]......Evaluating github:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2658611Z ##[debug]......=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2658855Z ##[debug]......Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2659117Z ##[debug]......=> 'event'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2659378Z ##[debug]....=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2659571Z ##[debug]....Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2659777Z ##[debug]....=> 'inputs'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2660146Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2660342Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2660533Z ##[debug]..=> 'file'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2660782Z ##[debug]=> 'peppol/fixtures/invoice_peppol_bis3.xml'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2661113Z ##[debug]Result: 'peppol/fixtures/invoice_peppol_bis3.xml'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2662323Z ##[debug]Evaluating: github.event.inputs.senderId
+send	Prepare workflow inputs	2025-11-09T12:31:39.2662637Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2662846Z ##[debug]..Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2663051Z ##[debug]....Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2663253Z ##[debug]......Evaluating github:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2663659Z ##[debug]......=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2663976Z ##[debug]......Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2664187Z ##[debug]......=> 'event'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2664613Z ##[debug]....=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2664804Z ##[debug]....Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2665018Z ##[debug]....=> 'inputs'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2665201Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2665393Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2665594Z ##[debug]..=> 'senderId'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2665777Z ##[debug]=> null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2665955Z ##[debug]Result: null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2667380Z ##[debug]Evaluating: github.event.inputs.receiverId
+send	Prepare workflow inputs	2025-11-09T12:31:39.2667694Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2667925Z ##[debug]..Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2668129Z ##[debug]....Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2668335Z ##[debug]......Evaluating github:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2668555Z ##[debug]......=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2668750Z ##[debug]......Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2668954Z ##[debug]......=> 'event'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2669154Z ##[debug]....=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2669339Z ##[debug]....Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2669546Z ##[debug]....=> 'inputs'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2669720Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2669892Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2670090Z ##[debug]..=> 'receiverId'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2670285Z ##[debug]=> null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2670453Z ##[debug]Result: null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2670994Z ##[debug]Evaluating: github.event.inputs.extRef
+send	Prepare workflow inputs	2025-11-09T12:31:39.2671258Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2671461Z ##[debug]..Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2671656Z ##[debug]....Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2671853Z ##[debug]......Evaluating github:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2672074Z ##[debug]......=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2672257Z ##[debug]......Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2672458Z ##[debug]......=> 'event'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2672642Z ##[debug]....=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2672815Z ##[debug]....Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2673014Z ##[debug]....=> 'inputs'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2673203Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2673380Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2673571Z ##[debug]..=> 'extRef'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2673759Z ##[debug]=> 'OP-123126'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2673949Z ##[debug]Result: 'OP-123126'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2674516Z ##[debug]Evaluating: github.event.inputs.pollMinutes
+send	Prepare workflow inputs	2025-11-09T12:31:39.2674801Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2675001Z ##[debug]..Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2675193Z ##[debug]....Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2675720Z ##[debug]......Evaluating github:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2677989Z ##[debug]......=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2678221Z ##[debug]......Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2678467Z ##[debug]......=> 'event'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2678679Z ##[debug]....=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2678868Z ##[debug]....Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2679073Z ##[debug]....=> 'inputs'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2679258Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2679439Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2679660Z ##[debug]..=> 'pollMinutes'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2679854Z ##[debug]=> '12'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2680034Z ##[debug]Result: '12'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2680663Z ##[debug]Evaluating: github.event.inputs.dueInDays
+send	Prepare workflow inputs	2025-11-09T12:31:39.2680932Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2681125Z ##[debug]..Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2681323Z ##[debug]....Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2681521Z ##[debug]......Evaluating github:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2681744Z ##[debug]......=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2681934Z ##[debug]......Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2682133Z ##[debug]......=> 'event'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2683334Z ##[debug]....=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2683537Z ##[debug]....Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2683948Z ##[debug]....=> 'inputs'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2684146Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2684329Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2684522Z ##[debug]..=> 'dueInDays'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2684881Z ##[debug]=> '30'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2685056Z ##[debug]Result: '30'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2685649Z ##[debug]Evaluating: secrets.SCRADA_SENDER_ID
+send	Prepare workflow inputs	2025-11-09T12:31:39.2685908Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2686106Z ##[debug]..Evaluating secrets:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2686318Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2686500Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2686729Z ##[debug]..=> 'SCRADA_SENDER_ID'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2686942Z ##[debug]=> null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2687107Z ##[debug]Result: null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2687600Z ##[debug]Evaluating: secrets.SCRADA_PEPPOL_SENDER_ID
+send	Prepare workflow inputs	2025-11-09T12:31:39.2743759Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2744183Z ##[debug]..Evaluating secrets:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2744725Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2745033Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2745393Z ##[debug]..=> 'SCRADA_PEPPOL_SENDER_ID'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2747550Z ##[debug]=> null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2747870Z ##[debug]Result: null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2748844Z ##[debug]Evaluating: secrets.SCRADA_TEST_RECEIVER_ID
+send	Prepare workflow inputs	2025-11-09T12:31:39.2749339Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2749708Z ##[debug]..Evaluating secrets:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2750082Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2750430Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2750808Z ##[debug]..=> 'SCRADA_TEST_RECEIVER_ID'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2751216Z ##[debug]=> null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2751531Z ##[debug]Result: null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2752488Z ##[debug]Evaluating: secrets.SCRADA_PEPPOL_RECEIVER_ID
+send	Prepare workflow inputs	2025-11-09T12:31:39.2752991Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2753337Z ##[debug]..Evaluating secrets:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2754076Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2754393Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2754766Z ##[debug]..=> 'SCRADA_PEPPOL_RECEIVER_ID'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2755199Z ##[debug]=> null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2755496Z ##[debug]Result: null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2756256Z ##[debug]Evaluating: vars.SCRADA_SENDER_ID
+send	Prepare workflow inputs	2025-11-09T12:31:39.2756690Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2757021Z ##[debug]..Evaluating vars:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2757352Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2757668Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2758091Z ##[debug]..=> 'SCRADA_SENDER_ID'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2758520Z ##[debug]=> null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2758822Z ##[debug]Result: null
+send	Prepare workflow inputs	2025-11-09T12:31:39.2759912Z ##[debug]Evaluating: vars.SCRADA_SUPPLIER_ID
+send	Prepare workflow inputs	2025-11-09T12:31:39.2760347Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2760669Z ##[debug]..Evaluating vars:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2761769Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2761974Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2762201Z ##[debug]..=> 'SCRADA_SUPPLIER_ID'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2762463Z ##[debug]=> '0755799452'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2762660Z ##[debug]Result: '0755799452'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2763245Z ##[debug]Evaluating: vars.SCRADA_SUPPLIER_SCHEME
+send	Prepare workflow inputs	2025-11-09T12:31:39.2763511Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2763725Z ##[debug]..Evaluating vars:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2763928Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2764106Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2764325Z ##[debug]..=> 'SCRADA_SUPPLIER_SCHEME'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2764568Z ##[debug]=> '0208'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2764743Z ##[debug]Result: '0208'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2765169Z ##[debug]Evaluating: vars.SCRADA_TEST_RECEIVER_ID
+send	Prepare workflow inputs	2025-11-09T12:31:39.2765437Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2765635Z ##[debug]..Evaluating vars:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2765831Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2766033Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2766249Z ##[debug]..=> 'SCRADA_TEST_RECEIVER_ID'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2766485Z ##[debug]=> '0755799452'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2766675Z ##[debug]Result: '0755799452'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2767161Z ##[debug]Evaluating: vars.SCRADA_TEST_RECEIVER_SCHEME
+send	Prepare workflow inputs	2025-11-09T12:31:39.2767433Z ##[debug]Evaluating Index:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2767626Z ##[debug]..Evaluating vars:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2768017Z ##[debug]..=> Object
+send	Prepare workflow inputs	2025-11-09T12:31:39.2768204Z ##[debug]..Evaluating String:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2768423Z ##[debug]..=> 'SCRADA_TEST_RECEIVER_SCHEME'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2768659Z ##[debug]=> '0208'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2768850Z ##[debug]Result: '0208'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2773786Z ##[debug]Evaluating condition for step: 'Prepare workflow inputs'
+send	Prepare workflow inputs	2025-11-09T12:31:39.2776017Z ##[debug]Evaluating: success()
+send	Prepare workflow inputs	2025-11-09T12:31:39.2776387Z ##[debug]Evaluating success:
+send	Prepare workflow inputs	2025-11-09T12:31:39.2776787Z ##[debug]=> true
+send	Prepare workflow inputs	2025-11-09T12:31:39.2777105Z ##[debug]Result: true
+send	Prepare workflow inputs	2025-11-09T12:31:39.2777735Z ##[debug]Starting: Prepare workflow inputs
+send	Prepare workflow inputs	2025-11-09T12:31:39.2913644Z ##[debug]Loading inputs
+send	Prepare workflow inputs	2025-11-09T12:31:39.2917957Z ##[debug]Loading env
+send	Prepare workflow inputs	2025-11-09T12:31:39.2933233Z ##[group]Run Set-StrictMode -Version Latest
+send	Prepare workflow inputs	2025-11-09T12:31:39.2933643Z [36;1mSet-StrictMode -Version Latest[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2933940Z [36;1mfunction FirstValue([string[]]$values){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2934247Z [36;1m  foreach($candidate in $values){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2934615Z [36;1m    if (-not [string]::IsNullOrWhiteSpace($candidate)){ return $candidate.Trim() }[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2934968Z [36;1m  }[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2935130Z [36;1m  return ""[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2935302Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2935479Z [36;1mfunction BuildComposite($scheme,$id){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2935931Z [36;1m  if (-not [string]::IsNullOrWhiteSpace($scheme) -and -not [string]::IsNullOrWhiteSpace($id)){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2936573Z [36;1m    return ("{0}:{1}" -f $scheme.Trim(), $id.Trim())[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2936855Z [36;1m  }[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2937015Z [36;1m  return ""[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2937184Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2937344Z [36;1m$file = $env:INPUT_FILE[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2937592Z [36;1mif ([string]::IsNullOrWhiteSpace($file)){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2937866Z [36;1m  throw "Input 'file' is required"[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2938091Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2938354Z [36;1m$patched = [System.IO.Path]::ChangeExtension($file.Trim(), 'send.xml')[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2939192Z [36;1m$explicitReceiverInput = (-not [string]::IsNullOrWhiteSpace($env:INPUT_RECEIVER)) -or (-not [string]::IsNullOrWhiteSpace($env:SECRET_RECEIVER)) -or (-not [string]::IsNullOrWhiteSpace($env:SECRET_PEPPOL_RECEIVER))[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2939923Z [36;1m$senderCandidates = @([0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2940145Z [36;1m  $env:INPUT_SENDER,[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2940344Z [36;1m  $env:SECRET_SENDER,[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2940781Z [36;1m  $env:SECRET_PEPPOL_SENDER,[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2941008Z [36;1m  $env:VAR_SENDER,[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2941288Z [36;1m  (BuildComposite $env:VAR_SENDER_SCHEME $env:VAR_SENDER_ID),[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2941812Z [36;1m  '0208:0755799452'[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2942000Z [36;1m)[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2942186Z [36;1m$sender = FirstValue $senderCandidates[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2942465Z [36;1mif ($sender -and $sender -notlike '*:*'){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2942790Z [36;1m  $senderScheme = FirstValue @($env:VAR_SENDER_SCHEME, '0208')[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2943127Z [36;1m  $sender = "{0}:{1}" -f $senderScheme, $sender[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2943366Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2943559Z [36;1mif ([string]::IsNullOrWhiteSpace($sender)){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2943812Z [36;1m  $sender = '0208:0755799452'[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2944017Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2944177Z [36;1m$receiverCandidates = @([0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2944402Z [36;1m  $env:INPUT_RECEIVER,[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2944608Z [36;1m  $env:SECRET_RECEIVER,[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2944829Z [36;1m  $env:SECRET_PEPPOL_RECEIVER,[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2945060Z [36;1m  $env:VAR_RECEIVER,[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2945340Z [36;1m  (BuildComposite $env:VAR_RECEIVER_SCHEME $env:VAR_RECEIVER),[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2945641Z [36;1m  '9925:BE0749521473'[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2945821Z [36;1m)[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2946807Z [36;1m$receiver = FirstValue $receiverCandidates[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2947110Z [36;1mif ($receiver -and $receiver -notlike '*:*'){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2947455Z [36;1m  $receiverScheme = FirstValue @($env:VAR_RECEIVER_SCHEME, '9925')[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2947809Z [36;1m  $receiver = "{0}:{1}" -f $receiverScheme, $receiver[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2948065Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2948268Z [36;1mif ([string]::IsNullOrWhiteSpace($receiver)){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2948538Z [36;1m  $receiver = '9925:BE0749521473'[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2948747Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2948989Z [36;1mif (-not $explicitReceiverInput -and $receiver -eq $sender){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2949430Z [36;1m  Write-Host "Receiver resolved to sender fallback; forcing default test receiver"[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2949802Z [36;1m  $receiver = '9925:BE0749521473'[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2950013Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2950175Z [36;1m$rawPoll = $env:INPUT_POLL_MINUTES[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2950419Z [36;1m$pollMinutes = 12[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2950664Z [36;1mif (-not [string]::IsNullOrWhiteSpace($rawPoll)){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2950927Z [36;1m  $parsed = 0[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2951190Z [36;1m  if ([int]::TryParse($rawPoll, [ref]$parsed) -and $parsed -gt 0){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2951504Z [36;1m    $pollMinutes = $parsed[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2951717Z [36;1m  } else {[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2952077Z [36;1m    Write-Host "pollMinutes input '$rawPoll' is invalid, defaulting to $pollMinutes"[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2952434Z [36;1m  }[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2952576Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2952741Z [36;1m$rawDue = $env:INPUT_DUE_DAYS[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2952966Z [36;1m$dueInDays = 30[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2953201Z [36;1mif (-not [string]::IsNullOrWhiteSpace($rawDue)){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2953465Z [36;1m  $parsedDue = 0[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2953744Z [36;1m  if ([int]::TryParse($rawDue, [ref]$parsedDue) -and $parsedDue -gt 0){[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2954070Z [36;1m    $dueInDays = $parsedDue[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2954282Z [36;1m  } else {[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2954569Z [36;1m    Write-Host "dueInDays input '$rawDue' is invalid, defaulting to $dueInDays"[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2954899Z [36;1m  }[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2955048Z [36;1m}[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2955218Z [36;1m$pollSeconds = $pollMinutes * 60[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2955696Z [36;1m$extRef = if ([string]::IsNullOrWhiteSpace($env:INPUT_EXTREF)) { "TEST-$($env:GITHUB_RUN_ID)" } else { $env:INPUT_EXTREF.Trim() }[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2956585Z [36;1m"file=$file" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2957078Z [36;1m"patched=$patched" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2957558Z [36;1m"sender=$sender" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2958034Z [36;1m"receiver=$receiver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2958562Z [36;1m"pollSeconds=$pollSeconds" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2959054Z [36;1m"extRef=$extRef" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.2959535Z [36;1m"dueInDays=$dueInDays" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append[0m
+send	Prepare workflow inputs	2025-11-09T12:31:39.3887825Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+send	Prepare workflow inputs	2025-11-09T12:31:39.3888240Z env:
+send	Prepare workflow inputs	2025-11-09T12:31:39.3888526Z   INPUT_FILE: peppol/fixtures/invoice_peppol_bis3.xml
+send	Prepare workflow inputs	2025-11-09T12:31:39.3888852Z   INPUT_SENDER: 
+send	Prepare workflow inputs	2025-11-09T12:31:39.3889046Z   INPUT_RECEIVER: 
+send	Prepare workflow inputs	2025-11-09T12:31:39.3889256Z   INPUT_EXTREF: OP-123126
+send	Prepare workflow inputs	2025-11-09T12:31:39.3889486Z   INPUT_POLL_MINUTES: 12
+send	Prepare workflow inputs	2025-11-09T12:31:39.3889704Z   INPUT_DUE_DAYS: 30
+send	Prepare workflow inputs	2025-11-09T12:31:39.3889898Z   SECRET_SENDER: 
+send	Prepare workflow inputs	2025-11-09T12:31:39.3890108Z   SECRET_PEPPOL_SENDER: 
+send	Prepare workflow inputs	2025-11-09T12:31:39.3890562Z   SECRET_RECEIVER: 
+send	Prepare workflow inputs	2025-11-09T12:31:39.3890776Z   SECRET_PEPPOL_RECEIVER: 
+send	Prepare workflow inputs	2025-11-09T12:31:39.3890992Z   VAR_SENDER: 
+send	Prepare workflow inputs	2025-11-09T12:31:39.3891190Z   VAR_SENDER_ID: 0755799452
+send	Prepare workflow inputs	2025-11-09T12:31:39.3891423Z   VAR_SENDER_SCHEME: 0208
+send	Prepare workflow inputs	2025-11-09T12:31:39.3891648Z   VAR_RECEIVER: 0755799452
+send	Prepare workflow inputs	2025-11-09T12:31:39.3891863Z   VAR_RECEIVER_SCHEME: 0208
+send	Prepare workflow inputs	2025-11-09T12:31:39.3892081Z ##[endgroup]
+send	Prepare workflow inputs	2025-11-09T12:31:39.3987642Z ##[debug]C:\Program Files\PowerShell\7\pwsh.EXE -command ". 'D:\a\_temp\128f5212-22d3-4b42-a356-99b4ec45d333.ps1'"
+send	Prepare workflow inputs	2025-11-09T12:31:45.3112793Z Receiver resolved to sender fallback; forcing default test receiver
+send	Prepare workflow inputs	2025-11-09T12:31:45.7820060Z ##[debug]Set output file = peppol/fixtures/invoice_peppol_bis3.xml
+send	Prepare workflow inputs	2025-11-09T12:31:45.7820596Z ##[debug]Set output patched = peppol/fixtures/invoice_peppol_bis3.send.xml
+send	Prepare workflow inputs	2025-11-09T12:31:45.7820967Z ##[debug]Set output sender = 0208:0755799452
+send	Prepare workflow inputs	2025-11-09T12:31:45.7821257Z ##[debug]Set output receiver = 9925:BE0749521473
+send	Prepare workflow inputs	2025-11-09T12:31:45.7821555Z ##[debug]Set output pollSeconds = 720
+send	Prepare workflow inputs	2025-11-09T12:31:45.7821811Z ##[debug]Set output extRef = OP-123126
+send	Prepare workflow inputs	2025-11-09T12:31:45.7822048Z ##[debug]Set output dueInDays = 30
+send	Prepare workflow inputs	2025-11-09T12:31:45.7822744Z ##[debug]Finishing: Prepare workflow inputs
+send	Guard sender vs receiver	﻿2025-11-09T12:31:45.7841878Z ##[debug]Evaluating: steps.prep.outputs.sender
+send	Guard sender vs receiver	2025-11-09T12:31:45.7842336Z ##[debug]Evaluating Index:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7842560Z ##[debug]..Evaluating Index:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7842779Z ##[debug]....Evaluating Index:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7842987Z ##[debug]......Evaluating steps:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7843243Z ##[debug]......=> Object
+send	Guard sender vs receiver	2025-11-09T12:31:45.7843464Z ##[debug]......Evaluating String:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7843688Z ##[debug]......=> 'prep'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7843933Z ##[debug]....=> Object
+send	Guard sender vs receiver	2025-11-09T12:31:45.7844130Z ##[debug]....Evaluating String:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7844334Z ##[debug]....=> 'outputs'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7844519Z ##[debug]..=> Object
+send	Guard sender vs receiver	2025-11-09T12:31:45.7844717Z ##[debug]..Evaluating String:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7844926Z ##[debug]..=> 'sender'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7845161Z ##[debug]=> '0208:0755799452'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7845373Z ##[debug]Result: '0208:0755799452'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7846012Z ##[debug]Evaluating: steps.prep.outputs.receiver
+send	Guard sender vs receiver	2025-11-09T12:31:45.7846326Z ##[debug]Evaluating Index:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7846526Z ##[debug]..Evaluating Index:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7846726Z ##[debug]....Evaluating Index:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7846928Z ##[debug]......Evaluating steps:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7847144Z ##[debug]......=> Object
+send	Guard sender vs receiver	2025-11-09T12:31:45.7847339Z ##[debug]......Evaluating String:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7847545Z ##[debug]......=> 'prep'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7847741Z ##[debug]....=> Object
+send	Guard sender vs receiver	2025-11-09T12:31:45.7847935Z ##[debug]....Evaluating String:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7848133Z ##[debug]....=> 'outputs'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7848320Z ##[debug]..=> Object
+send	Guard sender vs receiver	2025-11-09T12:31:45.7848505Z ##[debug]..Evaluating String:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7848700Z ##[debug]..=> 'receiver'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7848895Z ##[debug]=> '9925:BE0749521473'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7849108Z ##[debug]Result: '9925:BE0749521473'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7849579Z ##[debug]Evaluating condition for step: 'Guard sender vs receiver'
+send	Guard sender vs receiver	2025-11-09T12:31:45.7851070Z ##[debug]Evaluating: success()
+send	Guard sender vs receiver	2025-11-09T12:31:45.7851398Z ##[debug]Evaluating success:
+send	Guard sender vs receiver	2025-11-09T12:31:45.7851737Z ##[debug]=> true
+send	Guard sender vs receiver	2025-11-09T12:31:45.7852035Z ##[debug]Result: true
+send	Guard sender vs receiver	2025-11-09T12:31:45.7852536Z ##[debug]Starting: Guard sender vs receiver
+send	Guard sender vs receiver	2025-11-09T12:31:45.7968783Z ##[debug]Loading inputs
+send	Guard sender vs receiver	2025-11-09T12:31:45.7969839Z ##[debug]Loading env
+send	Guard sender vs receiver	2025-11-09T12:31:45.7973839Z ##[group]Run $sender = $env:SENDER_ID
+send	Guard sender vs receiver	2025-11-09T12:31:45.7974104Z [36;1m$sender = $env:SENDER_ID[0m
+send	Guard sender vs receiver	2025-11-09T12:31:45.7974327Z [36;1m$receiver = $env:RECEIVER_ID[0m
+send	Guard sender vs receiver	2025-11-09T12:31:45.7974585Z [36;1mWrite-Host "Resolved senderId: $sender"[0m
+send	Guard sender vs receiver	2025-11-09T12:31:45.7974881Z [36;1mWrite-Host "Resolved receiverId: $receiver"[0m
+send	Guard sender vs receiver	2025-11-09T12:31:45.7975313Z [36;1mif ($sender -eq $receiver) {[0m
+send	Guard sender vs receiver	2025-11-09T12:31:45.7975623Z [36;1m  Write-Error "senderId and receiverId cannot be the same"[0m
+send	Guard sender vs receiver	2025-11-09T12:31:45.7975907Z [36;1m  exit 2[0m
+send	Guard sender vs receiver	2025-11-09T12:31:45.7976065Z [36;1m}[0m
+send	Guard sender vs receiver	2025-11-09T12:31:45.8034074Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+send	Guard sender vs receiver	2025-11-09T12:31:45.8034397Z env:
+send	Guard sender vs receiver	2025-11-09T12:31:45.8034554Z   SENDER_ID: 0208:0755799452
+send	Guard sender vs receiver	2025-11-09T12:31:45.8034754Z   RECEIVER_ID: 9925:BE0749521473
+send	Guard sender vs receiver	2025-11-09T12:31:45.8034952Z ##[endgroup]
+send	Guard sender vs receiver	2025-11-09T12:31:45.8086352Z ##[debug]C:\Program Files\PowerShell\7\pwsh.EXE -command ". 'D:\a\_temp\df349b84-0c46-411c-b728-7171dc569797.ps1'"
+send	Guard sender vs receiver	2025-11-09T12:31:46.2139522Z Resolved senderId: 0208:0755799452
+send	Guard sender vs receiver	2025-11-09T12:31:46.2144900Z Resolved receiverId: 9925:BE0749521473
+send	Guard sender vs receiver	2025-11-09T12:31:46.2887745Z ##[debug]Finishing: Guard sender vs receiver
+send	Send UBL via Scrada	﻿2025-11-09T12:31:46.2903358Z ##[debug]Evaluating: secrets.SCRADA_COMPANY_ID
+send	Send UBL via Scrada	2025-11-09T12:31:46.2903761Z ##[debug]Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2904007Z ##[debug]..Evaluating secrets:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2904286Z ##[debug]..=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.2904507Z ##[debug]..Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2904749Z ##[debug]..=> 'SCRADA_COMPANY_ID'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2905379Z ##[debug]=> '***'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2905752Z ##[debug]Result: '***'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2906322Z ##[debug]Evaluating: secrets.SCRADA_API_KEY
+send	Send UBL via Scrada	2025-11-09T12:31:46.2906578Z ##[debug]Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2906786Z ##[debug]..Evaluating secrets:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2907009Z ##[debug]..=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.2907189Z ##[debug]..Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2907392Z ##[debug]..=> 'SCRADA_API_KEY'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2907681Z ##[debug]=> '***'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2907908Z ##[debug]Result: '***'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2908308Z ##[debug]Evaluating: secrets.SCRADA_API_PASSWORD
+send	Send UBL via Scrada	2025-11-09T12:31:46.2908565Z ##[debug]Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2908808Z ##[debug]..Evaluating secrets:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2909034Z ##[debug]..=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.2909217Z ##[debug]..Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2909427Z ##[debug]..=> 'SCRADA_API_PASSWORD'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2909702Z ##[debug]=> '***'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2909930Z ##[debug]Result: '***'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2910419Z ##[debug]Evaluating: steps.prep.outputs.sender
+send	Send UBL via Scrada	2025-11-09T12:31:46.2910670Z ##[debug]Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2910864Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2911063Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2911263Z ##[debug]......Evaluating steps:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2911491Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.2911677Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2911896Z ##[debug]......=> 'prep'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2912082Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.2912288Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2912486Z ##[debug]....=> 'outputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2912691Z ##[debug]..=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.2912869Z ##[debug]..Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2913110Z ##[debug]..=> 'sender'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2913299Z ##[debug]=> '0208:0755799452'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2913505Z ##[debug]Result: '0208:0755799452'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2913975Z ##[debug]Evaluating: steps.prep.outputs.receiver
+send	Send UBL via Scrada	2025-11-09T12:31:46.2914239Z ##[debug]Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2914433Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2914634Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2914834Z ##[debug]......Evaluating steps:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2915047Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.2915241Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2915455Z ##[debug]......=> 'prep'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2915640Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.2915824Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2916022Z ##[debug]....=> 'outputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2916208Z ##[debug]..=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.2916400Z ##[debug]..Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2916600Z ##[debug]..=> 'receiver'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2917045Z ##[debug]=> '9925:BE0749521473'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2917254Z ##[debug]Result: '9925:BE0749521473'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2917776Z ##[debug]Evaluating condition for step: 'Send UBL via Scrada'
+send	Send UBL via Scrada	2025-11-09T12:31:46.2918719Z ##[debug]Evaluating: success()
+send	Send UBL via Scrada	2025-11-09T12:31:46.2919025Z ##[debug]Evaluating success:
+send	Send UBL via Scrada	2025-11-09T12:31:46.2919327Z ##[debug]=> true
+send	Send UBL via Scrada	2025-11-09T12:31:46.2919619Z ##[debug]Result: true
+send	Send UBL via Scrada	2025-11-09T12:31:46.2920060Z ##[debug]Starting: Send UBL via Scrada
+send	Send UBL via Scrada	2025-11-09T12:31:46.3037458Z ##[debug]Loading inputs
+send	Send UBL via Scrada	2025-11-09T12:31:46.3045697Z ##[debug]Evaluating: format('./tools/scrada-peppol/Send-PeppolUbl.ps1 -InputPath "{0}" -OutputPath "{1}" -SenderId "{2}" -ReceiverId "{3}" -Environment "{4}" -BuyerReference "{5}" -OrderId "{6}" -ExternalReference "{7}" -TimeoutSec {8} -DueInDays {9}
+send	Send UBL via Scrada	2025-11-09T12:31:46.3047378Z ##[debug]', steps.prep.outputs.file, steps.prep.outputs.patched, steps.prep.outputs.sender, steps.prep.outputs.receiver, github.event.inputs.environment, github.event.inputs.buyerReference, github.event.inputs.orderId, steps.prep.outputs.extRef, steps.prep.outputs.pollSeconds, steps.prep.outputs.dueInDays)
+send	Send UBL via Scrada	2025-11-09T12:31:46.3050625Z ##[debug]Evaluating format:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3054414Z ##[debug]..Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3055222Z ##[debug]..=> './tools/scrada-peppol/Send-PeppolUbl.ps1 -InputPath "{0}" -OutputPath "{1}" -SenderId "{2}" -ReceiverId "{3}" -Environment "{4}" -BuyerReference "{5}" -OrderId "{6}" -ExternalReference "{7}" -TimeoutSec {8} -DueInDays {9}
+send	Send UBL via Scrada	2025-11-09T12:31:46.3055960Z ##[debug]'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3067992Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3068247Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3068474Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3068709Z ##[debug]........Evaluating steps:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3068964Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3069187Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3069430Z ##[debug]........=> 'prep'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3069662Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3069863Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3070090Z ##[debug]......=> 'outputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3070287Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3070477Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3070679Z ##[debug]....=> 'file'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3070922Z ##[debug]..=> 'peppol/fixtures/invoice_peppol_bis3.xml'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3071863Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3072084Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3072283Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3072489Z ##[debug]........Evaluating steps:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3072712Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3072911Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3073126Z ##[debug]........=> 'prep'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3073314Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3073524Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3073738Z ##[debug]......=> 'outputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3073929Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3074112Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3074310Z ##[debug]....=> 'patched'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3074556Z ##[debug]..=> 'peppol/fixtures/invoice_peppol_bis3.send.xml'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3074862Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3075055Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3075247Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3075449Z ##[debug]........Evaluating steps:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3075656Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3075838Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3076046Z ##[debug]........=> 'prep'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3076232Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3076417Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3076616Z ##[debug]......=> 'outputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3076793Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3076975Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3077166Z ##[debug]....=> 'sender'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3077577Z ##[debug]..=> '0208:0755799452'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3077781Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3077970Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3078164Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3078362Z ##[debug]........Evaluating steps:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3078566Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3078755Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3078959Z ##[debug]........=> 'prep'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3079137Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3079318Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3079518Z ##[debug]......=> 'outputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3079710Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3080192Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3080388Z ##[debug]....=> 'receiver'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3080587Z ##[debug]..=> '9925:BE0749521473'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3081387Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3081585Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3081790Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3081985Z ##[debug]........Evaluating github:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3082211Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3082486Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3082824Z ##[debug]........=> 'event'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3083087Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3083284Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3083482Z ##[debug]......=> 'inputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3083667Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3083843Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3084044Z ##[debug]....=> 'environment'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3084237Z ##[debug]..=> 'test'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3084443Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3084630Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3084826Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3085028Z ##[debug]........Evaluating github:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3085245Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3085442Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3085647Z ##[debug]........=> 'event'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3085839Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3086028Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3086232Z ##[debug]......=> 'inputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3086412Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3086584Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3086792Z ##[debug]....=> 'buyerReference'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3087009Z ##[debug]..=> 'BR-OP-20251109-123126'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3087245Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3088098Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3088398Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3088688Z ##[debug]........Evaluating github:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3089002Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3089286Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3089589Z ##[debug]........=> 'event'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3089882Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3090167Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3090527Z ##[debug]......=> 'inputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3090859Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3091184Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3091506Z ##[debug]....=> 'orderId'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3091823Z ##[debug]..=> null
+send	Send UBL via Scrada	2025-11-09T12:31:46.3092111Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3092420Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3092786Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3093132Z ##[debug]........Evaluating steps:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3093504Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3093801Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3094124Z ##[debug]........=> 'prep'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3094413Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3094726Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3096024Z ##[debug]......=> 'outputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3096428Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3096999Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3097325Z ##[debug]....=> 'extRef'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3097973Z ##[debug]..=> 'OP-123126'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3098334Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3098638Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3098948Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3099254Z ##[debug]........Evaluating steps:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3099583Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3099889Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3100206Z ##[debug]........=> 'prep'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3100511Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3100810Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3101179Z ##[debug]......=> 'outputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3101494Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3101786Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3102101Z ##[debug]....=> 'pollSeconds'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3102733Z ##[debug]..=> '720'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3103064Z ##[debug]..Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3103397Z ##[debug]....Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3103754Z ##[debug]......Evaluating Index:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3104094Z ##[debug]........Evaluating steps:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3104448Z ##[debug]........=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3104761Z ##[debug]........Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3105106Z ##[debug]........=> 'prep'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3105311Z ##[debug]......=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3105509Z ##[debug]......Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3105718Z ##[debug]......=> 'outputs'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3105907Z ##[debug]....=> Object
+send	Send UBL via Scrada	2025-11-09T12:31:46.3106086Z ##[debug]....Evaluating String:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3106297Z ##[debug]....=> 'dueInDays'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3106491Z ##[debug]..=> '30'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3107788Z ##[debug]=> './tools/scrada-peppol/Send-PeppolUbl.ps1 -InputPath "peppol/fixtures/invoice_peppol_bis3.xml" -OutputPath "peppol/fixtures/invoice_peppol_bis3.send.xml" -SenderId "0208:0755799452" -ReceiverId "9925:BE0749521473" -Environment "test" -BuyerReference "BR-OP-20251109-123126" -OrderId "" -ExternalReference "OP-123126" -TimeoutSec 720 -DueInDays 30
+send	Send UBL via Scrada	2025-11-09T12:31:46.3109221Z ##[debug]'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3110391Z ##[debug]Result: './tools/scrada-peppol/Send-PeppolUbl.ps1 -InputPath "peppol/fixtures/invoice_peppol_bis3.xml" -OutputPath "peppol/fixtures/invoice_peppol_bis3.send.xml" -SenderId "0208:0755799452" -ReceiverId "9925:BE0749521473" -Environment "test" -BuyerReference "BR-OP-20251109-123126" -OrderId "" -ExternalReference "OP-123126" -TimeoutSec 720 -DueInDays 30
+send	Send UBL via Scrada	2025-11-09T12:31:46.3111566Z ##[debug]'
+send	Send UBL via Scrada	2025-11-09T12:31:46.3111954Z ##[debug]Loading env
+send	Send UBL via Scrada	2025-11-09T12:31:46.3116478Z ##[group]Run ./tools/scrada-peppol/Send-PeppolUbl.ps1 -InputPath "peppol/fixtures/invoice_peppol_bis3.xml" -OutputPath "peppol/fixtures/invoice_peppol_bis3.send.xml" -SenderId "0208:0755799452" -ReceiverId "9925:BE0749521473" -Environment "test" -BuyerReference "BR-OP-20251109-123126" -OrderId "" -ExternalReference "OP-123126" -TimeoutSec 720 -DueInDays 30
+send	Send UBL via Scrada	2025-11-09T12:31:46.3118901Z [36;1m./tools/scrada-peppol/Send-PeppolUbl.ps1 -InputPath "peppol/fixtures/invoice_peppol_bis3.xml" -OutputPath "peppol/fixtures/invoice_peppol_bis3.send.xml" -SenderId "0208:0755799452" -ReceiverId "9925:BE0749521473" -Environment "test" -BuyerReference "BR-OP-20251109-123126" -OrderId "" -ExternalReference "OP-123126" -TimeoutSec 720 -DueInDays 30[0m
+send	Send UBL via Scrada	2025-11-09T12:31:46.3178110Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+send	Send UBL via Scrada	2025-11-09T12:31:46.3178679Z env:
+send	Send UBL via Scrada	2025-11-09T12:31:46.3178996Z   SCRADA_COMPANY_ID: ***
+send	Send UBL via Scrada	2025-11-09T12:31:46.3179257Z   SCRADA_API_KEY: ***
+send	Send UBL via Scrada	2025-11-09T12:31:46.3179458Z   SCRADA_API_PASSWORD: ***
+send	Send UBL via Scrada	2025-11-09T12:31:46.3179664Z   SCRADA_PEPPOL_SENDER_ID: 0208:0755799452
+send	Send UBL via Scrada	2025-11-09T12:31:46.3179916Z   SCRADA_PEPPOL_RECEIVER_ID: 9925:BE0749521473
+send	Send UBL via Scrada	2025-11-09T12:31:46.3180144Z ##[endgroup]
+send	Send UBL via Scrada	2025-11-09T12:31:46.3240375Z ##[debug]C:\Program Files\PowerShell\7\pwsh.EXE -command ". 'D:\a\_temp\7fd73113-5abd-4694-adea-3f3910e65821.ps1'"
+send	Send UBL via Scrada	2025-11-09T12:31:47.1823097Z [info] Patched UBL -> peppol/fixtures/invoice_peppol_bis3.send.xml
+send	Send UBL via Scrada	2025-11-09T12:31:47.1961825Z <cbc:UBLVersionID xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">2.1</cbc:UBLVersionID>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1963907Z <cbc:CustomizationID xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:CustomizationID>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1970044Z <cbc:ProfileID xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1972233Z <cbc:ProfileExecutionID xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">1</cbc:ProfileExecutionID>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1973635Z <cbc:ID xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">TEST-INV-0001</cbc:ID>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1976191Z <cbc:IssueDate xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">2025-11-07</cbc:IssueDate>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1977710Z <cbc:DueDate xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">2025-12-07</cbc:DueDate>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1978977Z <cbc:InvoiceTypeCode xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">380</cbc:InvoiceTypeCode>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1980016Z <cbc:DocumentCurrencyCode xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">EUR</cbc:DocumentCurrencyCode>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1981394Z <cbc:BuyerReference xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">BR-OP-20251109-123126</cbc:BuyerReference>
+send	Send UBL via Scrada	2025-11-09T12:31:47.1983280Z [info] POST https://apitest.scrada.be/v1/company/***/peppol/outbound/document
+send	Send UBL via Scrada	2025-11-09T12:31:48.0915416Z DOC: e13145d5-554d-4d03-b3fb-9e2dc21b7171  (extRef=OP-123126)
+send	Send UBL via Scrada	2025-11-09T12:31:53.5353875Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:31:58.9394652Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:04.3518865Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:09.7577643Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:15.1638326Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:20.5746899Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:25.9912158Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:31.3740033Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:36.7813402Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:42.1843699Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:47.5968639Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:52.9924399Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:32:58.3906097Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:03.8010566Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:09.2207105Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:14.6155358Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:20.0223947Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:25.4145390Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:30.9561483Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:36.3656730Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:41.7657065Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:47.1590833Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:52.5635918Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:33:57.9551245Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:03.3456547Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:08.7501416Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:14.1624621Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:19.5633550Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:25.2839194Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:30.3875740Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:35.8014558Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:41.1903813Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:46.5875385Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:51.9778454Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:34:57.3966840Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:02.8066233Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:08.2573482Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:13.6519193Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:19.0741006Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:24.4657674Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:30.1796242Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:35.2783856Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:40.6885431Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:46.0861207Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:51.4954375Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:35:56.8847182Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:02.2839903Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:07.6980202Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:13.1151652Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:18.5070094Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:23.9142700Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:29.3128888Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:34.7146482Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:40.1248575Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:45.5429197Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:51.0707513Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:36:56.4692081Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:01.8457848Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:07.2534689Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:12.6709070Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:18.0713389Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:23.4608525Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:28.8656961Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:34.2758764Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:39.6822113Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:45.0710301Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:50.4761144Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:37:55.8654824Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:01.2558922Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:06.6626023Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:12.0672081Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:17.4561594Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:22.8556086Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:28.2613149Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:33.6666975Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:39.0499035Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:44.4547693Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:49.8534207Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:38:55.2601205Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:00.6652587Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:06.0740891Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:11.4598732Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:16.8656905Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:22.2674008Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:27.6802889Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:33.0756980Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:38.4875266Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:43.8781629Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:49.2895050Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:39:54.6942350Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:40:00.1291532Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:40:05.5340785Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:40:10.9498516Z [status=Created; attempt=0; err=]
+send	Send UBL via Scrada	2025-11-09T12:40:16.3417861Z [status=Processed; attempt=1; err=]
+send	Send UBL via Scrada	2025-11-09T12:40:16.3516191Z [Result] DOC=e13145d5-554d-4d03-b3fb-9e2dc21b7171 STATUS=Processed ATTEMPT=1 ERR=
+send	Send UBL via Scrada	2025-11-09T12:40:16.3893832Z ##[debug]Set output docId = e13145d5-554d-4d03-b3fb-9e2dc21b7171
+send	Send UBL via Scrada	2025-11-09T12:40:16.3895972Z ##[debug]Set output finalStatus = Processed
+send	Send UBL via Scrada	2025-11-09T12:40:16.3897283Z ##[debug]Finishing: Send UBL via Scrada
+send	Upload UBL artifacts	﻿2025-11-09T12:40:16.3922367Z ##[debug]Evaluating condition for step: 'Upload UBL artifacts'
+send	Upload UBL artifacts	2025-11-09T12:40:16.3930477Z ##[debug]Evaluating: always()
+send	Upload UBL artifacts	2025-11-09T12:40:16.3931147Z ##[debug]Evaluating always:
+send	Upload UBL artifacts	2025-11-09T12:40:16.3932194Z ##[debug]=> true
+send	Upload UBL artifacts	2025-11-09T12:40:16.3932699Z ##[debug]Result: true
+send	Upload UBL artifacts	2025-11-09T12:40:16.3933733Z ##[debug]Starting: Upload UBL artifacts
+send	Upload UBL artifacts	2025-11-09T12:40:16.4113187Z ##[debug]Loading inputs
+send	Upload UBL artifacts	2025-11-09T12:40:16.4115374Z ##[debug]Evaluating: format('scrada-ubl-{0}', github.run_id)
+send	Upload UBL artifacts	2025-11-09T12:40:16.4115759Z ##[debug]Evaluating format:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4116036Z ##[debug]..Evaluating String:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4116336Z ##[debug]..=> 'scrada-ubl-{0}'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4116802Z ##[debug]..Evaluating Index:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4117049Z ##[debug]....Evaluating github:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4117369Z ##[debug]....=> Object
+send	Upload UBL artifacts	2025-11-09T12:40:16.4117635Z ##[debug]....Evaluating String:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4117904Z ##[debug]....=> 'run_id'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4118185Z ##[debug]..=> '19208491800'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4118520Z ##[debug]=> 'scrada-ubl-19208491800'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4118836Z ##[debug]Result: 'scrada-ubl-19208491800'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4119535Z ##[debug]Evaluating: format('{0}
+send	Upload UBL artifacts	2025-11-09T12:40:16.4119773Z ##[debug]{1}
+send	Upload UBL artifacts	2025-11-09T12:40:16.4120077Z ##[debug]', steps.prep.outputs.file, steps.prep.outputs.patched)
+send	Upload UBL artifacts	2025-11-09T12:40:16.4120461Z ##[debug]Evaluating format:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4120731Z ##[debug]..Evaluating String:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4120976Z ##[debug]..=> '{0}
+send	Upload UBL artifacts	2025-11-09T12:40:16.4121195Z ##[debug]{1}
+send	Upload UBL artifacts	2025-11-09T12:40:16.4121401Z ##[debug]'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4121652Z ##[debug]..Evaluating Index:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4121912Z ##[debug]....Evaluating Index:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4122145Z ##[debug]......Evaluating Index:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4122421Z ##[debug]........Evaluating steps:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4122705Z ##[debug]........=> Object
+send	Upload UBL artifacts	2025-11-09T12:40:16.4122965Z ##[debug]........Evaluating String:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4123240Z ##[debug]........=> 'prep'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4123517Z ##[debug]......=> Object
+send	Upload UBL artifacts	2025-11-09T12:40:16.4123746Z ##[debug]......Evaluating String:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4124017Z ##[debug]......=> 'outputs'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4124262Z ##[debug]....=> Object
+send	Upload UBL artifacts	2025-11-09T12:40:16.4124501Z ##[debug]....Evaluating String:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4124753Z ##[debug]....=> 'file'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4125011Z ##[debug]..=> 'peppol/fixtures/invoice_peppol_bis3.xml'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4125348Z ##[debug]..Evaluating Index:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4125606Z ##[debug]....Evaluating Index:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4125867Z ##[debug]......Evaluating Index:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4126135Z ##[debug]........Evaluating steps:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4126404Z ##[debug]........=> Object
+send	Upload UBL artifacts	2025-11-09T12:40:16.4126629Z ##[debug]........Evaluating String:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4126901Z ##[debug]........=> 'prep'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4127141Z ##[debug]......=> Object
+send	Upload UBL artifacts	2025-11-09T12:40:16.4127427Z ##[debug]......Evaluating String:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4127898Z ##[debug]......=> 'outputs'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4128394Z ##[debug]....=> Object
+send	Upload UBL artifacts	2025-11-09T12:40:16.4128648Z ##[debug]....Evaluating String:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4128913Z ##[debug]....=> 'patched'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4129218Z ##[debug]..=> 'peppol/fixtures/invoice_peppol_bis3.send.xml'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4129620Z ##[debug]=> 'peppol/fixtures/invoice_peppol_bis3.xml
+send	Upload UBL artifacts	2025-11-09T12:40:16.4129970Z ##[debug]peppol/fixtures/invoice_peppol_bis3.send.xml
+send	Upload UBL artifacts	2025-11-09T12:40:16.4130244Z ##[debug]'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4130522Z ##[debug]Result: 'peppol/fixtures/invoice_peppol_bis3.xml
+send	Upload UBL artifacts	2025-11-09T12:40:16.4130884Z ##[debug]peppol/fixtures/invoice_peppol_bis3.send.xml
+send	Upload UBL artifacts	2025-11-09T12:40:16.4131184Z ##[debug]'
+send	Upload UBL artifacts	2025-11-09T12:40:16.4133764Z ##[debug]Loading env
+send	Upload UBL artifacts	2025-11-09T12:40:16.4139294Z ##[group]Run actions/upload-artifact@v4
+send	Upload UBL artifacts	2025-11-09T12:40:16.4139748Z with:
+send	Upload UBL artifacts	2025-11-09T12:40:16.4139951Z   name: scrada-ubl-19208491800
+send	Upload UBL artifacts	2025-11-09T12:40:16.4140224Z   if-no-files-found: warn
+send	Upload UBL artifacts	2025-11-09T12:40:16.4140805Z   path: peppol/fixtures/invoice_peppol_bis3.xml
+send	Upload UBL artifacts	peppol/fixtures/invoice_peppol_bis3.send.xml
+send	Upload UBL artifacts	
+send	Upload UBL artifacts	2025-11-09T12:40:16.4144598Z   compression-level: 6
+send	Upload UBL artifacts	2025-11-09T12:40:16.4144861Z   overwrite: false
+send	Upload UBL artifacts	2025-11-09T12:40:16.4145088Z   include-hidden-files: false
+send	Upload UBL artifacts	2025-11-09T12:40:16.4146046Z ##[endgroup]
+send	Upload UBL artifacts	2025-11-09T12:40:16.7251240Z ##[debug]followSymbolicLinks 'true'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7252959Z ##[debug]implicitDescendants 'true'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7254371Z ##[debug]omitBrokenSymbolicLinks 'true'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7255393Z ##[debug]excludeHiddenFiles 'true'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7297079Z ##[debug]followSymbolicLinks 'true'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7298267Z ##[debug]implicitDescendants 'true'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7299387Z ##[debug]matchDirectories 'true'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7300455Z ##[debug]omitBrokenSymbolicLinks 'true'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7301919Z ##[debug]excludeHiddenFiles 'true'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7307036Z ##[debug]Search path 'D:\a\Vida\Vida\peppol\fixtures\invoice_peppol_bis3.xml'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7352138Z ##[debug]Search path 'D:\a\Vida\Vida\peppol\fixtures\invoice_peppol_bis3.send.xml'
+send	Upload UBL artifacts	2025-11-09T12:40:16.7375801Z ##[debug]File:D:\a\Vida\Vida\peppol\fixtures\invoice_peppol_bis3.xml was found using the provided searchPath
+send	Upload UBL artifacts	2025-11-09T12:40:16.7378342Z ##[debug]File:D:\a\Vida\Vida\peppol\fixtures\invoice_peppol_bis3.send.xml was found using the provided searchPath
+send	Upload UBL artifacts	2025-11-09T12:40:16.7379870Z Multiple search paths detected. Calculating the least common ancestor of all paths
+send	Upload UBL artifacts	2025-11-09T12:40:16.7383620Z ##[debug]Using search path D:\a\Vida\Vida\peppol\fixtures\invoice_peppol_bis3.xml
+send	Upload UBL artifacts	2025-11-09T12:40:16.7396437Z ##[debug]Using search path D:\a\Vida\Vida\peppol\fixtures\invoice_peppol_bis3.send.xml
+send	Upload UBL artifacts	2025-11-09T12:40:16.7397913Z The least common ancestor is D:\a\Vida\Vida\peppol\fixtures. This will be the root directory of the artifact
+send	Upload UBL artifacts	2025-11-09T12:40:16.7399246Z With the provided path, there will be 2 files uploaded
+send	Upload UBL artifacts	2025-11-09T12:40:16.7400505Z ##[debug]Root artifact directory is D:\a\Vida\Vida\peppol\fixtures
+send	Upload UBL artifacts	2025-11-09T12:40:16.7401505Z Artifact name is valid!
+send	Upload UBL artifacts	2025-11-09T12:40:16.7405232Z Root directory input is valid!
+send	Upload UBL artifacts	2025-11-09T12:40:16.7444761Z ##[debug]Workflow Run Backend ID: 3adc98b9-53d1-4983-8b8e-b83f44fac3ed
+send	Upload UBL artifacts	2025-11-09T12:40:16.7446206Z ##[debug]Workflow Job Run Backend ID: 94f4031d-8295-50da-bd94-57e1b58a40f6
+send	Upload UBL artifacts	2025-11-09T12:40:16.7448203Z ##[debug][Request] CreateArtifact https://results-receiver.actions.githubusercontent.com/twirp/github.actions.results.api.v1.ArtifactService/CreateArtifact
+send	Upload UBL artifacts	2025-11-09T12:40:16.9277137Z ##[debug][Response] - 200
+send	Upload UBL artifacts	2025-11-09T12:40:16.9309330Z ##[debug]Headers: {
+send	Upload UBL artifacts	2025-11-09T12:40:16.9309769Z ##[debug]  "content-length": "581",
+send	Upload UBL artifacts	2025-11-09T12:40:16.9310308Z ##[debug]  "content-type": "application/json",
+send	Upload UBL artifacts	2025-11-09T12:40:16.9310893Z ##[debug]  "date": "Sun, 09 Nov 2025 12:40:16 GMT",
+send	Upload UBL artifacts	2025-11-09T12:40:16.9311482Z ##[debug]  "x-github-backend": "Kubernetes",
+send	Upload UBL artifacts	2025-11-09T12:40:16.9312174Z ##[debug]  "x-github-request-id": "D00A:4808A:67923E:981ABE:69108BB0"
+send	Upload UBL artifacts	2025-11-09T12:40:16.9312839Z ##[debug]}
+send	Upload UBL artifacts	2025-11-09T12:40:16.9334912Z ::add-mask::***
+send	Upload UBL artifacts	2025-11-09T12:40:16.9343475Z ::add-mask::***
+send	Upload UBL artifacts	2025-11-09T12:40:16.9465429Z ##[debug]Body: {
+send	Upload UBL artifacts	2025-11-09T12:40:16.9465881Z ##[debug]  "ok": true,
+send	Upload UBL artifacts	2025-11-09T12:40:16.9471637Z ##[debug]  "signed_upload_url": "https://productionresultssa18.blob.core.windows.net/actions-results/3adc98b9-53d1-4983-8b8e-b83f44fac3ed/workflow-job-run-94f4031d-8295-50da-bd94-57e1b58a40f6/artifacts/9f7d814d39c4b2b41675fa9ab3a5ca9a331c85c9a943f5b1f377de1049f20a31.zip?se=2025-11-09T13%3A40%3A16Z&sig=***&ske=2025-11-09T22%3A13%3A45Z&skoid=ca7593d4-ee42-46cd-af88-8b886a2f84eb&sks=b&skt=2025-11-09T10%3A13%3A45Z&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skv=2025-11-05&sp=cw&spr=https&sr=b&st=2025-11-09T12%3A40%3A11Z&sv=2025-11-05"
+send	Upload UBL artifacts	2025-11-09T12:40:16.9475792Z ##[debug]}
+send	Upload UBL artifacts	2025-11-09T12:40:16.9498523Z ##[debug]Creating Artifact archive with compressionLevel: 6
+send	Upload UBL artifacts	2025-11-09T12:40:16.9524697Z ##[debug]Zip write high watermark value 8388608
+send	Upload UBL artifacts	2025-11-09T12:40:16.9549065Z ##[debug]Zip read high watermark value 8388608
+send	Upload UBL artifacts	2025-11-09T12:40:16.9578276Z ##[debug]Uploading artifact zip to blob storage with maxConcurrency: 5, bufferSize: 8388608
+send	Upload UBL artifacts	2025-11-09T12:40:16.9599907Z Beginning upload of artifact content to blob storage
+send	Upload UBL artifacts	2025-11-09T12:40:16.9814150Z ##[debug]Zip stream for upload has ended.
+send	Upload UBL artifacts	2025-11-09T12:40:16.9836732Z ##[debug]Zip stream for upload has finished.
+send	Upload UBL artifacts	2025-11-09T12:40:17.1206869Z Uploaded bytes 2375
+send	Upload UBL artifacts	2025-11-09T12:40:17.1637122Z Finished uploading artifact content to blob storage!
+send	Upload UBL artifacts	2025-11-09T12:40:17.1643643Z SHA256 digest of uploaded artifact zip is d7adae6bdf0dd73d93a9fa3a55ff6f13d78b578756f0c122163c602c0f1ba849
+send	Upload UBL artifacts	2025-11-09T12:40:17.1646068Z Finalizing artifact upload
+send	Upload UBL artifacts	2025-11-09T12:40:17.1652317Z ##[debug][Request] FinalizeArtifact https://results-receiver.actions.githubusercontent.com/twirp/github.actions.results.api.v1.ArtifactService/FinalizeArtifact
+send	Upload UBL artifacts	2025-11-09T12:40:17.2737385Z ##[debug][Response] - 200
+send	Upload UBL artifacts	2025-11-09T12:40:17.2738798Z ##[debug]Headers: {
+send	Upload UBL artifacts	2025-11-09T12:40:17.2739268Z ##[debug]  "content-length": "39",
+send	Upload UBL artifacts	2025-11-09T12:40:17.2739785Z ##[debug]  "content-type": "application/json",
+send	Upload UBL artifacts	2025-11-09T12:40:17.2740280Z ##[debug]  "date": "Sun, 09 Nov 2025 12:40:17 GMT",
+send	Upload UBL artifacts	2025-11-09T12:40:17.2740827Z ##[debug]  "x-github-backend": "Kubernetes",
+send	Upload UBL artifacts	2025-11-09T12:40:17.2741465Z ##[debug]  "x-github-request-id": "D00A:4808A:679290:981B49:69108BB0"
+send	Upload UBL artifacts	2025-11-09T12:40:17.2742062Z ##[debug]}
+send	Upload UBL artifacts	2025-11-09T12:40:17.2743381Z ##[debug]Body: {
+send	Upload UBL artifacts	2025-11-09T12:40:17.2743763Z ##[debug]  "ok": true,
+send	Upload UBL artifacts	2025-11-09T12:40:17.2744167Z ##[debug]  "artifact_id": "4511811540"
+send	Upload UBL artifacts	2025-11-09T12:40:17.2744623Z ##[debug]}
+send	Upload UBL artifacts	2025-11-09T12:40:17.2745497Z Artifact scrada-ubl-19208491800.zip successfully finalized. Artifact ID 4511811540
+send	Upload UBL artifacts	2025-11-09T12:40:17.2746921Z Artifact scrada-ubl-19208491800 has been successfully uploaded! Final size is 2375 bytes. Artifact ID is 4511811540
+send	Upload UBL artifacts	2025-11-09T12:40:17.2755449Z Artifact download URL: https://github.com/Global-investment-Consulting/Vida/actions/runs/19208491800/artifacts/4511811540
+send	Upload UBL artifacts	2025-11-09T12:40:17.2870148Z ##[debug]Node Action run completed with exit code 0
+send	Upload UBL artifacts	2025-11-09T12:40:17.2875370Z ##[debug]Set output artifact-id = 4511811540
+send	Upload UBL artifacts	2025-11-09T12:40:17.2876221Z ##[debug]Set output artifact-digest = d7adae6bdf0dd73d93a9fa3a55ff6f13d78b578756f0c122163c602c0f1ba849
+send	Upload UBL artifacts	2025-11-09T12:40:17.2877581Z ##[debug]Set output artifact-url = https://github.com/Global-investment-Consulting/Vida/actions/runs/19208491800/artifacts/4511811540
+send	Upload UBL artifacts	2025-11-09T12:40:17.2879165Z ##[debug]Finishing: Upload UBL artifacts
+send	Scrada summary	﻿2025-11-09T12:40:17.2904829Z ##[debug]Evaluating condition for step: 'Scrada summary'
+send	Scrada summary	2025-11-09T12:40:17.2907249Z ##[debug]Evaluating: always()
+send	Scrada summary	2025-11-09T12:40:17.2907931Z ##[debug]Evaluating always:
+send	Scrada summary	2025-11-09T12:40:17.2908637Z ##[debug]=> true
+send	Scrada summary	2025-11-09T12:40:17.2910217Z ##[debug]Result: true
+send	Scrada summary	2025-11-09T12:40:17.2911375Z ##[debug]Starting: Scrada summary
+send	Scrada summary	2025-11-09T12:40:17.3079655Z ##[debug]Loading inputs
+send	Scrada summary	2025-11-09T12:40:17.3093724Z ##[debug]Evaluating: format('echo "DOC: {0} FINAL: {1}" >> "$GITHUB_STEP_SUMMARY"
+send	Scrada summary	2025-11-09T12:40:17.3094350Z ##[debug]', (steps.send.outputs.docId || 'unknown'), (steps.send.outputs.finalStatus || 'pending'))
+send	Scrada summary	2025-11-09T12:40:17.3094826Z ##[debug]Evaluating format:
+send	Scrada summary	2025-11-09T12:40:17.3095140Z ##[debug]..Evaluating String:
+send	Scrada summary	2025-11-09T12:40:17.3095528Z ##[debug]..=> 'echo "DOC: {0} FINAL: {1}" >> "$GITHUB_STEP_SUMMARY"
+send	Scrada summary	2025-11-09T12:40:17.3095884Z ##[debug]'
+send	Scrada summary	2025-11-09T12:40:17.3096276Z ##[debug]..Evaluating Or:
+send	Scrada summary	2025-11-09T12:40:17.3098214Z ##[debug]....Evaluating Index:
+send	Scrada summary	2025-11-09T12:40:17.3098642Z ##[debug]......Evaluating Index:
+send	Scrada summary	2025-11-09T12:40:17.3098929Z ##[debug]........Evaluating Index:
+send	Scrada summary	2025-11-09T12:40:17.3099213Z ##[debug]..........Evaluating steps:
+send	Scrada summary	2025-11-09T12:40:17.3099528Z ##[debug]..........=> Object
+send	Scrada summary	2025-11-09T12:40:17.3100046Z ##[debug]..........Evaluating String:
+send	Scrada summary	2025-11-09T12:40:17.3100340Z ##[debug]..........=> 'send'
+send	Scrada summary	2025-11-09T12:40:17.3100931Z ##[debug]........=> Object
+send	Scrada summary	2025-11-09T12:40:17.3101202Z ##[debug]........Evaluating String:
+send	Scrada summary	2025-11-09T12:40:17.3101488Z ##[debug]........=> 'outputs'
+send	Scrada summary	2025-11-09T12:40:17.3101756Z ##[debug]......=> Object
+send	Scrada summary	2025-11-09T12:40:17.3102019Z ##[debug]......Evaluating String:
+send	Scrada summary	2025-11-09T12:40:17.3102298Z ##[debug]......=> 'docId'
+send	Scrada summary	2025-11-09T12:40:17.3102605Z ##[debug]....=> 'e13145d5-554d-4d03-b3fb-9e2dc21b7171'
+send	Scrada summary	2025-11-09T12:40:17.3102996Z ##[debug]..=> 'e13145d5-554d-4d03-b3fb-9e2dc21b7171'
+send	Scrada summary	2025-11-09T12:40:17.3103617Z ##[debug]..Evaluating Or:
+send	Scrada summary	2025-11-09T12:40:17.3103887Z ##[debug]....Evaluating Index:
+send	Scrada summary	2025-11-09T12:40:17.3104178Z ##[debug]......Evaluating Index:
+send	Scrada summary	2025-11-09T12:40:17.3104455Z ##[debug]........Evaluating Index:
+send	Scrada summary	2025-11-09T12:40:17.3104772Z ##[debug]..........Evaluating steps:
+send	Scrada summary	2025-11-09T12:40:17.3105062Z ##[debug]..........=> Object
+send	Scrada summary	2025-11-09T12:40:17.3105338Z ##[debug]..........Evaluating String:
+send	Scrada summary	2025-11-09T12:40:17.3105672Z ##[debug]..........=> 'send'
+send	Scrada summary	2025-11-09T12:40:17.3106129Z ##[debug]........=> Object
+send	Scrada summary	2025-11-09T12:40:17.3106490Z ##[debug]........Evaluating String:
+send	Scrada summary	2025-11-09T12:40:17.3106813Z ##[debug]........=> 'outputs'
+send	Scrada summary	2025-11-09T12:40:17.3107106Z ##[debug]......=> Object
+send	Scrada summary	2025-11-09T12:40:17.3107368Z ##[debug]......Evaluating String:
+send	Scrada summary	2025-11-09T12:40:17.3107699Z ##[debug]......=> 'finalStatus'
+send	Scrada summary	2025-11-09T12:40:17.3108000Z ##[debug]....=> 'Processed'
+send	Scrada summary	2025-11-09T12:40:17.3108317Z ##[debug]..=> 'Processed'
+send	Scrada summary	2025-11-09T12:40:17.3108898Z ##[debug]=> 'echo "DOC: e13145d5-554d-4d03-b3fb-9e2dc21b7171 FINAL: Processed" >> "$GITHUB_STEP_SUMMARY"
+send	Scrada summary	2025-11-09T12:40:17.3109383Z ##[debug]'
+send	Scrada summary	2025-11-09T12:40:17.3202292Z ##[debug]Result: 'echo "DOC: e13145d5-554d-4d03-b3fb-9e2dc21b7171 FINAL: Processed" >> "$GITHUB_STEP_SUMMARY"
+send	Scrada summary	2025-11-09T12:40:17.3203202Z ##[debug]'
+send	Scrada summary	2025-11-09T12:40:17.3203998Z ##[debug]Loading env
+send	Scrada summary	2025-11-09T12:40:17.3215633Z ##[group]Run echo "DOC: e13145d5-554d-4d03-b3fb-9e2dc21b7171 FINAL: Processed" >> "$GITHUB_STEP_SUMMARY"
+send	Scrada summary	2025-11-09T12:40:17.3216297Z [36;1mecho "DOC: e13145d5-554d-4d03-b3fb-9e2dc21b7171 FINAL: Processed" >> "$GITHUB_STEP_SUMMARY"[0m
+send	Scrada summary	2025-11-09T12:40:17.3231913Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+send	Scrada summary	2025-11-09T12:40:17.3232339Z ##[endgroup]
+send	Scrada summary	2025-11-09T12:40:17.3248715Z ##[debug]C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail D:\a\_temp\76063b2d-63a1-4e04-a9f8-ac8a1dacefb2.sh
+send	Scrada summary	2025-11-09T12:40:17.6044758Z ##[debug]Finishing: Scrada summary
+send	Post Run actions/checkout@v4	﻿2025-11-09T12:40:17.6061490Z ##[debug]Evaluating condition for step: 'Post Run actions/checkout@v4'
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6063143Z ##[debug]Evaluating: always()
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6063520Z ##[debug]Evaluating always:
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6063856Z ##[debug]=> true
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6064278Z ##[debug]Result: true
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6064874Z ##[debug]Starting: Post Run actions/checkout@v4
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6227472Z ##[debug]Loading inputs
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6228493Z ##[debug]Evaluating: github.repository
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6228824Z ##[debug]Evaluating Index:
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6229117Z ##[debug]..Evaluating github:
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6229397Z ##[debug]..=> Object
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6229651Z ##[debug]..Evaluating String:
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6229904Z ##[debug]..=> 'repository'
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6230204Z ##[debug]=> 'Global-investment-Consulting/Vida'
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6230576Z ##[debug]Result: 'Global-investment-Consulting/Vida'
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6232038Z ##[debug]Evaluating: github.token
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6232382Z ##[debug]Evaluating Index:
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6232631Z ##[debug]..Evaluating github:
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6232878Z ##[debug]..=> Object
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6233115Z ##[debug]..Evaluating String:
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6233355Z ##[debug]..=> 'token'
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6233825Z ##[debug]=> '***'
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6234152Z ##[debug]Result: '***'
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6242888Z ##[debug]Loading env
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.6248085Z Post job cleanup.
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.9321516Z ##[debug]Getting git version
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.9349171Z [command]"C:\Program Files\Git\bin\git.exe" version
+send	Post Run actions/checkout@v4	2025-11-09T12:40:17.9775872Z git version 2.51.2.windows.1
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0091925Z ##[debug]0
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0153779Z ##[debug]git version 2.51.2.windows.1
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0159889Z ##[debug]
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0287671Z ##[debug]Set git useragent to: git/2.51.2 (github-actions-checkout)
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0356966Z ::add-mask::***
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0416640Z Temporarily overriding HOME='D:\a\_temp\196e6877-ce99-49e9-abb2-a109952a3f19' before making global git config changes
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0464122Z Adding repository directory to the temporary git global config as a safe directory
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0501643Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\Vida\Vida
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0830673Z ##[debug]0
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0852174Z ##[debug]
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.0994318Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.1517124Z ##[debug]1
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.1572787Z ##[debug]
+send	Post Run actions/checkout@v4	2025-11-09T12:40:18.1742353Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2250995Z ##[debug]0
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2252818Z ##[debug]
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2269299Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2571844Z http.https://github.com/.extraheader
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2615145Z ##[debug]0
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2616322Z ##[debug]http.https://github.com/.extraheader
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2616762Z ##[debug]
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2631578Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2992521Z ##[debug]0
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.2993356Z ##[debug]
+send	Post Run actions/checkout@v4	2025-11-09T12:40:19.3005421Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+send	Post Run actions/checkout@v4	2025-11-09T12:40:20.1656831Z ##[debug]0
+send	Post Run actions/checkout@v4	2025-11-09T12:40:20.1657655Z ##[debug]
+send	Post Run actions/checkout@v4	2025-11-09T12:40:20.1658469Z ##[debug]Unsetting HOME override
+send	Post Run actions/checkout@v4	2025-11-09T12:40:20.1787194Z ##[debug]Node Action run completed with exit code 0
+send	Post Run actions/checkout@v4	2025-11-09T12:40:20.1800157Z ##[debug]Finishing: Post Run actions/checkout@v4
+send	Complete job	﻿2025-11-09T12:40:20.1859793Z ##[debug]Starting: Complete job
+send	Complete job	2025-11-09T12:40:20.1861486Z Cleaning up orphan processes
+send	Complete job	2025-11-09T12:40:20.2726632Z ##[debug]Finishing: Complete job

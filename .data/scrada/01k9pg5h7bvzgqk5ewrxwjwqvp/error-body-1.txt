@@ -1,0 +1,2 @@
+[2025-11-10T09:04:49.613Z] attempt=1 channel=ubl vatVariant=BE0755799452 docIndex=1 procIndex=1 status=404 error=[scrada] Failed to send UBL document (HTTP 404)
+

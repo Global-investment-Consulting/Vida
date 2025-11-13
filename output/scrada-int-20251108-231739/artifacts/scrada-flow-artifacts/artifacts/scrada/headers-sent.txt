@@ -1,0 +1,11 @@
+Content-Type: application/xml; charset=utf-8
+x-scrada-external-reference: VIDA-20251108-DDAAB4
+x-scrada-peppol-c1-country-code: BE
+x-scrada-peppol-document-type-scheme: busdox-docid-qns
+x-scrada-peppol-document-type-value: urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1
+x-scrada-peppol-process-scheme: cenbii-procid-ubl
+x-scrada-peppol-process-value: urn:fdc:peppol.eu:2017:poacc:billing:01:1.0
+x-scrada-peppol-receiver-id: 0208:0755799452
+x-scrada-peppol-receiver-scheme: iso6523-actorid-upis
+x-scrada-peppol-sender-id: 0208:0755799452
+x-scrada-peppol-sender-scheme: iso6523-actorid-upis
