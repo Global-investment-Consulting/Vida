@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS "${{ steps.url.outputs.url }}/_health" | jq .
+          curl -fsS "${{ steps.url.outputs.url }}/_health"
 
       - name: GET /ops/submissions (tail)
         shell: bash
