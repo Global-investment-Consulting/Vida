@@ -44,6 +44,7 @@ jobs:
           curl -fsS "${{ steps.url.outputs.url }}/_health"
 
       - name: GET /ops/submissions (tail)
+        if: ${{ vars.OPS_DASHBOARD_ENABLED == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
