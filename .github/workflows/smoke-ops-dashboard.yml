@@ -1,0 +1,27 @@
+name: Smoke Ops Dashboard
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to test
+        required: false
+        type: string
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: ${{ inputs.ref || github.ref }} }
+      - name: Curl ops auth guard
+        shell: bash
+        env:
+          BASE: ${{ vars.SERVICE_URL_STAGING || '' }}
+          KEY:  ${{ secrets.ADMIN_DASHBOARD_KEY }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${BASE}" ]]; then echo "Missing SERVICE_URL_STAGING var"; exit 1; fi
+          code=$(curl -sS -o /dev/null -w "%{http_code}" "${BASE}/ops/health" || true)
+          echo "No-key HTTP=$code"
+          code2=$(curl -sS -o /dev/null -w "%{http_code}" -H "X-Admin-Key: ${KEY}" "${BASE}/ops/health" || true)
+          echo "With-key HTTP=$code2"
+          [[ "$code2" = "200" ]] || { echo "Ops health not reachable with admin key"; exit 1; }
