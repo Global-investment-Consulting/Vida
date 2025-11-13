@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { ref: ${{ inputs.ref || github.ref }} }
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - name: Curl ops auth guard
         shell: bash
         env:

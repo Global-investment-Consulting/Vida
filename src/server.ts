@@ -35,6 +35,8 @@ import {
 } from "./metrics.js";
 import { getStorage } from "./storage/index.js";
 import type { ApDeliveryStatus } from "./apadapters/types.js";
+import { invoicesV0Router } from "./routes/invoicesV0.js";
+import { shopifyWebhookRouter } from "./routes/shopifyWebhook.js";
 
 type SupportedSource = "shopify" | "woocommerce" | "order";
 
@@ -166,6 +168,9 @@ app.get("/_version", (_req, res) => {
 app.get("/", (_req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
 });
+
+app.use(invoicesV0Router);
+app.use(shopifyWebhookRouter);
 
 type ValidationErrorShape = {
   path: string;
