@@ -37,11 +37,11 @@ jobs:
           URL=$(gcloud run services describe "${{ vars.SERVICE }}" --region="${{ vars.REGION }}" --format='value(status.url)')
           echo "url=${URL}" >> "$GITHUB_OUTPUT"
 
-      - name: GET /ops/health
+      - name: GET /_health
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS -H "X-Admin-Key: ${{ secrets.ADMIN_DASHBOARD_KEY }}" "${{ steps.url.outputs.url }}/ops/health" | jq .
+          curl -fsS "${{ steps.url.outputs.url }}/_health" | jq .
 
       - name: GET /ops/submissions (tail)
         shell: bash
