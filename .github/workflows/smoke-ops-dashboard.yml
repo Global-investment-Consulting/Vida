@@ -1,4 +1,5 @@
 name: Smoke Ops Dashboard
+
 on:
   workflow_dispatch:
     inputs:
@@ -6,6 +7,10 @@ on:
         description: Branch to test
         required: false
         type: string
+
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -13,16 +18,33 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      - name: Curl ops auth guard
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID || vars.GCP_PROJECT_ID_STAGING || 'vida-staging-1760866919' }}
+
+      - name: Resolve service URL
+        id: url
         shell: bash
-        env:
-          BASE: ${{ vars.SERVICE_URL_STAGING || '' }}
-          KEY:  ${{ secrets.ADMIN_DASHBOARD_KEY }}
         run: |
-          set -Eeuo pipefail
-          if [[ -z "${BASE}" ]]; then echo "Missing SERVICE_URL_STAGING var"; exit 1; fi
-          code=$(curl -sS -o /dev/null -w "%{http_code}" "${BASE}/ops/health" || true)
-          echo "No-key HTTP=$code"
-          code2=$(curl -sS -o /dev/null -w "%{http_code}" -H "X-Admin-Key: ${KEY}" "${BASE}/ops/health" || true)
-          echo "With-key HTTP=$code2"
-          [[ "$code2" = "200" ]] || { echo "Ops health not reachable with admin key"; exit 1; }
+          set -euo pipefail
+          URL=$(gcloud run services describe "${{ vars.SERVICE }}" --region="${{ vars.REGION }}" --format='value(status.url)')
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+      - name: GET /ops/health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS -H "X-Admin-Key: ${{ secrets.ADMIN_DASHBOARD_KEY }}" "${{ steps.url.outputs.url }}/ops/health" | jq .
+
+      - name: GET /ops/submissions (tail)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS -H "X-Admin-Key: ${{ secrets.ADMIN_DASHBOARD_KEY }}" "${{ steps.url.outputs.url }}/ops/submissions?limit=5" | jq .
