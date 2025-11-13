@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import type { Express } from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetPublicApiIdempotency } from "src/services/publicApiIdempotency.js";
 
 const PUBLIC_KEY = "public-key";
 
@@ -77,6 +78,7 @@ describe("v0 invoices API", () => {
     historyDir = await mkdtemp(path.join(tmpdir(), "vida-history-"));
     process.env.VIDA_HISTORY_DIR = historyDir;
     process.env.VIDA_PUBLIC_API_KEY = PUBLIC_KEY;
+    process.env.VIDA_API_KEYS = PUBLIC_KEY;
     process.env.SCRADA_SUPPLIER_SCHEME = "0208";
     process.env.SCRADA_SUPPLIER_ID = "0755799452";
     process.env.SCRADA_SUPPLIER_VAT = "BE0755799452";
@@ -123,6 +125,7 @@ describe("v0 invoices API", () => {
     await rm(historyDir, { recursive: true, force: true }).catch(() => undefined);
     delete process.env.VIDA_HISTORY_DIR;
     delete process.env.VIDA_PUBLIC_API_KEY;
+    delete process.env.VIDA_API_KEYS;
     delete process.env.SCRADA_SUPPLIER_SCHEME;
     delete process.env.SCRADA_SUPPLIER_ID;
     delete process.env.SCRADA_SUPPLIER_VAT;
@@ -131,6 +134,7 @@ describe("v0 invoices API", () => {
     delete process.env.SCRADA_API_KEY;
     delete process.env.SCRADA_API_PASSWORD;
     delete process.env.SCRADA_COMPANY_ID;
+    resetPublicApiIdempotency();
     sendMock.mockReset();
     statusMock.mockReset();
   });
@@ -174,5 +178,33 @@ describe("v0 invoices API", () => {
 
     expect(getResponse.body.documentId).toBe(documentId);
     expect(statusMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("short-circuits duplicate submissions with the same idempotency key", async () => {
+    const payload = buildPayload();
+    const idempotencyKey = "idem-123";
+
+    const firstResponse = await request(app)
+      .post("/v0/invoices")
+      .set("Authorization", `Bearer ${PUBLIC_KEY}`)
+      .set("Idempotency-Key", idempotencyKey)
+      .send(payload)
+      .expect(202);
+
+    expect(firstResponse.headers["x-idempotency-cache"]).toBe("MISS");
+    expect(sendMock).toHaveBeenCalledOnce();
+    const initialBody = firstResponse.body as Record<string, string>;
+
+    sendMock.mockClear();
+    const secondResponse = await request(app)
+      .post("/v0/invoices")
+      .set("Authorization", `Bearer ${PUBLIC_KEY}`)
+      .set("idempotency-key", idempotencyKey)
+      .send(payload)
+      .expect(202);
+
+    expect(sendMock).not.toHaveBeenCalled();
+    expect(secondResponse.headers["x-idempotency-cache"]).toBe("HIT");
+    expect(secondResponse.body).toEqual(initialBody);
   });
 });

@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { ulid } from "ulid";
 import { orderToInvoiceXml } from "../peppol/convert.js";
 import { parseOrder, type OrderT } from "../schemas/order.js";
-import { requirePublicApiKey } from "../middleware/publicAuth.js";
+import { requirePublicApiKey } from "../middleware/apiKeyAuth.js";
 import { loadHistoryJson, saveHistoryJson, saveHistoryText } from "../lib/history.js";
 import {
   fetchScradaStatus,
@@ -15,11 +15,17 @@ import {
 } from "../services/scradaClient.js";
 import { InvoiceDtoSchema, type InvoiceDTO } from "../types/public.js";
 import { resolveApWebhookSecret } from "../config.js";
+import {
+  getCachedSubmission,
+  storeCachedSubmission
+} from "../services/publicApiIdempotency.js";
 
 const router = Router();
 
 const DEFAULT_TERMS_DAYS = 30;
 const SCRADA_SECRET_HEADER = "x-scrada-webhook-secret";
+const IDEMPOTENCY_HEADER_PRIMARY = "idempotency-key";
+const IDEMPOTENCY_HEADER_FALLBACK = "x-idempotency-key";
 
 type InvoiceSubmissionContext = {
   source: string;
@@ -113,6 +119,14 @@ function buildOrderCandidate(dto: InvoiceDTO, invoiceId: string): unknown {
 
 function normalizeStatus(status: string | null | undefined): string {
   return status?.toString().trim().toUpperCase().replace(/\s+/g, "_") || "UNKNOWN";
+}
+
+function getIdempotencyKey(req: Request): string | undefined {
+  const raw =
+    req.header(IDEMPOTENCY_HEADER_PRIMARY) ??
+    req.header(IDEMPOTENCY_HEADER_FALLBACK);
+  const trimmed = raw?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
 
 async function persistRequest(invoiceId: string, dto: InvoiceDTO, context: InvoiceSubmissionContext): Promise<void> {
@@ -215,15 +229,34 @@ export async function submitInvoiceFromDto(
 }
 
 router.post("/v0/invoices", requirePublicApiKey, async (req: Request, res: Response) => {
+  const idempotencyKey = getIdempotencyKey(req);
+  const publicContext = res.locals.publicApi;
+
+  if (publicContext && idempotencyKey) {
+    const cached = getCachedSubmission(publicContext.token, idempotencyKey);
+    if (cached) {
+      res.setHeader("X-Idempotency-Cache", "HIT");
+      res.status(202).json(cached);
+      return;
+    }
+  }
+
   try {
     const parsed = InvoiceDtoSchema.parse(req.body);
     const result = await submitInvoiceFromDto(parsed, { source: "public_api" });
-    res.status(202).json({
+    const payload = {
       invoiceId: result.invoiceId,
       documentId: result.documentId,
       status: result.normalizedStatus,
       externalReference: result.externalReference
-    });
+    };
+
+    if (publicContext && idempotencyKey) {
+      storeCachedSubmission(publicContext.token, idempotencyKey, payload);
+      res.setHeader("X-Idempotency-Cache", "MISS");
+    }
+
+    res.status(202).json(payload);
   } catch (error) {
     if (error instanceof ZodError) {
       res.status(400).json({ error: "invalid_payload", details: error.issues });

@@ -1,7 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
-import { getVidaApiKeys } from "../config.js";
+import { getVidaApiKeys, resolvePublicApiKey } from "../config.js";
 
 const API_KEY_HEADER = "x-api-key";
+const AUTH_HEADER = "authorization";
 
 type ApiKeyRecord = {
   tenant: string;
@@ -10,26 +11,22 @@ type ApiKeyRecord = {
 
 export type PublicApiAuthContext = ApiKeyRecord;
 
-let cachedSignature: string | null = null;
-let cachedRecords: ApiKeyRecord[] = [];
-
 function normalizeTenant(value: string | undefined): string {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed.toLowerCase() : "default";
 }
 
-function normalizeToken(value: string): string | null {
+function normalizeToken(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 
 function parseConfiguredKeys(): ApiKeyRecord[] {
   const configured = getVidaApiKeys();
-  const signature = configured.join(",");
-  if (cachedSignature === signature) {
-    return cachedRecords;
-  }
-
+  const fallbackKey = resolvePublicApiKey() ?? "";
   const parsed: ApiKeyRecord[] = [];
   for (const entry of configured) {
     const trimmed = entry.trim();
@@ -51,9 +48,30 @@ function parseConfiguredKeys(): ApiKeyRecord[] {
     }
   }
 
-  cachedRecords = parsed;
-  cachedSignature = signature;
+  if (parsed.length === 0) {
+    const fallback = normalizeToken(fallbackKey);
+    if (fallback) {
+      parsed.push({ tenant: "default", token: fallback });
+    }
+  }
+
   return parsed;
+}
+
+function extractBearerToken(headerValue: string | undefined): string | null {
+  if (!headerValue) {
+    return null;
+  }
+  const trimmed = headerValue.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const lower = trimmed.toLowerCase();
+  if (!lower.startsWith("bearer ")) {
+    return null;
+  }
+  const token = trimmed.slice(7).trim();
+  return token.length > 0 ? token : null;
 }
 
 /* eslint-disable @typescript-eslint/no-namespace */
@@ -79,7 +97,7 @@ export function requirePublicApiKey(req: Request, res: Response, next: NextFunct
     return;
   }
 
-  const provided = req.header(API_KEY_HEADER)?.trim();
+  const provided = normalizeToken(req.header(API_KEY_HEADER) ?? undefined) ?? extractBearerToken(req.header(AUTH_HEADER));
   if (!provided) {
     respondUnauthorized(res, "missing");
     return;

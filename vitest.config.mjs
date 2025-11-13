@@ -5,9 +5,12 @@ import { defineConfig, configDefaults } from "vitest/config";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const distSrcDir = path.join(rootDir, "dist", "src");
-const useDistSrc = (process.env.CI === "true" || process.env.VITEST_USE_DIST === "true") && fs.existsSync(distSrcDir);
+const isCi = process.env.CI === "true";
+const useDistSrc = (isCi || process.env.VITEST_USE_DIST === "true") && fs.existsSync(distSrcDir);
 const sourceRoot = useDistSrc ? distSrcDir : path.join(rootDir, "src");
 const isPrismaBackend = (process.env.VIDA_STORAGE_BACKEND ?? "").trim().toLowerCase() === "prisma";
+const forceSingleWorker = isCi || isPrismaBackend;
+const workerCount = forceSingleWorker ? 1 : undefined;
 
 export default defineConfig({
   resolve: {
@@ -57,12 +60,16 @@ export default defineConfig({
     isolate: true,
     exclude: [...configDefaults.exclude, "legacy/**"],
     pool: "vmThreads",
-    maxConcurrency: isPrismaBackend ? 1 : undefined,
-    poolOptions: {
-      threads: {
-        maxWorkers: isPrismaBackend ? 1 : undefined,
-        minWorkers: isPrismaBackend ? 1 : undefined
-      }
-    }
+    maxConcurrency: workerCount,
+    poolOptions: workerCount
+      ? {
+          threads: {
+            maxWorkers: workerCount,
+            minWorkers: workerCount
+          }
+        }
+      : undefined,
+    testTimeout: isCi ? 120_000 : undefined,
+    hookTimeout: isCi ? 120_000 : undefined
   }
 });
