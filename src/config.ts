@@ -76,6 +76,7 @@ export const resolveDlqPath = (): string =>
   process.env.VIDA_DLQ_PATH
     ? path.resolve(process.env.VIDA_DLQ_PATH)
     : path.resolve(process.cwd(), "data", "dlq.jsonl");
+export const VIDA_PUBLIC_RATE_LIMIT = normalizeNumber(process.env.VIDA_PUBLIC_RATE_LIMIT, 120);
 export const resolveApAdapterName = (): string =>
   normalizeAdapterName(process.env.VIDA_AP_ADAPTER) ?? "mock";
 export const isApSendOnCreateEnabled = (): boolean =>
