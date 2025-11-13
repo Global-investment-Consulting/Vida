@@ -44,26 +44,17 @@ jobs:
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID != '' && vars.GCP_PROJECT_ID || 'vida-staging-1760866919' }}
       PROJECT_ID: ${{ vars.GCP_PROJECT_ID != '' && vars.GCP_PROJECT_ID || 'vida-staging-1760866919' }}
-      REGION: ${{ vars.REGION != '' && vars.REGION || 'europe-west1' }}
-      SERVICE: ${{ vars.SERVICE != '' && vars.SERVICE || 'vida-staging' }}
+      REGION:     ${{ vars.REGION != '' && vars.REGION || 'europe-west1' }}
+      SERVICE:    ${{ vars.SERVICE != '' && vars.SERVICE || 'vida-staging' }}
       CLOUD_BUILD_BUCKET: ${{ vars.CLOUD_BUILD_BUCKET != '' && vars.CLOUD_BUILD_BUCKET || 'vida-staging-1760866919-cb-src' }}
-      IMAGE_TAG: staging-${{ github.sha }}
+      IMAGE_TAG:  staging-${{ github.sha }}
       AGENTS_ENABLED: ${{ vars.AGENTS_ENABLED != '' && vars.AGENTS_ENABLED || 'false' }}
       VIDA_AP_ADAPTER: ${{ inputs.adapter || 'scrada' }}
-      OPS_DASHBOARD_ENABLED: ${{ vars.OPS_DASHBOARD_ENABLED || 'false' }}
-      ADMIN_DASHBOARD_KEY: ${{ secrets.ADMIN_DASHBOARD_KEY }}
       VIDA_AP_SEND_ON_CREATE: 'true'
       COMMIT_SHA: ${{ github.sha }}
       BUILT_AT: ${{ github.event.head_commit.timestamp || github.event.workflow_run.run_started_at || github.run_id }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Build operator dashboard assets
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          npm --workspace dashboard ci
-          npm --workspace dashboard run build
 
       - name: Generate build metadata
         shell: bash
@@ -169,14 +160,14 @@ jobs:
           VIDA_AP_ADAPTER: ${{ env.VIDA_AP_ADAPTER }}
           VIDA_AP_SEND_ON_CREATE: ${{ env.VIDA_AP_SEND_ON_CREATE }}
           AGENTS_ENABLED: ${{ env.AGENTS_ENABLED }}
-          OPS_DASHBOARD_ENABLED: ${{ env.OPS_DASHBOARD_ENABLED }}
-          ADMIN_DASHBOARD_KEY: ${{ env.ADMIN_DASHBOARD_KEY }}
+          OPS_DASHBOARD_ENABLED: ${{ vars.OPS_DASHBOARD_ENABLED || 'false' }}
+          ADMIN_DASHBOARD_KEY: ${{ secrets.ADMIN_DASHBOARD_KEY || '' }}
         run: |
           set -Eeuo pipefail
           gcloud run services update "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
-            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_STAGING_API_KEYS},LOG_LEVEL=info,NODE_ENV=production,VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE},PEPPOL_MODE=sandbox,JWT_SECRET=${JWT_SECRET},AGENTS_ENABLED=${AGENTS_ENABLED},VIDA_PUBLIC_API_KEY=${VIDA_PUBLIC_API_KEY},SHOPIFY_WEBHOOK_SECRET=${SHOPIFY_WEBHOOK_SECRET},OPS_DASHBOARD_ENABLED=${OPS_DASHBOARD_ENABLED},ADMIN_DASHBOARD_KEY=${{ secrets.ADMIN_DASHBOARD_KEY }}}"
+            --set-env-vars "AP_WEBHOOK_SECRET=${AP_WEBHOOK_SECRET},VIDA_API_KEYS=${VIDA_STAGING_API_KEYS},VIDA_PUBLIC_API_KEY=${VIDA_PUBLIC_API_KEY},SHOPIFY_WEBHOOK_SECRET=${SHOPIFY_WEBHOOK_SECRET},LOG_LEVEL=info,NODE_ENV=production,VIDA_AP_ADAPTER=${VIDA_AP_ADAPTER},VIDA_AP_SEND_ON_CREATE=${VIDA_AP_SEND_ON_CREATE},PEPPOL_MODE=sandbox,JWT_SECRET=${JWT_SECRET},AGENTS_ENABLED=${AGENTS_ENABLED},OPS_DASHBOARD_ENABLED=${OPS_DASHBOARD_ENABLED},ADMIN_DASHBOARD_KEY=${ADMIN_DASHBOARD_KEY}"
       - name: Adapter preflight
         shell: bash
         env:

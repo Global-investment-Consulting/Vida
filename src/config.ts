@@ -76,7 +76,6 @@ export const resolveDlqPath = (): string =>
   process.env.VIDA_DLQ_PATH
     ? path.resolve(process.env.VIDA_DLQ_PATH)
     : path.resolve(process.cwd(), "data", "dlq.jsonl");
-export const VIDA_PUBLIC_RATE_LIMIT = normalizeNumber(process.env.VIDA_PUBLIC_RATE_LIMIT, 120);
 export const resolveApAdapterName = (): string =>
   normalizeAdapterName(process.env.VIDA_AP_ADAPTER) ?? "mock";
 export const isApSendOnCreateEnabled = (): boolean =>
@@ -98,3 +97,23 @@ export const VIDA_PUBLIC_RATE_LIMIT_WINDOW_MS =
   Number.parseInt(process.env.VIDA_PUBLIC_RATE_LIMIT_WINDOW_MS ?? "", 10) || 60000;
 export const OPS_DASHBOARD_ENABLED = normalizeBoolean(process.env.OPS_DASHBOARD_ENABLED, false);
 export const ADMIN_DASHBOARD_KEY = process.env.ADMIN_DASHBOARD_KEY ?? "";
+export const OPS_DASHBOARD_IPS = (process.env.OPS_DASHBOARD_IPS ?? "")
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter((entry) => entry.length > 0);
+
+export type DashboardBasicCredentials = {
+  username: string;
+  password: string;
+};
+
+export const resolveDashboardBasicCredentials = (): DashboardBasicCredentials | null => {
+  const username = normalizeSecret(process.env.DASHBOARD_ADMIN_USER);
+  const password = normalizeSecret(process.env.DASHBOARD_ADMIN_PASS);
+  if (!username || !password) {
+    return null;
+  }
+  return { username, password };
+};
+
+export const isStagingEnv = (): boolean => (process.env.NODE_ENV ?? "").trim().toLowerCase() === "staging";
