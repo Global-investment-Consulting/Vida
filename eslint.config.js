@@ -48,8 +48,8 @@ const tsRules = {
   }
 };
 
-export default tseslint.config(
-  jsRecommended,
-  ...tsRecommended,
-  tsRules
-);
+const ignoreConfig = {
+  ignores: ["dist/**", "apps/api/dist/**"]
+};
+
+export default tseslint.config(ignoreConfig, jsRecommended, ...tsRecommended, tsRules);

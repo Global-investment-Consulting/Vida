@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Install dependencies first for better caching
 COPY package*.json ./
-RUN npm ci
+RUN npm ci && npm --workspace dashboard ci
 
 # Generate Prisma client before building
 COPY prisma ./prisma
@@ -19,7 +19,7 @@ ARG BUILT_AT
 ARG VERSION
 ENV COMMIT_SHA=${COMMIT_SHA} BUILT_AT=${BUILT_AT} npm_package_version=${VERSION}
 COPY . .
-RUN npm run build
+RUN npm --workspace dashboard run build && npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -34,6 +34,7 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/docs ./docs
+COPY --from=builder /app/dashboard/dist ./dashboard/dist
 COPY --from=builder /app/build.env ./build.env
 # shellcheck disable=SC2034 -- build args used via ENV assignments
 ARG COMMIT_SHA

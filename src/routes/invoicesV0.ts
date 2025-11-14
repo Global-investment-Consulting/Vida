@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { ulid } from "ulid";
 import { orderToInvoiceXml } from "../peppol/convert.js";
 import { parseOrder, type OrderT } from "../schemas/order.js";
-import { requirePublicApiKey } from "../middleware/apiKeyAuth.js";
+import { requirePublicApiKey } from "../middleware/publicAuth.js";
 import { loadHistoryJson, saveHistoryJson, saveHistoryText } from "../lib/history.js";
 import {
   fetchScradaStatus,
@@ -16,20 +16,47 @@ import {
 import { InvoiceDtoSchema, type InvoiceDTO } from "../types/public.js";
 import { resolveApWebhookSecret } from "../config.js";
 import {
-  getCachedSubmission,
-  storeCachedSubmission
-} from "../services/publicApiIdempotency.js";
+  findSubmissionByInvoiceId,
+  findSubmissionByScope,
+  saveSubmission,
+  updateSubmissionStatus
+} from "../services/submissionsStore.js";
+import { createApiKeyRateLimiter } from "../middleware/rateLimiter.js";
+import { captureServerException } from "../lib/telemetry.js";
 
 const router = Router();
 
 const DEFAULT_TERMS_DAYS = 30;
 const SCRADA_SECRET_HEADER = "x-scrada-webhook-secret";
-const IDEMPOTENCY_HEADER_PRIMARY = "idempotency-key";
-const IDEMPOTENCY_HEADER_FALLBACK = "x-idempotency-key";
+const IDEMPOTENCY_HEADER = "Idempotency-Key";
+const IDEMPOTENCY_HELP = "Provide the same Idempotency-Key header when retrying this request.";
 
-type InvoiceSubmissionContext = {
+const PUBLIC_RATE_LIMIT = Number.parseInt(process.env.VIDA_PUBLIC_RATE_LIMIT ?? "120", 10);
+const PUBLIC_RATE_WINDOW_MS = Number.parseInt(process.env.VIDA_PUBLIC_RATE_LIMIT_WINDOW_MS ?? "60000", 10);
+
+const publicRateLimiter = createApiKeyRateLimiter({
+  limit: Number.isFinite(PUBLIC_RATE_LIMIT) && PUBLIC_RATE_LIMIT > 0 ? PUBLIC_RATE_LIMIT : 120,
+  windowMs: Number.isFinite(PUBLIC_RATE_WINDOW_MS) && PUBLIC_RATE_WINDOW_MS > 0 ? PUBLIC_RATE_WINDOW_MS : 60_000
+});
+
+type PublicApiContext = {
+  tenant: string;
+  token: string;
+};
+
+function requireAuthContext(res: Response): PublicApiContext {
+  const ctx = res.locals.publicApi;
+  if (!ctx) {
+    throw new Error("public_api_auth_missing");
+  }
+  return ctx;
+}
+
+export type InvoiceSubmissionContext = {
   source: string;
   metadata?: Record<string, unknown>;
+  tenant?: string;
+  idempotencyKey?: string | null;
 };
 
 export type InvoiceSubmissionResult = {
@@ -60,7 +87,50 @@ export interface InvoiceStatusSnapshot {
   info: ScradaOutboundInfo;
 }
 
-function logSendEvent(event: "send_started" | "send_attempt" | "send_final", payload: Record<string, unknown>): void {
+function extractIdempotencyKey(req: Request): string | null {
+  const raw = req.header(IDEMPOTENCY_HEADER);
+  if (!raw) {
+    return null;
+  }
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildIdempotencyScope(tenant: string, idempotencyKey: string): string {
+  return `${tenant}:${idempotencyKey}`;
+}
+
+function respondWithStoredSubmission(
+  res: Response,
+  record: Awaited<ReturnType<typeof saveSubmission>>,
+  idempotencyKey: string,
+  statusCode: number
+): void {
+  res.setHeader("X-Idempotency-Key", idempotencyKey);
+  if (statusCode !== 202) {
+    res.setHeader("X-Idempotent-Replay", "true");
+  }
+  res.status(statusCode).json({
+    invoiceId: record.invoiceId,
+    documentId: record.documentId,
+    status: record.status,
+    externalReference: record.externalReference
+  });
+}
+
+function deriveBuyerReference(dto: InvoiceDTO): string | undefined {
+  const candidates = [
+    typeof dto.meta?.buyerReference === "string" ? dto.meta.buyerReference.trim() : "",
+    dto.buyer?.companyId?.trim() ?? "",
+    dto.buyer?.endpoint?.id?.trim() ?? ""
+  ];
+  return candidates.find((entry) => entry.length > 0) || undefined;
+}
+
+function logSendEvent(
+  event: "send_started" | "send_attempt" | "send_final",
+  payload: Record<string, unknown>
+): void {
   const entry = {
     event,
     ts: new Date().toISOString(),
@@ -78,9 +148,7 @@ function addBusinessDays(issueDate: string, delta: number): string {
   return date.toISOString();
 }
 
-function mapParty(
-  party: InvoiceDTO["seller"] | InvoiceDTO["buyer"]
-): OrderT["supplier"] {
+function mapParty(party: InvoiceDTO["seller"] | InvoiceDTO["buyer"]): OrderT["supplier"] {
   return {
     name: party.name,
     registrationName: party.registrationName,
@@ -96,8 +164,7 @@ function buildOrderCandidate(dto: InvoiceDTO, invoiceId: string): unknown {
   const orderNumber = dto.externalReference?.trim() || invoiceId;
   const issueDate = dto.issueDate;
   const payable = dto.totals?.payableAmountMinor ?? 0;
-  const dueDate =
-    dto.dueDate ?? (payable > 0 ? addBusinessDays(issueDate, DEFAULT_TERMS_DAYS) : issueDate);
+  const dueDate = dto.dueDate ?? (payable > 0 ? addBusinessDays(issueDate, DEFAULT_TERMS_DAYS) : issueDate);
   return {
     orderNumber,
     currency: dto.currency,
@@ -121,21 +188,19 @@ function normalizeStatus(status: string | null | undefined): string {
   return status?.toString().trim().toUpperCase().replace(/\s+/g, "_") || "UNKNOWN";
 }
 
-function getIdempotencyKey(req: Request): string | undefined {
-  const raw =
-    req.header(IDEMPOTENCY_HEADER_PRIMARY) ??
-    req.header(IDEMPOTENCY_HEADER_FALLBACK);
-  const trimmed = raw?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : undefined;
-}
-
-async function persistRequest(invoiceId: string, dto: InvoiceDTO, context: InvoiceSubmissionContext): Promise<void> {
+async function persistRequest(
+  invoiceId: string,
+  dto: InvoiceDTO,
+  context: InvoiceSubmissionContext
+): Promise<void> {
   await saveHistoryJson(invoiceId, "request", {
     invoiceId,
     receivedAt: new Date().toISOString(),
     payload: dto,
     source: context.source,
-    metadata: context.metadata ?? {}
+    metadata: context.metadata ?? {},
+    tenant: context.tenant ?? null,
+    idempotencyKey: context.idempotencyKey ?? null
   });
 }
 
@@ -154,7 +219,11 @@ async function persistSendRecord(invoiceId: string, result: ScradaSendResult): P
   await saveHistoryJson(invoiceId, "send", record);
 }
 
-async function persistStatus(invoiceId: string, documentId: string, info: ScradaOutboundInfo): Promise<InvoiceStatusSnapshot> {
+async function persistStatus(
+  invoiceId: string,
+  documentId: string,
+  info: ScradaOutboundInfo
+): Promise<InvoiceStatusSnapshot> {
   const snapshot: InvoiceStatusSnapshot = {
     invoiceId,
     documentId,
@@ -228,54 +297,75 @@ export async function submitInvoiceFromDto(
   };
 }
 
-router.post("/v0/invoices", requirePublicApiKey, async (req: Request, res: Response) => {
-  const idempotencyKey = getIdempotencyKey(req);
-  const publicContext = res.locals.publicApi;
+router.post("/v0/invoices", requirePublicApiKey, publicRateLimiter, async (req: Request, res: Response) => {
+  const auth = requireAuthContext(res);
+  const idempotencyKey = extractIdempotencyKey(req);
 
-  if (publicContext && idempotencyKey) {
-    const cached = getCachedSubmission(publicContext.token, idempotencyKey);
-    if (cached) {
-      res.setHeader("X-Idempotency-Cache", "HIT");
-      res.status(202).json(cached);
+  if (!idempotencyKey) {
+    res.status(400).json({
+      error: "idempotency_key_required",
+      help: IDEMPOTENCY_HELP
+    });
+    return;
+  }
+
+  const scope = buildIdempotencyScope(auth.tenant, idempotencyKey);
+
+  try {
+    const existing = await findSubmissionByScope(scope);
+    if (existing) {
+      respondWithStoredSubmission(res, existing, idempotencyKey, 200);
       return;
     }
+  } catch (error) {
+    console.error("[invoices_v0] failed to inspect submissions store", error);
+    captureServerException(error, req);
+    res.status(500).json({ error: "internal_error" });
+    return;
   }
 
   try {
     const parsed = InvoiceDtoSchema.parse(req.body);
-    const result = await submitInvoiceFromDto(parsed, { source: "public_api" });
-    const payload = {
+    const result = await submitInvoiceFromDto(parsed, {
+      source: "public_api",
+      tenant: auth.tenant,
+      idempotencyKey
+    });
+    const stored = await saveSubmission({
+      scope,
+      tenant: auth.tenant,
+      idempotencyKey,
       invoiceId: result.invoiceId,
+      externalReference: result.externalReference,
       documentId: result.documentId,
       status: result.normalizedStatus,
-      externalReference: result.externalReference
-    };
-
-    if (publicContext && idempotencyKey) {
-      storeCachedSubmission(publicContext.token, idempotencyKey, payload);
-      res.setHeader("X-Idempotency-Cache", "MISS");
-    }
-
-    res.status(202).json(payload);
+      buyerReference: deriveBuyerReference(parsed)
+    });
+    respondWithStoredSubmission(res, stored, idempotencyKey, 202);
   } catch (error) {
     if (error instanceof ZodError) {
-      res.status(400).json({ error: "invalid_payload", details: error.issues });
+      res.status(422).json({ error: "invalid_payload", details: error.issues });
       return;
     }
     console.error("[invoices_v0] failed to submit invoice", error);
+    captureServerException(error, req);
     res.status(500).json({ error: "internal_error" });
   }
 });
 
-router.get("/v0/invoices/:invoiceId", requirePublicApiKey, async (req: Request, res: Response) => {
+router.get("/v0/invoices/:invoiceId", requirePublicApiKey, publicRateLimiter, async (req: Request, res: Response) => {
   const invoiceId = req.params.invoiceId.trim();
   if (!invoiceId) {
     res.status(400).json({ error: "invoice_id_required" });
     return;
   }
 
-  const sendRecord = await loadHistoryJson<InvoiceSendRecord>(invoiceId, "send");
-  if (!sendRecord) {
+  const [sendRecord, storedSubmission] = await Promise.all([
+    loadHistoryJson<InvoiceSendRecord>(invoiceId, "send"),
+    findSubmissionByInvoiceId(invoiceId)
+  ]);
+  const documentId = sendRecord?.documentId ?? storedSubmission?.documentId;
+  if (!documentId) {
     res.status(404).json({ error: "invoice_not_found" });
     return;
   }
@@ -283,19 +373,20 @@ router.get("/v0/invoices/:invoiceId", requirePublicApiKey, async (req: Request, 
   let statusSnapshot = await loadHistoryJson<InvoiceStatusSnapshot>(invoiceId, "status");
 
   try {
-    const info = await fetchScradaStatus(sendRecord.documentId);
-    statusSnapshot = await persistStatus(invoiceId, sendRecord.documentId, info);
+    const info = await fetchScradaStatus(documentId);
+    statusSnapshot = await persistStatus(invoiceId, documentId, info);
+    await updateSubmissionStatus(invoiceId, statusSnapshot.normalizedStatus);
   } catch (error) {
     console.warn(
-      `[invoices_v0] status refresh failed invoiceId=${invoiceId} documentId=${sendRecord.documentId}`,
+      `[invoices_v0] status refresh failed invoiceId=${invoiceId} documentId=${documentId}`,
       error
     );
   }
 
   res.json({
     invoiceId,
-    documentId: sendRecord.documentId,
-    status: statusSnapshot?.normalizedStatus ?? "UNKNOWN",
+    documentId,
+    status: statusSnapshot?.normalizedStatus ?? storedSubmission?.status ?? "UNKNOWN",
     info: statusSnapshot?.info ?? null
   });
 });
@@ -330,6 +421,7 @@ router.post("/v0/webhooks/scrada", async (req: Request, res: Response) => {
     status
   };
   await persistStatus(invoiceId, documentId, statusPayload);
+  await updateSubmissionStatus(invoiceId, normalizeStatus(status));
 
   res.json({ ok: true });
 });

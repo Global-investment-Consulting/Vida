@@ -97,3 +97,23 @@ export const VIDA_PUBLIC_RATE_LIMIT_WINDOW_MS =
   Number.parseInt(process.env.VIDA_PUBLIC_RATE_LIMIT_WINDOW_MS ?? "", 10) || 60000;
 export const OPS_DASHBOARD_ENABLED = normalizeBoolean(process.env.OPS_DASHBOARD_ENABLED, false);
 export const ADMIN_DASHBOARD_KEY = process.env.ADMIN_DASHBOARD_KEY ?? "";
+export const OPS_DASHBOARD_IPS = (process.env.OPS_DASHBOARD_IPS ?? "")
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter((entry) => entry.length > 0);
+
+export type DashboardBasicCredentials = {
+  username: string;
+  password: string;
+};
+
+export const resolveDashboardBasicCredentials = (): DashboardBasicCredentials | null => {
+  const username = normalizeSecret(process.env.DASHBOARD_ADMIN_USER);
+  const password = normalizeSecret(process.env.DASHBOARD_ADMIN_PASS);
+  if (!username || !password) {
+    return null;
+  }
+  return { username, password };
+};
+
+export const isStagingEnv = (): boolean => (process.env.NODE_ENV ?? "").trim().toLowerCase() === "staging";

@@ -3,6 +3,9 @@
   "version": "0.5.0",
   "description": "ViDA e-invoicing MVP – JSON→UBL→PEPPOL",
   "type": "module",
+  "workspaces": [
+    "dashboard"
+  ],
   "main": "dist/src/server.js",
   "engines": {
     "node": ">=20.19.0 <21",
@@ -22,6 +25,7 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
     "test:ci": "vitest run --reporter=dot --silent",
+    "build:dashboard": "npm --workspace dashboard run build",
     "test:scrada:mock": "vitest run tests/integration/scrada.sender.mock.spec.ts",
     "test:scrada:e2e": "SCRADA_RUN_E2E=true vitest run tests/e2e/scrada.e2e.spec.ts",
     "peppol:gen": "node --import tsx scripts/peppol-generate.mjs",
@@ -29,11 +33,14 @@
     "codex": "node scripts/codex.mjs",
     "history:list": "tsx src/cli/history-list.ts",
     "dlq:list": "tsx src/cli/dlq-list.ts",
-    "dlq:retry": "tsx src/cli/dlq-retry.ts"
+    "dlq:retry": "tsx src/cli/dlq-retry.ts",
+    "openapi:v0:check": "node scripts/check-openapi-v0.mjs"
   },
   "dependencies": {
+    "@google-cloud/logging": "^11.2.1",
     "@google-cloud/storage": "^7.17.3",
     "@prisma/client": "^5.20.0",
+    "@sentry/node": "^10.23.0",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

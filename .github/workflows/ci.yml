@@ -70,6 +70,7 @@ jobs:
             npm install
           fi
       - run: npm run -s lint
+      - run: npm run build:dashboard
       - run: npm run build
       - name: Run tests (file backend)
         env:
@@ -103,6 +104,7 @@ jobs:
           else
             npm install
           fi
+      - run: npm run build:dashboard
       - name: Prisma Generate
         run: npx prisma generate
       - name: Prisma Migrate Deploy
